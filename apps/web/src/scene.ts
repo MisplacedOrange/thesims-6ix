@@ -5,6 +5,7 @@ import { landmarks } from './district.ts';
 import type { District, Point } from './district.ts';
 import { createCrowd, inspectResident, sampleResident } from './pedestrians.ts';
 import type { Crowd, Inspection } from './pedestrians.ts';
+import { buildRoadClearanceIndex, isCircleClearOfRoads, TREE_CANOPY_RADIUS, TREE_TRUNK_RADIUS } from './treePlacement.ts';
 
 export type Preset = 'skyline' | 'waterfront' | 'oldtown' | 'street';
 export type Lighting = 'day' | 'golden' | 'blue';
@@ -18,6 +19,7 @@ const presets: Record<Preset, { position: [number, number, number]; target: [num
   street: { position: [430, 240, 965], target: [180, 10, 520] },
 };
 const palette = ['#c7c7b7', '#c6cbbf', '#a7bcba', '#b5bdba', '#dbd6c1', '#d5c7b3', '#a5b0a9', '#bfbdad'];
+const pathKinds = new Set(['footway', 'path', 'pedestrian', 'steps', 'cycleway']);
 const lightRecipes = {
   day: { sky: '#e0eced', water: '#699995', sun: '#fff2d4', sunPower: 3.0, ambient: 2.2, exposure: 1.06 },
   golden: { sky: '#dce5df', water: '#467d7d', sun: '#ffdeb0', sunPower: 3.4, ambient: 1.7, exposure: 1.03 },
@@ -195,7 +197,7 @@ export class TorontoScene {
     batch(this.district.water.map(a => flat(a.polygon, 1)), this.waterMaterial, this.city);
     const sidewalks: THREE.BufferGeometry[] = [], streets: THREE.BufferGeometry[] = [], footpaths: THREE.BufferGeometry[] = [], markings: THREE.BufferGeometry[] = [];
     for (const road of this.district.roads) {
-      const isPath = ['footway', 'path', 'pedestrian', 'steps', 'cycleway'].includes(road.kind);
+      const isPath = pathKinds.has(road.kind);
       if (isPath) { footpaths.push(ribbon(road.points, road.width, 1.5)); continue; }
       sidewalks.push(ribbon(road.points, road.width + 6, 1.05));
       streets.push(ribbon(road.points, road.width, 1.3));
@@ -272,6 +274,11 @@ export class TorontoScene {
 
   private buildTrees(): void {
     const locations: { point: Point; size: number }[] = [];
+    const allRoadClearance = buildRoadClearanceIndex(this.district.roads);
+    const streetClearance = buildRoadClearanceIndex(this.district.roads.filter(road => !pathKinds.has(road.kind)));
+    const treeIsClear = (point: Point, size: number) =>
+      isCircleClearOfRoads(point, TREE_CANOPY_RADIUS * size, streetClearance) &&
+      isCircleClearOfRoads(point, TREE_TRUNK_RADIUS * size, allRoadClearance);
     let seed = 42;
     const rand = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
     for (const park of this.district.parks) {
@@ -280,23 +287,28 @@ export class TorontoScene {
       const attempts = Math.min(40, Math.floor((maxX - minX) * (maxZ - minZ) / 500));
       for (let i = 0; i < attempts; i++) {
         const point: Point = [minX + rand() * (maxX - minX), minZ + rand() * (maxZ - minZ)];
-        if (insidePolygon(point, park.polygon)) locations.push({ point, size: 0.75 + rand() * 0.7 });
+        const size = 0.75 + rand() * 0.7;
+        if (insidePolygon(point, park.polygon) && treeIsClear(point, size)) {
+          locations.push({ point, size });
+        }
       }
     }
     for (const road of this.district.roads) {
       if (!['primary', 'secondary', 'tertiary', 'residential'].includes(road.kind)) continue;
       for (let i = 0; i < road.points.length - 1; i++) {
         const a = road.points[i]!, b = road.points[i + 1]!, d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        if (d < 0.05) continue;
         const dx = (b[0] - a[0]) / d, dz = (b[1] - a[1]) / d;
         for (let m = 18; m < Math.min(d, 300); m += 43) {
-          const side = rand() < 0.5 ? -1 : 1, off = (road.width / 2 + 4.4) * side;
+          const side = rand() < 0.5 ? -1 : 1, size = 0.7 + rand() * 0.4, off = (road.width / 2 + 4.4) * side;
           const p: Point = [a[0] + dx * m - dz * off, a[1] + dz * m + dx * off];
-          if (Math.abs(p[0]) < 1700 && p[1] > -1700 && p[1] < 1500) locations.push({ point: p, size: 0.7 + rand() * 0.4 });
+          if (Math.abs(p[0]) < 1700 && p[1] > -1700 && p[1] < 1500 &&
+            treeIsClear(p, size)) locations.push({ point: p, size });
         }
       }
     }
     const positions = locations.slice(0, 4500);
-    const crowns = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(6, 1), new THREE.MeshStandardMaterial({ color: '#72956b', roughness: 1, flatShading: true }), positions.length);
+    const crowns = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(TREE_CANOPY_RADIUS, 1), new THREE.MeshStandardMaterial({ color: '#72956b', roughness: 1, flatShading: true }), positions.length);
     const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.9, 1.2, 7, 5), new THREE.MeshStandardMaterial({ color: '#8e8a6c', roughness: 1 }), positions.length);
     positions.forEach(({ point, size }, i) => {
       this.dummy.position.set(point[0], 10 * size, point[1]); this.dummy.rotation.set(0, rand() * 6, 0); this.dummy.scale.set(size, size * 1.1, size); this.dummy.updateMatrix();
