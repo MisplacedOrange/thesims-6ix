@@ -1,5 +1,9 @@
 # Data plan
 
+## 3D Toronto first
+
+The first data milestone is a licensed, versioned Toronto world package with recognizable building massing, a usable street and pedestrian graph, stable feature IDs, and an explicit coordinate transform. Show lower-detail Toronto context outside the first active simulation area. Concentrate detailed destinations, pedestrian paths, and intervention sites inside that area. A geometry layer alone does not establish occupancy, rent, ownership, service capacity, or economic activity.
+
 ## Evidence states
 
 Current implementation: the connected district uses the content-hashed illustrative snapshot under `sim/district/data`. Its exports include that source manifest and explicit synthetic labels. The API acquisition and refresh workflow below remains required implementation work; public-source links are not evidence that observations have been ingested.
@@ -12,20 +16,20 @@ No complete raw data ingestion has been performed in this planning task. Public 
 
 | Priority | Primary source | Required fields | Use and known gap |
 | --- | --- | --- | --- |
-| P0 | [CPI table 18-10-0004-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000401) | Geography, food category, month, index, flags, revision | Price change and real-dollar reporting. Confirm which categories exist for each geography. |
-| P0 | [Retail prices table 18-10-0245-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810024501) | Product, package quantity, supported geography, month, price | Initial basket context. Supplement with dated local store audits. |
-| P0 | [Toronto cost of living](https://open.toronto.ca/dataset/cost-of-living-in-toronto-for-low-income-households/) | Household type, income or benefits, housing assumption, food, expenses, year | Residual budgets. Resolve actual downloadable resource and publication vintage. |
-| P0 | [2021 Census income backgrounder](https://www.toronto.ca/wp-content/uploads/2022/07/9877-City-Planning-2021-Census-Backgrounder-Families-Hhlds-Marital-Status-Income.pdf) | Household size, age, tenure, income bands, geography | Aggregate controls. Obtain underlying Census tables and disclosure metadata. Census income generally refers to 2020. |
-| P0 | [Toronto supermarket layer](https://gis.toronto.ca/arcgis/rest/services/cot_geospatial26/MapServer/4) | IDs, names, addresses, geometry, update information | Full-service store candidates. Check closures and add smaller shops separately. No prices or stock. |
-| P0 | [Toronto Centreline](https://ckan0.cf.opendata.inter.prod-toronto.ca/en/dataset/toronto-centreline-tcl) | Segment IDs, geometry, mode eligibility, feature codes | Routing base. Filter non-traversable features and add crossings and barriers. |
-| P1 | [TTC schedules](https://open.toronto.ca/dataset/ttc-routes-and-schedules/) | Stops, trips, stop times, service dates, accessibility | Scheduled transit access. Not observed reliability. Freeze the feed validity period. |
-| P1 | [TDSB directory](https://www.tdsb.on.ca/find-your/school), [TDSB open data](https://www.tdsb.on.ca/Open-Data) | School ID, location, enrollment, calendar | Demand anchors. Add other boards and request actual food-program participation. |
-| P1 | [Second Harvest announcement](https://www.secondharvest.ca/post/second-harvest-new-food-processing-facility), [reports](https://www.secondharvest.ca/about/reports) | Facility, eligible input, rescued versus purchased mass, shifts, yields, costs | Nominal capacity exists. Request local operational logs rather than using national totals. |
-| P1 | [Who's Hungry 2025](https://www.dailybread.ca/wp-content/uploads/2025/12/DB-WHR-2025-Final_Nov-3_reader.pdf) | Visits, survey methods, program geography | Demand context and hardship constraints. Daily unmet requests and supply require partners. |
-| P2 | [Toronto 3D massing](https://open.toronto.ca/dataset/3d-massing/) | Tile, buildings, coordinate system, height and licence metadata | Visual context. Inspect actual resource formats and vintage before building a converter. |
-| P2 | [Transport Canada site guidance](https://tc.canada.ca/en/aviation/drone-safety/learn-rules-you-fly-your-drone/where-fly-your-drone) | Constraints, route-assessment references, date | Eligibility screening inputs. No route approval or operational airspace feed is supplied here. |
+| P0 | [Toronto 3D massing](https://open.toronto.ca/dataset/3d-massing/) | Building or tile IDs, geometry, height, coordinate system, licence, vintage | Primary 3D context. Inspect actual resource formats and coverage before choosing a renderer or converter. |
+| P0 | [Toronto Centreline](https://ckan0.cf.opendata.inter.prod-toronto.ca/en/dataset/toronto-centreline-tcl) | Segment IDs, geometry, feature codes, mode eligibility, source vintage | Street foundation. Filter non-traversable features; it is not by itself a sidewalk or pedestrian graph. |
+| P0 | Pedestrian links, crossings, barriers, and access | Stable link IDs, geometry, permitted modes, accessibility tags, source and quality flag | Build and validate the walkable graph for the active area. Identify gaps and synthetic links instead of silently routing across them. |
+| P0 | [Toronto supermarket layer](https://gis.toronto.ca/arcgis/rest/services/cot_geospatial26/MapServer/4), [TDSB school directory](https://www.tdsb.on.ca/find-your/school) | Place IDs, names, coordinates, type, update date, status | Anchor the first active area and test feature-to-scene alignment. Verify current status and add non-supermarket food services separately. |
+| P0 | Coordinate reference and map attribution | CRS, transform, local origin, licence, attribution, feature-ID mapping | Keep scene, route graph, services, and rollout sites spatially aligned and traceable to source records. |
+| P1 | [TTC schedules](https://open.toronto.ca/dataset/ttc-routes-and-schedules/) | Stops, trips, stop times, service dates, accessibility | Add transit access where supported. Schedules do not establish observed reliability. Freeze feed validity. |
+| P1 | [2021 Census income backgrounder](https://www.toronto.ca/wp-content/uploads/2022/07/9877-City-Planning-2021-Census-Backgrounder-Families-Hhlds-Marital-Status-Income.pdf) | Household size, age, tenure, income bands, geography | Aggregate controls for a synthetic population. Obtain underlying tables and disclosure metadata; income generally refers to 2020. |
+| P1 | [CPI table 18-10-0004-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000401), [retail prices 18-10-0245-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810024501), [Toronto cost of living](https://open.toronto.ca/dataset/cost-of-living-in-toronto-for-low-income-households/) | Geography, product, package size, month, price, household costs, vintage | Add economic attributes after the world is aligned. Confirm supported geographies and publication periods; supplement with dated local store audits. |
+| P1 | [Second Harvest reports](https://www.secondharvest.ca/about/reports) and school or food-hub operators | Sites, eligible input, rescued versus purchased mass, shifts, yields, menus, uptake, costs | Model service and rollout constraints. Request local operating records; national reports do not establish local daily capacity. |
+| P1 | [Who's Hungry 2025](https://www.dailybread.ca/wp-content/uploads/2025/12/DB-WHR-2025-Final_Nov-3_reader.pdf) | Visits, survey methods, program geography | Demand context and hardship constraints; daily unmet requests and supply need partner records. |
+| P2 | Consented local behavior or sentiment study | Sampling, question wording, geography, date, consent, response rate | Optional validation stream. Keep observations separate from synthetic agent state and generated dialogue. |
+| P2 | [Transport Canada site guidance](https://tc.canada.ca/en/aviation/drone-safety/learn-rules-you-fly-your-drone/where-fly-your-drone) | Constraints, route-assessment references, date | Only needed for a drone delivery scenario. Eligibility checks are not route approvals or an operational airspace feed. |
 
-Weather, energy, vehicle specifications, and emission factors are additional datasets for the drone and environmental studies. Use dated authoritative measurements and vehicle-specific tests when available. Otherwise expose downtime and energy as illustrative ranges and suppress unsupported emissions claims.
+Weather, energy, vehicle specifications, and emission factors are additional datasets for a drone or environmental study, not prerequisites for the first Toronto pedestrian scene. Use dated authoritative measurements and vehicle-specific tests when available. Otherwise expose downtime and energy as illustrative ranges and suppress unsupported emissions claims.
 
 ## Snapshot contract
 
@@ -61,13 +65,13 @@ Use checks for duplicate store or school IDs, implausible package mass, mixed do
 
 ## Synthetic population
 
-Create household records that match available aggregate controls across household size, age bands, income, tenure, and area. Use a documented fitting method such as iterative proportional fitting once compatible controls and seed distributions are obtained. Retain the seed, convergence diagnostics, and residuals.
+Create synthetic households and resident pedestrians that match available aggregate controls across household size, age bands, income, tenure, and area. Attach homes and initial positions to eligible residential areas or clearly synthetic buildings. Give each simulated person a synthetic ID and only the schedule and attributes needed for the modeled activity. Use a documented fitting method such as iterative proportional fitting once compatible controls and seed distributions are obtained. Retain the seed, convergence diagnostics, and residuals.
 
 Aggregate controls do not identify the true joint distribution. Test several plausible household populations. If rent burden and income correlation are unknown, vary that correlation rather than inventing precise household budgets.
 
 Reweight historic controls with dated newer evidence where justified. Do not inflate one historic median and describe the result as a measured 2026 income distribution. Keep demographic and price-year transformations separate.
 
-Household IDs, names, appearance, and routines are synthetic. Attach homes to eligible residential areas or synthetic buildings. Do not reconstruct actual household addresses from food-bank or school records. Sensitive individual intake data are unnecessary for the first prototype.
+Household IDs, names, appearance, and routines are synthetic. Do not reconstruct actual household addresses from food-bank or school records. Sensitive individual intake data are unnecessary for the first release.
 
 ## Local price and behavior measurements
 

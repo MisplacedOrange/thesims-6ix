@@ -1,33 +1,33 @@
-# Review record
+# Scope revision review
 
-## Architecture comparison
+## Product direction
 
-Two independent architecture candidates were read in full. A separate read-only judge scored both 10 of 10 against the five planning criteria and recommended Python authority for the research workflow. The parent independently selected the same base. Original candidate drafts remained in isolated session scratch directories, outside this repository.
+The October 17 clarification makes Toronto's 3D environment the first product milestone, with embodied pedestrian agents, a separate planner for staged rollouts of three solutions, and economic plus labeled modeled-response outcomes. The school meal idea is a rollout scenario inside the Toronto world. It does not set the world, schedule, or time horizon.
 
-The final design incorporates custody separate from ownership, second-level timing, complete replay, committed-boundary forks, fixed LLM panel selection, pupil-school assignments, and explicit rounding. The rationale is in [the architecture decision](../docs/architecture-decision.md).
+The working solution mapping from the existing project documents is municipal groceries, food rescue and processing, and expanded school meals. Drone delivery is classified as an optional logistics enabler. The unlimited-lunch service definition and exact solution boundaries remain open.
 
-## Final package review
+## Why the school-day phrase appeared
 
-A separate read-only reviewer read the actual README, main plan, seven specification documents, three JSON manifests, decision trail, and checker. It also spot-checked Council, Second Harvest, CPI, and Toronto CMA labor claims against primary sources.
+The school-day language comes from the existing `sim.integration` prototype. Its run label says “one synthetic school day; produce component only.” `sim/integration/__main__.py` sets the observation window to one synthetic school day; `sim/integration/scenario.py` uses fixed meal, shopping, and consumption times; and `sim/integration/export.py` repeats the limit in run metadata. The earlier planning documents then used that fixture as their first demonstration. Those facts explain the wording, but they do not support making a school day the product's central simulation. The trace is documented in [integration status](../docs/integration.md#why-the-prototype-says-school-day).
 
-The first review returned ISSUES:
+## Architecture direction
 
-1. The grocery formula could count spoiled inventory's acquisition cost twice and mixed procurement cash flow with operating expense.
-2. The main schedule described a two-week demonstrator followed by 16 weeks, while the budget included it within 16 weeks.
-3. The LLM deadline did not fully specify which requests received concurrent slots and how queue exclusions were recorded.
+Two architecture candidates were compared: Python as world authority with browser Three.js, and Godot as the world/movement runtime with Python retaining economic authority. The clarified priority favors the latter because resident movement and a navigable 3D Toronto world are core behavior. The design review's recommendation is recorded in [the architecture decision](../docs/architecture-decision.md).
 
-The parent corrected the money specification to separate cash funding and inventory-based operating results, recognized acquisition cost once, clarified the inclusive 16-week schedule, and defined a predeclared four-request barrier subset with distinct rule-selection reasons. The manifest and checker now verify the selected barrier contract.
+Godot 4 .NET/C# is the lead runtime, not an irreversible selection. The visible and headless vertical slice must prove synchronized world time, pedestrian movement, Python economic receipts, and replay. Browser delivery remains open. The current repository still implements only the Python economic prototype.
 
-The reviewer reread those revisions and reran the checker. Its second result was PASS, with all three findings resolved and 317 planning-package checks passing. No remaining consequential issues were identified in the revisions.
+## Document and planning changes
 
-## Checker verification
+- Put Toronto 3D and pedestrian agents first in README.md, PLAN.md, and NEXT_STEPS.md.
+- Replaced the Python-world/Three.js architecture as the default proposal with Godot world ownership and Python economic ownership.
+- Promoted Toronto massing, streets, coordinate systems, and pedestrian links to the first data gate.
+- Reframed studies around geographic validation, pedestrian movement, staged planning, and economic outcomes.
+- Replaced the old 16-week food-policy estimate and illustrative CAD 252,480 budget with dependency-based gates and no schedule or budget claim.
+- Updated the planning catalog and checker so the old four-switch screen, household LLM limits, and budget are explicitly marked superseded or removed from current plan checks.
+- Kept the current school-day integration code documented as a legacy economic fixture.
 
-The parent also ran the checker against an isolated scratch copy with deliberately corrupted source IDs, policy coverage, and labor totals. It reported the expected failures and exited with code 1. The actual destination package passed. No corrupted fixture was written into this repository.
+## Verification boundary
 
-After adding the review document to link checking, the first run caught its link to the not-yet-created verification report. Capturing the report created that artifact, and the next run passed. The final report below contains the successful result.
+The planning-package checker is run after these revisions and recorded in [verification output](verification.txt). It checks document links and consistency, evidence metadata, source IDs, solution coverage, product-scope fields, and decision pointers. It does not verify a running Godot project, a Toronto data ingestion, pedestrian behavior, planner quality, performance, calibration, or real policy outcomes.
 
-The final [verification output](verification.txt) records the package check. This is verification of the plan and its manifests. The future simulator, its benchmark targets, and its real-world validity remain unimplemented and untested.
-
-## Attention
-
-Actual operating costs, uptake, yields, school rollout, behavioral calibration, route permissions, and measured software performance remain open. The plan names how to acquire or test them. These are implementation and research dependencies, not hidden claims of completed work.
+Simulator tests were not run for this documentation scope revision.

@@ -1,6 +1,17 @@
 # Consolidated simulation implementation
 
-The planning documents and the user's October 17 revision govern this integration. A small inspectable model is an engineering checkpoint. It is insufficient as the finished current-world food simulator.
+The user's October 17 scope revision governs the product direction: Toronto's 3D world and pedestrian agents come first; a separate planner proposes staged infrastructure rollouts; the model tracks economic and explicitly labeled modeled-response outcomes. The code described below is a legacy economic vertical slice that can supply mechanisms and fixtures. Its school-day framing does not define the product.
+
+## Why the prototype says school day
+
+The phrase comes from the connected Python integration fixture, not from a Toronto school-calendar dataset or a measured Toronto routine.
+
+- [scenario.py](../sim/integration/scenario.py) builds one illustrative district run. Its participation draw fixes `day=0`, school portions settle at simulation second `28000`, shopping starts at `36000`, and household consumption is evaluated at `72000`. The export input is explicitly labeled “one synthetic school day; produce component only.”
+- [__main__.py](../sim/integration/__main__.py) sets the study window to “one synthetic school day.” [export.py](../sim/integration/export.py) repeats the limitation in each run manifest.
+- The [Connected district day section](#connected-district-day) documents the same fixture: synthetic school service, one day of household budget, shopping, and delivery.
+- The previous `PLAN.md` and roadmap made that fixture the initial demonstration. This was a product-story choice layered on top of the existing code, not a requirement established by user research or data.
+
+The daily fixture appears to have been an engineering convenience for connecting school meal accounting, procurement, household shopping, and logistics in one small run. The revised plan keeps it as an economic regression scenario and makes Toronto, pedestrian movement, and staged planning the product frame.
 
 ## Selected contributions
 
@@ -57,7 +68,7 @@ python -m sim.integration paired --households 250 --seeds 17 18 --policies groce
 python -m sim.integration screening --households 12 --seeds 17 --out outputs/screen-smoke
 ```
 
-The last command executes 16 actual connected worlds. It is a smoke test, not the planned 16-by-30 final study. No full 480-run research batch is implicitly launched. The existing runner can enumerate 30 seeds, but the current one-day component model does not satisfy the planned multi-day or school-year studies.
+The last command executes 16 actual connected worlds. It is a smoke test, not a research result. The former 16-by-30 batch belonged to the superseded food-policy plan. The current one-day component model cannot represent a staged multi-year rollout or establish annual school-service effects.
 
 For a nested procurement comparison, run the same policies and seeds in separate new directories with `--procurement decentralized` and `--procurement pooled`. Conditional drone studies additionally use `--conditional-drone-route`; retain a no-approval comparison.
 
@@ -70,14 +81,12 @@ The experiment executor creates a new world for every cell and seed, checks supp
 | Requirement | Current evidence | Next implementation gate |
 | --- | --- | --- |
 | Current economic data | Source register and illustrative snapshot only | Toronto API/resource downloads, Statistics Canada inputs, immutable raw checkpoints, dates/geographies/units, rejected-row reports |
-| Real-world environment | Synthetic household and network records | Compatible observed controls, actual locations and routes, local basket measurements, held-out checks |
+| Toronto 3D world | No Toronto scene or source geography is ingested | Load licensed massing and streets; verify coordinates, feature IDs, active-area routes, and replay in visible and headless runtime |
 | Infrastructure planner | Not implemented | Structured site/cost/dependency/timing/capacity proposals with source IDs and deterministic rejection/revision |
 | Implementation duration | Existing planning ranges, not official promises | Dependency schedule with operator evidence, uncertain delays, capacity ramps and no-launch cases |
 | Policy impacts | Connected within-model mechanisms | Multi-product baskets, longer calendars, parameter studies, independent review and observed calibration |
 | Human response | Choices and labeled latent proxies | Behavioral validation; real attitudes require a separate consent-based measurement design |
-| Sims-like interface | Existing local frontend work remains separate | Reconcile one real exported transaction, then connect replay, comparisons and richer routines |
+| Pedestrian agent layer | Existing choices are deterministic household shopping rules | Add resident positions, paths, schedules, mobility constraints, and rule-driven movement before small-model or LLM calls |
 | Operational platform | Terminal exports only | Assigned backend owner, SQLite commits, restart/recovery, API, projection sequencing, gateway and charge reconciliation |
 
-The frontend implementation guide defers backend ownership. This merge does not assign API, persistence, or provider transport to Person 2 by implication. These are explicit backend work items with an owner still to be assigned.
-
-The one-day coordinator does not yet implement the complete six-phase production scheduler, durable process recovery, whole-world replay of pending logistics, a 30-day calibrated environment, the 1,000-household target, or renderer/headless hash parity. Terminal economic replay and deterministic completed-world checks are narrower evidence. Calendar seasonality, real-time procurement lead times, and held-out behavior remain release gates.
+The one-day coordinator does not implement the proposed world clock, pedestrian movement, rollout activation, durable process recovery, whole-world replay, or renderer/headless hash parity. Terminal economic replay and deterministic completed-world checks are narrower evidence. Route coverage, operating data, model behavior, and held-out validation remain open.

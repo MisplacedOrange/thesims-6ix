@@ -1,64 +1,59 @@
-# Architecture decision and Orange-skills record
+# Architecture decision: Toronto world runtime
 
-## Problem
+## Decision status
 
-The system must show residents acting in a 3D food economy while supporting reproducible policy comparisons. The expensive choice is where authoritative economic state lives. The destination repository was a clean greenfield repository containing its licence and attributes file.
+The earlier architecture choice made Python the world authority and Three.js a browser renderer. It was made for an economic research prototype before the product priority was clarified. This record supersedes that choice as the proposed direction.
 
-## Orange skills used
+The clarified product starts with a 3D Toronto simulation where residents move through streets and public solutions are rolled out over time. The leading design is **Godot 4 .NET/C# for world time, navigation, pedestrian positions, and visible/headless stepping; Python for economic state, the planner, and research workflows**. This is a proposed direction, not an implementation commitment. A movement-focused vertical slice must prove the bridge and replay contract before the engine is final. Browser delivery remains an open requirement that could change the choice.
 
-The installed skills are junctions into `C:/Users/roylu/orange-skills/global`. The source repository revision checked during planning was `7514dfc905c1069047a69feb4dd577bbaf0e32f2`.
+## Alternatives
 
-Applied `architect` for caller-first interfaces and ownership, `arena` for two distinct designs and an independent cross-judge, and `swarm` for bounded parallel work. Applied `principle-build-the-lever` through a shared delegate contract and rerunnable package checker, `principle-prove-it-works` through artifact inspection, `show-me-your-work` through the TSV trail, and `technical-writing` with `unslop` for the documents.
-
-Two architecture workers and one evidence worker ran in parallel. They wrote isolated scratch artifacts outside this repository. The parent alone wrote destination files. A separate read-only judge compared the complete architecture candidates after they finished. A final read-only reviewer checked the delivered package.
-
-## Alternatives compared
-
-| Criterion, scored 0 to 2 | A: Python authority and browser 3D | B: Godot authority and native 3D |
+| Option | Strength for this product | Main cost or risk |
 | --- | --- | --- |
-| Economic validity | 2, ledgers, counterfactuals, calibration, uncertainty | 2, ledgers, headless comparisons, calibration |
-| Agent control | 2, bounded offers, receipts, budget, no uncertain retry | 2, bounded offers, gateway, budget, fallbacks |
-| 3D coherence | 2, committed projections determine movement | 2, scene reads deterministic C# economy |
-| Build feasibility | 2, module map, interfaces, recovery, proposed gates | 2, session interface, native and headless build, proposed gates |
-| Evidence discipline | 2, hypothetical and observed inputs distinguished | 2, same distinctions with technical source checking |
-| Total | 10 | 10 |
+| Godot world runtime + Python economic worker | Integrated 3D scene and navigation for embodied pedestrians; reuses the tested Python economic kernel | Two processes and languages; the bridge, synchronization, and recovery must be reliable |
+| Python world authority + browser Three.js client | Direct Python research flow and easy browser distribution | Makes the 3D world a projection of a Python simulation; movement and navigation are less central in the runtime |
+| Godot owns world and economics | One in-engine simulation loop and fewer process boundaries | Rewrites or duplicates the existing Python economics and experiment logic |
 
-The independent judge and parent reached the same choice. These scores indicate planning completeness against the rubric. They are not benchmark results, implementation proof, or evidence of policy efficacy.
+Independent design review favored the Godot-world/Python-economy split because movement and 3D geography are primary product behavior. That review was a design judgment, not a benchmark. The highest risk is synchronizing two authoritative state domains without duplicate or partial transactions.
 
-Candidate A gives analysts direct access to the simulation and data workflows while supporting a shareable browser demonstration. Candidate B concentrates a native application behind a deep session interface and gives stronger language-level encapsulation. It is a credible choice if detailed game interaction becomes the main product.
+## Ownership rule
 
-Godot's versioned documentation supports headless export and describes C# platform limits, including lack of web export for the documented Godot 4 C# configuration. [Dedicated server export](https://docs.godotengine.org/en/4.5/tutorials/export/exporting_for_dedicated_servers.html), [C# support](https://docs.godotengine.org/en/4.5/tutorials/scripting/c_sharp/).
+| State | Owner |
+| --- | --- |
+| Simulation clock, pedestrian and vehicle positions, paths, activity, and world occupancy | Godot |
+| Money, food, household accounts, procurement, public costs, policy budgets, and settled service outcomes | Python economic kernel |
+| Plan drafts, source references, deterministic validation, review records, and scenario definitions | Python coordinator |
+| Durable ordered run archive and comparison export | Python coordinator |
+| Meshes, camera, interpolation, selection, and visual detail | Godot |
 
-## Synthesis decision
+The bridge carries run ID, logical time, world and economic revisions, and idempotency keys. Godot waits for Python receipts before showing a purchase, changing an economic display, or marking a rollout stage active. Pedestrian intent is not an economic transaction. The Python kernel remains the sole writer of cash and food.
 
-Choose Candidate A as the base. Keep one Python kernel and one browser projection. Its public `run`, `compare`, and `replay` capabilities hide the difficult scheduling and accounting decisions without exposing an engine lifecycle to research callers.
+## Proposed stack
 
-Adapt these ideas from Candidate B and the judge:
+- **World:** Godot 4 .NET with C#; native and headless builds share logical stepping.
+- **Economy, agents, planner, studies:** existing Python 3.10+ code, extended through typed boundaries.
+- **Bridge:** a private local Python service using a versioned request/receipt protocol; FastAPI with WebSocket transport is a candidate, not a fixed requirement.
+- **Local persistence:** SQLite transactional archive with immutable, content-hashed input and result files.
+- **Geospatial ingestion:** Python pipeline; GIS libraries and exact Toronto layers are selected after auditing download formats, CRS, licensing, and coverage.
+- **Models:** deterministic rules first; optional small-model runtime and bounded server-side LLM adapter after replay and budgets exist.
+- **Browser option:** Three.js remains a possible client if browser access is required, but it is no longer the default architecture.
 
-- Separate economic ownership from custody at a place or in a journey.
-- Use integer seconds and an explicit Toronto calendar for short flights and queues.
-- Fork only at committed boundaries and make replay read-only.
-- Fix the focal LLM population before the run. Camera selection cannot change it.
-- Enforce module access rules and document the model with ODD.
+The repository currently contains Python packages and terminal exports. It does not yet contain Godot, the bridge, FastAPI, SQLite run storage, Toronto map ingestion, a planner, or pedestrian model calls.
 
-Reject a parallel C# model, Godot authority, mandatory native delivery, and a service per actor. Adding them would introduce a second implementation path or competing state ownership. Keep the provider gateway as a module initially, with an independent service only if deployment requires it.
+## First proof
 
-## Specification repairs made
+Build the smallest runnable slice before expanding the city:
 
-The judge found that Candidate A's illustrative event union omitted reservations, cancellations, and consumption. The final architecture requires a complete transition reducer covering every authoritative change. It also distinguishes a single paired-run difference from uncertainty over replicated experiments.
+1. Load one frozen Toronto map area and source-feature IDs.
+2. Move one synthetic resident on a valid pedestrian graph in visible and headless Godot runs.
+3. Submit a legal trip or purchase intent across the bridge.
+4. Receive one Python economic receipt and show its effect only after acceptance.
+5. Replay the same inputs and compare world, economic, and bridge hashes.
 
-Both candidates needed a concrete child-school relationship and explicit rounding. The final simulation specification includes household members, school assignment, eligibility, attendance, meal substitution, cent allocation, gram remainders, and minimum service duration.
+If this proof cannot preserve ordering and replay, reconsider the runtime split before adding population or policy complexity. If browser delivery is required, prototype the same movement slice in the browser before making the engine choice final.
 
-Both candidates proposed a 12-week prototype. The final delivery plan uses 16 weeks to make room for data provenance, four workstreams, failure behavior, and review. It still distinguishes the prototype from a validated policy instrument.
+## Scope implications
 
-## Tradeoffs accepted
+The city scene is the primary environment. A school meal expansion can demonstrate infrastructure planning, but a school calendar does not define the simulation horizon. The planner may design kitchen, storage, staffing, procurement, and delivery stages for that case after the service rules are defined. Municipal groceries and food rescue/processing remain separate solution entries. Drone delivery is an optional logistics comparison.
 
-We accept two languages and a versioned scene protocol in exchange for direct Python research workflows and browser access. We accept schematic movement and a small first district in exchange for inspectable accounting. We accept one writer per world in exchange for clear ordering and reliable replay.
-
-Python cannot enforce all ownership through access modifiers. Import-boundary checks, immutable views, and tests must enforce the contract. Neither candidate's performance targets have been measured. Operating data and calibration remain the larger uncertainty.
-
-## Verification and remaining scrutiny
-
-The package checker verifies document links, required artifacts, source IDs, dates, scenario coverage, call arithmetic, budget arithmetic, and evidence metadata. The [review record](../planning/review.md) preserves findings and corrections. It does not claim the future simulator passes its acceptance gates.
-
-All delegated workstreams returned artifacts. There were no dropouts. Remaining scrutiny concerns real operating data, observed program rollout, behavioral validation, route permissions, and measured software performance.
+The prior 16-week plan, CAD 252,480 illustrative budget, Python-owned world clock, and browser-only scene are superseded. No replacement schedule or budget is approved in this document.

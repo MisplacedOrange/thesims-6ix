@@ -1,4 +1,4 @@
-PASS: 336 planning-package checks
-Documents: 10; approximate words: 13034; sources: 34; context values: 10
-Scope: local links, manifest integrity, evidence metadata, scenario coverage, token limits, budget arithmetic, and decision pointers.
+PASS: 368 planning-package checks
+Documents: 12; approximate words: 14549; sources: 34; context values: 10
+Scope: local links, manifest integrity, evidence metadata, solution and enabler coverage, product scope, legacy supersession, and decision pointers.
 Not checked: remote URL liveness, actual dataset ingestion, simulator behavior, benchmark performance, calibration, or real policy outcomes.

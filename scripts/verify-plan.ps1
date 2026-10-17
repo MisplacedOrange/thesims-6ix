@@ -13,10 +13,10 @@ function Test-Condition {
 }
 
 $requiredFiles = @(
-    'README.md', 'PLAN.md', 'docs/architecture.md', 'docs/simulation.md',
+    'README.md', 'PLAN.md', 'NEXT_STEPS.md', 'docs/architecture.md', 'docs/simulation.md',
     'docs/policies-and-evidence.md', 'docs/data-plan.md',
     'docs/experiments-and-validation.md', 'docs/delivery.md',
-    'docs/architecture-decision.md', 'planning/sources.json',
+    'docs/architecture-decision.md', 'docs/integration.md', 'planning/sources.json',
     'planning/context-snapshot.json', 'planning/scenarios.json',
     'planning/decisions.tsv', 'planning/review.md'
 )
@@ -58,46 +58,53 @@ foreach ($contextValue in $contextData.values) {
     }
 }
 
-$policyIds = @($scenarioCatalog.interventions | ForEach-Object { $_.id })
-Test-Condition (($policyIds | Sort-Object) -join ',' -eq 'drones,groceries,processing,school') 'Required policy coverage differs'
-foreach ($policyRecord in $scenarioCatalog.interventions) {
-    foreach ($referenceId in $policyRecord.source_ids) {
+$solutionIds = @($scenarioCatalog.solutions | ForEach-Object { $_.id })
+Test-Condition ($scenarioCatalog.schema_version -eq 2) 'Expected current scope catalog schema'
+Test-Condition ($scenarioCatalog.kind -eq 'planning_catalog_not_executable') 'Catalog must not claim to be executable'
+Test-Condition (($solutionIds | Sort-Object) -join ',' -eq 'groceries,processing,school') 'Core solution coverage differs'
+foreach ($solutionRecord in $scenarioCatalog.solutions) {
+    foreach ($referenceId in $solutionRecord.source_ids) {
         Test-Condition ($sourceIds -contains $referenceId) "Unknown policy source: $referenceId"
     }
-    Test-Condition ($policyRecord.depends_on.Count -gt 0) "No rollout dependencies: $($policyRecord.id)"
+    Test-Condition ($solutionRecord.depends_on.Count -gt 0) "No rollout dependencies: $($solutionRecord.id)"
 }
-foreach ($scenarioRecord in $scenarioCatalog.scenarios) {
-    foreach ($enabledPolicy in $scenarioRecord.enabled) {
-        Test-Condition ($policyIds -contains $enabledPolicy) "Unknown scenario policy: $enabledPolicy"
+$enablerIds = @($scenarioCatalog.delivery_enablers | ForEach-Object { $_.id })
+Test-Condition (($enablerIds -join ',') -eq 'drone_delivery') 'Delivery enabler classification differs'
+foreach ($enablerRecord in $scenarioCatalog.delivery_enablers) {
+    foreach ($referenceId in $enablerRecord.source_ids) {
+        Test-Condition ($sourceIds -contains $referenceId) "Unknown delivery-enabler source: $referenceId"
     }
 }
-$droneScenario = $scenarioCatalog.scenarios | Where-Object id -eq 'drones_only'
+foreach ($scenarioRecord in $scenarioCatalog.scenarios) {
+    foreach ($enabledSolution in $scenarioRecord.enabled_solutions) {
+        Test-Condition ($solutionIds -contains $enabledSolution) "Unknown scenario solution: $enabledSolution"
+    }
+    foreach ($enabledEnabler in $scenarioRecord.enabled_enablers) {
+        Test-Condition ($enablerIds -contains $enabledEnabler) "Unknown scenario enabler: $enabledEnabler"
+    }
+}
+$baselineScenario = $scenarioCatalog.scenarios | Where-Object id -eq 'baseline'
+Test-Condition ($baselineScenario.mode -eq 'observed_service_with_explicit_unknowns') 'Legacy economic baseline contract changed'
+Test-Condition (@($baselineScenario.enabled).Count -eq 0) 'Baseline fixture must keep its empty legacy enabled list'
+$legacyGroceryScenario = $scenarioCatalog.scenarios | Where-Object id -eq 'groceries_only'
+Test-Condition ($legacyGroceryScenario.mode -eq 'hypothetical_policy') 'Legacy grocery fixture alias changed'
+Test-Condition ($legacyGroceryScenario.status -eq 'legacy_fixture_alias') 'Legacy grocery alias must be labeled'
+$scope = $scenarioCatalog.product_scope
+Test-Condition ($scope.primary_environment -eq 'toronto_3d') 'Toronto 3D must be the primary environment'
+Test-Condition ($scope.primary_agents -eq 'resident_pedestrians') 'Resident pedestrians must be the primary agents'
+Test-Condition ($scope.school_day_is_product_frame -eq $false) 'School day must not define the product frame'
+Test-Condition ($scope.active_simulation_extent -eq 'selected_areas') 'Active simulation extent must be explicit'
+$schoolSolution = $scenarioCatalog.solutions | Where-Object id -eq 'school'
+Test-Condition ($schoolSolution.service_definition -eq 'open') 'Unlimited-lunch service definition must remain open'
+$droneScenario = $scenarioCatalog.scenarios | Where-Object id -eq 'drone_delivery_comparison'
 Test-Condition ($droneScenario.mode -eq 'hypothetical_route_with_no_approval_branch') 'Drone scenario needs hypothetical status and no-approval branch'
-$screening = $scenarioCatalog.screening
-Test-Condition ($screening.cells -eq [math]::Pow(2, $screening.binary_switches)) 'Factorial cell count mismatch'
-Test-Condition ($screening.total_runs -eq $screening.cells * $screening.paired_seed_blocks) 'Experiment run count mismatch'
+Test-Condition ($scenarioCatalog.agent_modeling.pedestrian_call_limits -eq 'to_be_set_after_active_area_and_decision_frequency_are_measured') 'Pedestrian model-call limits must remain unpriced until measured'
+$legacy = $scenarioCatalog.legacy_prototype
+Test-Condition ($legacy.status -eq 'existing_economic_vertical_slice') 'Existing prototype must be identified as a legacy economic slice'
+Test-Condition ($legacy.old_screening_design.status -eq 'superseded') 'Old factorial screen must be marked superseded'
+Test-Condition ($legacy.old_budget_status -eq 'superseded') 'Old budget must be marked superseded'
 
-$limits = $scenarioCatalog.llm_limits
-Test-Condition ($limits.max_attempts -eq $limits.focal_households * $limits.days * $limits.choices_per_household_day) 'LLM attempt arithmetic mismatch'
-Test-Condition ($limits.max_input_tokens -eq $limits.max_attempts * $limits.max_input_tokens_per_attempt) 'Input token arithmetic mismatch'
-Test-Condition ($limits.max_output_tokens -eq $limits.max_attempts * $limits.max_output_tokens_per_attempt) 'Output token arithmetic mismatch'
-Test-Condition ($limits.automatic_retries -eq 0) 'Automatic retries violate chosen dispatch contract'
-Test-Condition ($limits.max_live_requests_per_barrier -le $limits.concurrency) 'Barrier subset exceeds concurrent slots'
-Test-Condition ($limits.deadline_scope -eq 'entire_decision_barrier') 'Deadline scope differs from the selected contract'
-Test-Condition ($limits.barrier_selection -eq 'predeclared_stratified_schedule') 'Live barrier subset must be predeclared'
-Test-Condition ($limits.run_budget_cad -eq 30) 'Run ceiling differs from documented default'
-
-$budget = $scenarioCatalog.budget
-$calculatedLabor = 0
-foreach ($roleRecord in $budget.roles) { $calculatedLabor += $roleRecord.hours * $roleRecord.rate_cad }
-Test-Condition ($budget.labor_cad -eq $calculatedLabor) 'Labor arithmetic mismatch'
-Test-Condition ($budget.contingency_cad -eq $calculatedLabor * $budget.contingency_fraction) 'Contingency arithmetic mismatch'
-Test-Condition ($budget.labor_with_contingency_cad -eq $calculatedLabor + $budget.contingency_cad) 'Contingency total mismatch'
-Test-Condition ($budget.operating_allowance_cad -eq ($budget.hosting_monthly_cad + $budget.llm_monthly_cad) * $budget.allowance_months) 'Operating allowance mismatch'
-Test-Condition ($budget.total_example_cad -eq $budget.labor_with_contingency_cad + $budget.operating_allowance_cad) 'Total budget mismatch'
-Test-Condition ($budget.rates_are_hypothetical -eq $true) 'Budget must identify hypothetical rates'
-
-$markdownFiles = @((Get-Item -LiteralPath (Join-Path $artifactRoot 'README.md')), (Get-Item -LiteralPath (Join-Path $artifactRoot 'PLAN.md')))
+$markdownFiles = @((Get-Item -LiteralPath (Join-Path $artifactRoot 'README.md')), (Get-Item -LiteralPath (Join-Path $artifactRoot 'PLAN.md')), (Get-Item -LiteralPath (Join-Path $artifactRoot 'NEXT_STEPS.md')))
 $markdownFiles += @(Get-ChildItem -LiteralPath (Join-Path $artifactRoot 'docs') -Filter '*.md' -File)
 $markdownFiles += @(Get-ChildItem -LiteralPath (Join-Path $artifactRoot 'planning') -Filter '*.md' -File)
 $totalWords = 0
@@ -132,5 +139,5 @@ if ($checkFailures.Count -gt 0) {
 }
 Write-Output "PASS: $checkCount planning-package checks"
 Write-Output "Documents: $($markdownFiles.Count); approximate words: $totalWords; sources: $($sourceIds.Count); context values: $($contextData.values.Count)"
-Write-Output 'Scope: local links, manifest integrity, evidence metadata, scenario coverage, token limits, budget arithmetic, and decision pointers.'
+Write-Output 'Scope: local links, manifest integrity, evidence metadata, solution and enabler coverage, product scope, legacy supersession, and decision pointers.'
 Write-Output 'Not checked: remote URL liveness, actual dataset ingestion, simulator behavior, benchmark performance, calibration, or real policy outcomes.'

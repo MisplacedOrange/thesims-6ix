@@ -1,142 +1,104 @@
-# Build a Toronto food-policy simulator
+# The Sims 6ix: a 3D Toronto pedestrian simulation
 
-## What we are building
+## Product goal
 
-The October 17 revision adds an explicit infrastructure-planning agent and emphasizes current-world economic inputs, repeatable acquisition checkpoints, realistic rollout durations, and inspectable human responses. Keep the food-policy scope below. The planner must propose sourced sites, costs, dependencies, timing ranges, and capacity ramps for deterministic validation; it cannot create infrastructure by assertion. It is separate from household choice agents.
+Build a 3D simulation of Toronto where pedestrians move through a recognizable city environment, public solutions roll out over time, and the simulation records changes in access, household economics, public cost, and modeled human response.
 
-The consolidated implementation is an initial mechanism-integration milestone. It is not completion of the 16-week plan. [Integration status](docs/integration.md) records what runs and what remains, including current-data ingestion, infrastructure planning, multi-product adequacy, longer horizons, persistence, and the browser connection.
+Make the Toronto world the first product milestone. Treat food programs as scenarios inside that world. The current school-day prototype remains useful for testing food accounting, but it does not set the shape or time horizon of the product.
 
-Build a stylized 3D Toronto neighbourhood with households, stores, schools, a food hub, processing equipment, vans, and optional delivery drones. Residents shop, travel, receive school meals, encounter shortages, change plans, and explain selected choices through bounded LLM agents. An analyst can change a policy and compare outcomes against the same neighbourhood without that change.
+The project has four linked goals:
 
-The central product question is concrete. Who gets more usable food, how much money and time do they save, who remains underserved, and what does the municipality pay?
+1. Build a geospatial 3D Toronto environment from dated, licensed city data.
+2. Populate active areas with pedestrian agents using rule policies, small models, and a bounded number of LLM decisions.
+3. Use a separate LLM planner to propose infrastructure and staged rollout plans for three public solutions.
+4. Compare baseline and rollout outcomes by neighborhood and population group, including economic measures and labeled modeled response.
 
-The first release is an exploratory research prototype with an accessible visual demonstration. Its economic model is a neighbourhood partial-equilibrium model. It does not predict Toronto's entire economy. Simulated residents and their generated comments cannot establish actual public opinion.
+This is an exploratory planning and research tool. It does not predict Toronto's entire economy or establish actual public opinion.
 
-The user supplied three Toronto initiatives and requested Meituan-style food delivery. Preserve all four workstreams:
+## The three solutions
 
-| Workstream | Change represented | Main comparison |
+The current project documents identify three Toronto policy initiatives:
+
+| Solution | Simulation role | First planning questions |
 | --- | --- | --- |
-| Affordable municipal groceries | Four potential stores, location choices, procurement, overhead, pricing, and subsidy | Existing retail access against alternative sites and funding rules |
-| Rescue and processing | Eligible surplus, pickup, cold storage, processing yields, and distribution | Existing rescue arrangements against additional usable capacity |
-| School meals and shared purchasing | Program reach, meal uptake, menus, contracts, hubs, and distribution | Current provision against expansion, then separate against pooled procurement |
-| Meituan-style drones | Fixed hub-to-locker routes, loading, flight, collection, and ground fallback | Ground delivery against explicitly hypothetical Toronto drone corridors |
+| Affordable municipal groceries | Sites, procurement, operating model, prices, and subsidy | Which locations improve access? What staffing, funding, supplier, and capacity conditions affect opening? |
+| Food rescue and processing | Collection, cold storage, processing, and distribution capacity | Where are facilities useful? Which supply, equipment, labor, and buyer constraints limit output? |
+| Expanded school meals, including the proposed unlimited-lunch option | School kitchens, food storage, menus, staffing, procurement, and delivery | Which schools can serve more students? What equipment, workers, food volumes, funding, and rollout stages are required? |
 
-The [policy evidence document](docs/policies-and-evidence.md) distinguishes adopted decisions, funding, announced reach, and measured operations. The project must preserve those distinctions when constructing a baseline.
+The existing planning package also includes Meituan-style drone delivery. Treat drones as a delivery scenario that can support a solution, not as a fourth public solution. Ground delivery remains a comparison. The exact eligibility, participation, menu, and service promise for the unlimited-lunch proposal still needs a policy definition.
 
-## The first user experience
+This mapping follows the three Toronto initiatives identified in the existing plan. Confirm the names and boundaries before treating them as settled policy requirements.
 
-A visitor opens a Toronto district and sees a school morning. A household has a limited grocery budget and a child attending a school with a food program. A food hub loads a van. A processing facility accepts a batch of rescued produce. Every movement connects to a recorded transaction or logistics event.
+## Toronto is the primary environment
 
-The visitor selects a household and sees cash remaining, its food basket, travel time, known store prices, and the events behind its last decision. A short generated explanation might say that the household chose a familiar store because the cheaper one required an extra trip. The inspector labels that sentence as generated from the simulation.
+Build a 3D Toronto base from licensed building massing, street geometry, and other verified geographic layers. Use a citywide visual overview with lower detail outside the active simulation areas. Give selected neighborhoods detailed routes, people, destinations, and policy infrastructure first.
 
-The visitor pauses at a day boundary, adds a municipal store with a stated subsidy, and forks the run. A side-by-side comparison shows basket costs, unmet food needs, travel, stockouts, food waste, and municipal expenditure. The original run remains available. A policy that lowers prices but exhausts its subsidy must show both effects.
+A visible building does not imply that the model knows its rent, capacity, ownership, or activity. Keep geometry and economic attributes as separate evidence-bearing data. Use stable feature IDs to connect the scene, pedestrian network, public services, and rollout proposals.
 
-The analyst can run the same experiment headlessly, with graphics disabled and rule-based choices. They can download the manifest, assumptions, events, ledger, subgroup results, and decision records. A demo and an experiment use the same economic state.
+The first environment should include homes, streets, sidewalks or walkable links, transit access where data support it, schools, food retailers, community food services, and candidate infrastructure sites. Do not make school buildings the organizing frame for the city.
+
+The first working district can have fewer active agents than the citywide scene. Expand behavioral and economic coverage after the coordinate system, feature IDs, routes, and data provenance work end to end.
+
+## Pedestrian agents
+
+Represent people as moving agents with a current place, destination, activity, mobility needs, schedule, known information, and recorded choices. Use synthetic records built from aggregate controls. Do not assign real identities or infer personal routines from area averages.
+
+Use deterministic rules or small models for routine actions and navigation. Use LLMs for selected choices that benefit from richer context, such as service uptake, a response to a closure, or a change in travel mode. Freeze the LLM panel and decision opportunities before a run. The camera must not decide which people receive model calls.
+
+An agent proposes a legal intent, such as travel to a school, shop, or service. The world runtime checks that a route exists and advances movement. The economic model checks budgets, stock, and policy eligibility before recording purchases or service. A model cannot directly move a person, create food, spend money, or invent capacity.
+
+A household remains the shared financial unit when its members pool food and money. Individual residents can have their own locations, schedules, mobility, and service experiences. The model must state who controls a household purchase and record which resident carried it out.
+
+## Infrastructure rollout planner
+
+Build a planner that proposes how to phase each solution into Toronto. Its first demonstration can plan the school meal expansion described above, but the city simulation must remain useful when that scenario is off.
+
+The LLM planner receives a declared goal, a frozen map and evidence snapshot, current infrastructure, budgets, and rollout constraints. It returns a structured proposal with candidate sites, required equipment, staffing, storage, procurement and delivery dependencies, capital and operating costs, time ranges, capacity ramps, uncertainties, and stop conditions. Each sourced claim includes source IDs. Unknown values stay unknown.
+
+A deterministic validator checks source references, site eligibility, units, budgets, dependencies, timing, and capacity consistency. A reviewer accepts or rejects the validated plan. The simulation activates only accepted milestones, and it records each delayed, reduced, or canceled stage. The planner cannot create infrastructure by assertion.
+
+The planner operates on a slower schedule than pedestrian choices. It can propose a multi-year rollout while daily agents move, attend services, shop, and respond to changes. A change in the rollout creates a new scenario or a fork at a recorded boundary.
+
+## Economic and human outcomes
+
+Use the existing ledger approach to record money and food. Extend it to the selected Toronto services and infrastructure rather than replacing it with generated narrative.
+
+Report outcomes in their original units. Include public capital and operating costs, household spending, travel time and distance, service reach, capacity, unmet need, delivery reliability, and impacts by neighborhood, income, household type, and mobility constraint. Keep costs, transfers, and resource use distinct.
+
+Track behavior separately from modeled response and from measured survey evidence. A modeled response may include perceived access, trust, stress, or satisfaction when its drivers and limits are explicit. Record its model version and causal events. Generated dialogue does not count as sentiment data.
+
+If the project later collects consented survey responses, store them as a separate evidence stream and compare them with model outputs. Do not present simulated sentiment as the opinion of Toronto residents.
 
 ## Product modes
 
-| Mode | Agent policy | Clock | Purpose |
+| Mode | World | Agent behavior | Purpose |
 | --- | --- | --- | --- |
-| Explore | Rules plus a bounded set of live LLM decisions | Pauses at decision barriers | Demonstrate individual choices and visible consequences |
-| Experiment | Rules or a declared LLM study | Runs without rendering | Estimate model counterfactuals across seeds and assumptions |
-| Replay | Recorded decisions and events | Scrub or play | Inspect a completed run without new provider calls |
+| Explore | 3D world with staged time controls | Rules and selected bounded model decisions | Inspect pedestrian activity and infrastructure changes |
+| Plan | Frozen evidence and infrastructure snapshot | LLM proposes, deterministic checks validate | Compare feasible rollout options before a simulation run |
+| Experiment | Headless or rendered replicated runs | Declared rule, small-model, or recorded policy | Compare economic and modeled response outcomes |
+| Replay | Recorded world and economic events | No new model calls | Inspect a completed run and its causes |
 
-The camera never selects which residents receive LLM decisions. The experiment configuration fixes that sample. Otherwise a visitor looking at one neighbourhood could change its measured behavior.
+A visible run and its headless counterpart use the same decisions and economic events. Rendering does not change results.
 
-## Chosen system shape
+## Proposed architecture direction
 
-Use a Python simulation process as the sole writer of a run's economic state. A browser client uses Three.js for 3D presentation and a conventional UI for controls, charts, and inspection. FastAPI exposes commands and projections. Start with SQLite for local runs and immutable files for input snapshots and exports.
+Use a 3D world runtime to own pedestrian locations, movement, and world time. Keep the Python economic kernel as the only writer of money, food, reservations, and settled policy transactions. A versioned bridge sends legal intents and rollout activations to the economic kernel and returns committed receipts before visible economic state changes.
 
-One process owns one world. Run independent replications in separate processes. Add PostgreSQL and shared job scheduling only when concurrent use requires them. The initial design does not need a service per actor, a vector database, or a city-scale game engine.
+Godot is the leading engine candidate for embodied movement. The prior browser-first Three.js decision predates the clarified product priority. Keep the engine choice open until a vertical slice proves a Toronto map, one moving pedestrian, one economic receipt, and deterministic replay in visible and headless modes. If browser delivery is required, measure that constraint before committing to Godot.
 
-LLMs return proposed choices from a list of legal options. They cannot transfer money, mutate inventory, move a vehicle, or invent a supply contract. Deterministic settlement validates and commits every action. Rendering consumes committed events and interpolates movement.
+Use immutable snapshots for source data, scenarios, planner proposals, and completed runs. Add durable storage and recovery before enabling long live sessions or provider calls. Do not create a service per pedestrian.
 
-The [architecture specification](docs/architecture.md) defines ownership and proposed interfaces. The [decision record](docs/architecture-decision.md) compares this design with a Godot-authoritative native application. Python authority fits data analysis and repeated policy experiments. Browser delivery makes a demonstration easier to share.
+## First release and boundaries
 
-## Geographic and population scope
+The first release should show a real Toronto 3D context and one selected active area. It should move a small synthetic pedestrian population along a sourced or clearly labeled pedestrian network. It should compare a baseline with a validated, staged school meal rollout and report the economic and modeled response changes.
 
-Begin with a clearly labeled synthetic district inspired by Toronto. Build approximately 250 household records, one municipal-store candidate, existing retailers, several schools, one processor, and one hub. Use simplified geometry before importing a full 3D massing tile.
+Keep all three solutions in the scenario registry from the start. The school meal rollout can be the first end-to-end planner demonstration; extend the same staged-planning contract to groceries and processing after that slice works. Expand active geography and agent population after data and replay are stable. Detailed character customization, residential interiors, social relationships, photorealistic assets, and operational drone dispatch are outside the first release.
 
-The next scope is a 1,000-household district with observed aggregate constraints and dated geographic data. Simulated households are individual economic units with resident members. A household can coordinate purchases across its members. A child sprite does not independently spend the household budget.
+## Open decisions
 
-The four-store policy requires a later configuration covering all four Community Council districts. The first neighbourhood prototype cannot establish citywide effects or choose Toronto's final four sites. Treat candidate sites as a location-allocation study with travel, capacity, cost, and distributional constraints.
-
-Do not scale by making one household carry a large arbitrary weight. That changes queue lengths, indivisible purchases, and vehicle utilization. If weighted cohorts become necessary, introduce an explicit aggregation model and validate its results against unweighted runs.
-
-## What the model measures
-
-Keep results in their original units. A single policy score would conceal tradeoffs.
-
-| Outcome | Definition |
-| --- | --- |
-| Food affordability | Price of a fixed reference basket and actual household food expenditure, reported separately |
-| Access | Network travel minutes, time spent collecting food, opening-hour compatibility, and unavailable options |
-| Food sufficiency | Modeled basket shortfall and served meal equivalents under declared portion rules |
-| Distribution | Outcomes by income group, household size, area, mobility constraints, and school eligibility |
-| Fiscal cost | Capital cash outlay, recurring public expense, fee relief, and subsidy commitments |
-| Store viability | Procurement, revenue, overhead, subsidy, waste, and cash runway |
-| Rescue performance | Eligible collected mass, accepted mass, edible output, spoilage, and usable deliveries |
-| School performance | Eligible students, uptake, meals served, kitchen throughput, and household substitution |
-| Delivery performance | Completed orders, total door-to-collection time, failures, operating cost, and service exclusions |
-| Human response | Observable modeled choices plus separately labeled stress, trust, and satisfaction proxies |
-
-The model must show residents who lose access, encounter cultural or dietary mismatch, cannot reach a locker, or do not have time to use the cheaper store. Average savings alone are insufficient.
-
-## The role of LLM agents
-
-Start with a transparent utility model for routine choices. Add LLM decisions at defined opportunities such as an unfamiliar store opening, a shortage, a change in school meals, or a switch between ground and drone delivery. The model should work with the LLM gateway disabled.
-
-Use a fixed, stratified panel of up to 40 focal households. Permit at most one LLM choice per focal household per simulated day. The proposed 30-day maximum is 1,200 requests, with 1,500 input tokens and 200 output tokens per request. A separate CAD 30 run ceiling can stop dispatch earlier. These are planning limits, not a provider quote or a cost forecast.
-
-The scheduler reserves maximum configured charges before dispatch and records refusals, timeouts, invalid responses, and deterministic fallbacks. Freeze prompts, provider configuration, input observations, and decision receipts. A seed cannot reproduce a fresh live model response. Replay uses the recorded response.
-
-Household feelings are latent model variables driven by food shortfall, financial strain, time pressure, and recorded experiences. LLM text can explain those variables. It cannot establish them as factual human emotions. Validate real attitudes through consented surveys or interviews if that becomes part of the research.
-
-## Evidence and economic data
-
-Freeze observations available by October 17, 2026. Maintain the observation period, release date, geography, units, source, and transformation for every input. Toronto City, Toronto CMA, Ontario, Canada, and food-bank network statistics are different populations.
-
-Use current CPI as a time index, not as a local shelf-price list. Use Toronto's nutritious food basket as a reference household basket, not every household's spending. Use food-bank visits as service demand, not unique people or population prevalence. The [data plan](docs/data-plan.md) describes source acquisition and the synthetic population.
-
-Unknown operating costs, processing yields, uptake, and household price responses remain explicit parameters. The application must distinguish evidence-backed values from illustrative defaults and researcher estimates. No generated figure becomes a verified input merely because an LLM wrote it.
-
-## Estimate impacts through experiments
-
-Compare baseline and treatment runs with matched household records, source snapshots, and named random streams. Begin with each policy alone. Then test combinations because school meals, rescued food, and cheaper stores can serve the same households and compete for the same food.
-
-Run a 16-cell screening experiment across the four policy switches. This is a hypothetical mature-policy experiment. Separately run a dated rollout experiment that respects approvals, procurement, staffing, and capacity ramps. The two answer different questions.
-
-Use at least 30 paired replications initially and expand based on a declared precision target. Report simulation variation, parameter uncertainty, and model limitations separately. A narrow Monte Carlo interval does not prove that the model matches Toronto.
-
-Compare results with and without live LLM choice. Test whether generated decisions change the estimated policy effect and whether those changes remain within calibrated behavioral ranges. Treat a surprising LLM narrative as a hypothesis to investigate.
-
-## Delivery strategy
-
-Plan a 16-week research prototype beginning with a two-week demonstrator, measured from an agreed kickoff. The demonstrator covers one household shopping path, a visible transaction, and a replay. It does not cover all policy research.
-
-Assume two full-time engineers, a half-time economic or operations analyst, a quarter-time 3D designer, and limited domain review. The 16-week prototype includes all four workstreams, bounded agents, exports, and validation fixtures. A research instrument suitable for consequential policy use needs additional data access, external review, and observed-outcome validation beyond this prototype.
-
-The proposed labor allowance is CAD 206,400 before contingency, using explicit hypothetical hourly rates. A 20% contingency brings that to CAD 247,680. These figures are planning arithmetic, not supplier quotes. The [delivery document](docs/delivery.md) provides the calculation, milestones, and acceptance gates.
-
-Real-world policy implementation is a separate schedule. A grocery strategy due in Q2 2027 does not imply stores open that quarter. The [policy timing table](docs/policies-and-evidence.md) identifies the operational dependencies and illustrative ranges.
-
-## Decisions settled by this plan
-
-- Keep one authoritative state owner per run and a separate presentation client.
-- Conserve money and food through explicit ledgers and lot transformations.
-- Treat LLM output as a bounded proposed choice with recorded fallback.
-- Preserve observed facts, approved plans, assumptions, and hypothetical policies as different evidence states.
-- Make the first neighbourhood small enough to inspect event by event.
-- Deliver all four policy models before attempting citywide scale or detailed character gameplay.
-
-## Questions for implementation kickoff
-
-The plan proceeds with browser delivery, a research-prototype goal, synthetic households, and the staffing assumptions above. The following answers refine implementation without blocking this planning package:
-
-- Which Toronto neighbourhood and community partners should anchor the first observed-data district?
-- Can partners provide aggregate procurement prices, processing throughput, school uptake, and delivery records?
-- Who will review the model equations and conclusions independently?
-- What actual hardware, hosting allowance, and provider budget replace the proposed targets?
-- Is a later public experience primarily educational, analytical, or a game?
-
-The next build task is the literal food-and-money fixture described in [delivery](docs/delivery.md). It establishes the transaction path before more agents or graphics make errors harder to see.
+- Confirm the names and rules for the three solutions. The school proposal needs an exact definition of "unlimited lunches."
+- Select the first active Toronto area and confirm which source data and licenses support it.
+- Decide whether the first release must run in a browser or can be a desktop app.
+- Define which pedestrian decisions use rules, small models, or LLMs and set a run-level cost and latency limit.
+- Choose the first economic and modeled-response outcomes with domain reviewers.
+- Set staffing, schedule, hardware, and operating budgets for the revised scope. Existing estimates describe the earlier food-policy prototype and do not price this product.

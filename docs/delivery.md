@@ -1,104 +1,36 @@
-# Delivery and costs
+# Delivery plan
 
-## Staffing and delivery assumption
+## Current planning status
 
-The proposed 16-week prototype assumes two full-time engineers, a half-time economist or operations analyst, a quarter-time 3D designer, and limited food-system or community review. One engineer leads simulation and data. The other leads the service, 3D client, and agent gateway. Both review settlement and replay.
+This roadmap sequences work by evidence and dependencies. It does not set a delivery date, staffing commitment, or approved budget. The earlier 16-week food-policy prototype and its illustrative CAD 252,480 envelope are superseded; they did not estimate a Toronto-first 3D simulation.
 
-The schedule begins at an agreed kickoff. It is not a commitment from Toronto or any partner. Missing data access can extend calibration while the synthetic demonstrator continues.
+The proposed stack is Godot 4 .NET/C# for the world and movement runtime, with the existing Python economic kernel and a versioned local bridge. The engine remains a lead candidate until the visible and headless vertical slice proves that movement, economic receipts, and replay agree. See [system architecture](architecture.md).
 
-## Milestones with observable results
+## Delivery gates
 
-| Weeks | Deliverable | Acceptance gate |
+| Gate | Work | Observable result |
 | --- | --- | --- |
-| 1 to 2 | Synthetic transaction path, literal accounting fixture, simple 3D purchase, recorded replay | Exact expected cents and grams, visible event inspection, no browser-owned economic state |
-| 3 to 5 | 250-household baseline, network travel, store inventory, household and school assignments, source snapshots | Reproducible rule-based runs, no overspending or duplicate food, baseline quality report |
-| 6 to 8 | Grocery, processing, school meals, and procurement policies | Each policy changes declared mechanisms, exposes cost, and passes adverse scenarios |
-| 9 to 11 | District 3D, queues, vans, processor, charts, comparison, fork and reconnect | Headless and visible economic hashes match, every displayed economic action traces to an event |
-| 12 to 13 | Bounded LLM panel, grounded explanations, budget and failure controls | Gateway-disabled run works, fault injection respects call and spending limits |
-| 14 to 16 | Hypothetical drones, 1,000-household performance run, study exports, sensitivity analysis, independent review | All four workstreams present, no-approval drone branch, complete replay and documented model limits |
+| 1. Toronto world slice | Audit licenses and vintages, freeze massing and street inputs, confirm coordinate transform, render city context and one active area | A selected building, street, and destination resolve to stable source features; unsupported geometry is labeled |
+| 2. Pedestrian slice | Add a walkable graph, a small synthetic population, schedules, mobility constraints, deterministic movement, and rule choices | One resident follows a feasible Toronto route in visible and headless modes with repeatable positions and choices |
+| 3. Economic bridge | Connect one resident trip to an existing household purchase or service transaction; record revisions and receipts | A committed Python receipt drives the visible economic change; duplicate or stale commands cannot settle twice |
+| 4. Planner and rollout | Define the three solution IDs, evidence snapshot, stage format, deterministic validator, review record, and activation rules; use the school meal plan as an initial case if its service definition is agreed | A validated school rollout includes candidate infrastructure and prerequisites; rejected or unfunded stages never change the running world |
+| 5. Outcomes and evaluation | Compare baseline, staged treatment, and adverse rollout cases; label data and modeled response | Results report economic outcomes, reach, movement, public cost, uncertainty, and modeled response by supported groups |
 
-The two-week demonstrator is part of the 16-week prototype, not an additional project. It is deliberately narrow. It proves a visible economic path while the broader food-system work develops.
+Each gate should end in an inspectable artifact and a recorded acceptance result before the next depends on it. Numeric performance targets follow measurement of the first active area; do not carry forward targets from the earlier food-economy plan.
 
-A more credible observed-data research release may need 24 weeks or more, depending on partner access, calibration, and review. No amount of rendering work substitutes for missing operating data.
+## First implementation work
 
-## Ordered implementation backlog
+1. Inspect Toronto building massing and Centreline downloads, metadata, coverage, licenses, coordinate systems, and stable identifiers.
+2. Select an initial active area based on the availability of routes and destinations, while preserving citywide context in the scene.
+3. Build a Godot headless/live test scene and exercise one resident on the same graph.
+4. Define the Python bridge envelope: run ID, timestamp, world and economic revisions, idempotency key, intent, receipt, and failure behavior.
+5. Connect one receipt from the existing economic kernel and verify visible/headless replay parity.
+6. Freeze the source manifest and record what remains synthetic before adding more pedestrians, destinations, or policy detail.
 
-| ID | Owner | Work | Depends on | Done when |
-| --- | --- | --- | --- | --- |
-| D01 | Analyst | Confirm district, questions, evidence states, and primary outcomes | None | Signed-off study brief and unknown-input register exist |
-| D02 | Simulation engineer | Units, lots, accounts, balanced transactions | D01 | Literal fixture passes with exact final values |
-| D03 | Simulation engineer | Clock, complete event reducer, checkpoints, recovery | D02 | Crash and duplicate-command fixture reproduces state |
-| D04 | Data lead | Source snapshots, transforms, synthetic population, geography | D01 | Manifest and aggregate quality report reproduce inputs |
-| D05 | Simulation engineer | Households, pupils, baseline shopping, food use | D03, D04 | Spending, school assignment, stock, and travel reconcile |
-| D06 | Simulation engineer | Stores, processor, meals, pooled procurement | D05 | Separate and combined policies pass mechanism fixtures |
-| D07 | Client engineer | Scene protocol, inspector, accessible results table | D03 | Transaction path and reconnect work from real events |
-| D08 | Client engineer and designer | District scene, queues, carriers, replay and comparison | D06, D07 | Renderer-independent runs and traceable animations pass |
-| D09 | Client engineer | LLM offers, receipts, charge reservation, fallback | D05, D07 | Invalid, late, refused, and uncertain requests behave correctly |
-| D10 | Simulation engineer | Drone corridors, handoff, battery, downtime, ground fallback | D06, D08 | No-approval and failed-handoff cases export correctly |
-| D11 | Analyst | Replicated studies, sensitivity, held-out calibration | D06, D09, D10 | Model report separates uncertainty and observed evidence |
-| D12 | Team and reviewer | Performance, recovery, source audit, documentation | D08, D11 | Acceptance record identifies passed gates and remaining limits |
+## Scope boundary
 
-D01 and D04 can continue while D02 and D03 establish the kernel. D07 can start with the narrow fixture before the full neighbourhood exists. Keep each implementation unit reviewable and verified before expanding its population.
+The first deliverable establishes Toronto as the primary 3D environment, supports pedestrian agents, and demonstrates one sourced infrastructure rollout plan. It does not claim a complete digital twin, calibrated citywide behavioral model, observed Toronto sentiment, unrestricted LLM autonomy, or real operational authority.
 
-## First ten working days
+School meals, including the proposed unlimited-lunch option, are one rollout scenario. The exact eligibility, participation, service days, menu, and meaning of “unlimited” remain to be specified. Municipal groceries and food rescue/processing remain the other two solution entries indicated in the current planning documents. Drone delivery remains an optional logistics case, not a core solution ID.
 
-1. Confirm a synthetic district and freeze the first product catalog and source register.
-2. Implement money and food quantities plus balanced journal entries.
-3. Implement the literal purchase, consumption, and processing fixture.
-4. Add reservations, cancellation, and duplicate command IDs.
-5. Add ordered events and a complete replay reducer.
-6. Persist commits and checkpoints. Inject a crash around settlement.
-7. Expose one immutable scene snapshot and event projection.
-8. Animate a resident along a recorded journey and open the purchase inspector.
-9. Fork a subsidy treatment and export the paired difference.
-10. Run the demonstrator end to end and record which acceptance gates remain.
-
-These are build tasks, not work already completed by this planning package.
-
-## Proposed labor budget
-
-The rates below are hypothetical planning inputs in Canadian dollars. Replace them with actual internal costs or quotes before budgeting. A 16-week full-time role has 640 hours at 40 hours per week.
-
-| Role | Hours | Assumed CAD per hour | Amount |
-| --- | --- | --- | --- |
-| Two engineers | 1,280 | 120 | CAD 153,600 |
-| Half-time analyst | 320 | 100 | CAD 32,000 |
-| Quarter-time 3D designer | 160 | 90 | CAD 14,400 |
-| Domain and community review | 64 | 100 | CAD 6,400 |
-| Total labor | 1,824 | | CAD 206,400 |
-| Contingency, 20% | | | CAD 41,280 |
-| Labor including contingency | | | CAD 247,680 |
-
-The first two weeks account for approximately CAD 25,800 of the base labor under the same staffing proportions. That amount is included above. Founder-built or student work may spend less cash but still incurs time and review requirements.
-
-Add an illustrative hosting allowance of CAD 500 monthly and an LLM experimentation allowance of CAD 300 monthly for six months, totaling CAD 4,800. Combined with contingency labor, the example envelope is CAD 252,480 before taxes, partner charges, special hardware, fieldwork, or real drone operations. This is a spending allowance, not current cloud or model pricing.
-
-## LLM cost control
-
-For configured rates per million tokens:
-
-```text
-estimated_CAD = FX_to_CAD * (
-    input_tokens * input_rate / 1_000_000
-    + output_tokens * output_rate / 1_000_000
-    + other_billable_usage_and_fees
-)
-```
-
-Reserve the maximum cost before dispatch and reconcile actual usage. Stop new requests if a ceiling would be exceeded. Include uncertain requests conservatively. Provider limits and token accounting must be checked when selecting an adapter.
-
-A run's CAD 30 ceiling is independent of its 1,200-call maximum. Either can stop live decisions first. Ten runs at the ceiling exhaust the CAD 300 monthly example allowance. The 480-run screening study therefore defaults to rule-based agents. A fully live study needs a separate approved research budget and a defined sampling design.
-
-Generated explanations can use templates for routine events. Reserve model calls for decisions or comparisons that add information. Evaluate quality before choosing a larger or more expensive model.
-
-## Scope boundaries and dependencies
-
-The prototype includes all four policy models, simple 3D actors, bounded LLM choice, replay, exports, and validation fixtures. Detailed interiors, character customization, social relationships, citywide populations, photorealism, and operational drone dispatch are later work.
-
-Partner data, local price audits, actual school participation, facility yields, and externally reviewed behavior remain dependencies. Continue with clearly marked synthetic assumptions while access is pending. Do not convert missing data into invented facts to preserve the schedule.
-
-## Conditions for a broader release
-
-Before presenting the system as evidence for consequential policy choices, obtain independent review of the economic mechanisms, compatible observed-data calibration, held-out validation, documented sensitivities, and a clear interpretation of uncertainty.
-
-A public demonstration can ship earlier if it identifies synthetic inputs and exploratory results visibly. The release checklist must state which gates passed and which claims remain unsupported. Publishing or hosting is a later explicit action, not part of this plan creation.
+The planner can recommend candidate sites, equipment, staffing, procurement, storage, and delivery stages. A deterministic validator and recorded review control whether a proposed schedule can enter a simulation. Actual project funding, permits, and real-world implementation decisions remain outside the simulator.

@@ -1,42 +1,57 @@
 # The Sims 6ix
 
-A Toronto food-policy simulator where a 3D neighbourhood makes household choices, food flows, and public costs visible.
+A Toronto 3D pedestrian simulation for exploring public food solutions, infrastructure rollouts, and their economic and human effects.
 
-This repository contains the system plan and a runnable, connected Python research prototype assembled from PRs #1 through #4. The planning cutoff is October 17, 2026. The requested drone scenario is Meituan-style food delivery.
+## Current state
 
-The implemented comparison covers one synthetic school day, 250 unweighted household records, and one produce component. School provision, procurement, rescue processing, municipal-store funding, household choices, and ground/drone logistics share one kernel. Inputs and feelings remain illustrative. This is not a calibrated model of current Toronto or a complete Sims-like game.
+This repository contains a headless Python research prototype. It runs one synthetic school day for up to 250 households and models one produce component. The run includes school meals, municipal groceries, food rescue and processing, procurement, and ground or hypothetical drone delivery.
 
-Install and check the simulator with Python 3.10 or newer:
+The prototype has no Toronto 3D scene, autonomous pedestrian population, infrastructure rollout planner, API, durable run database, or live LLM connection. The existing school-day run is an economic integration fixture. It is not the product's main environment or time horizon. [Here is why the current fixture says school day](docs/integration.md#why-the-prototype-says-school-day).
 
-```powershell
-python -m pip install -e ".[test]"
-python -m pytest -q
-python -m sim.integration paired --households 250 --seeds 17 18 --policies groceries --out outputs/grocery-pair
-```
+## Target product
 
-The output directory must be new. Completed runs contain hashed inputs, economic events, terminal state, decisions, household results, logistics, and presentation references. See [integration and current limitations](docs/integration.md) for selection decisions, commands, interpretation, and remaining work.
+The 3D Toronto environment is the primary experience. Residents move through a geospatial city model as pedestrian agents. A separate infrastructure planner proposes sourced, staged rollouts for three public solutions. The simulation validates each stage and records economic outcomes and clearly labeled modeled human responses.
 
-Start with [the product and build plan](PLAN.md), then read the specifications relevant to your work.
+The existing documents point to three Toronto solutions: municipal groceries, food rescue and processing, and expanded school meals. The school proposal may include unlimited lunches, but its service rules need definition. Meituan-style drones remain a delivery scenario rather than a fourth policy solution unless the team decides otherwise.
+
+## Proposed technology
+
+The leading design uses Godot 4 .NET/C# for Toronto, world time, and pedestrian movement; Python for the existing economic kernel, planner, and studies; a versioned local bridge; and SQLite for future durable run storage. This is a proposed stack. Only the headless Python economic prototype and terminal exports exist today. The world runtime is not final until a visible/headless movement slice proves replay and economic receipts. See the [architecture decision](docs/architecture-decision.md).
+
+Read [the revised product plan](PLAN.md) first. The [next steps](NEXT_STEPS.md) prioritize the Toronto world and pedestrian agents. The specifications cover the world and state ownership in [architecture](docs/architecture.md), agent and outcome semantics in [simulation](docs/simulation.md), Toronto inputs in [the data plan](docs/data-plan.md), and study design in [experiments and validation](docs/experiments-and-validation.md).
+
+## Run the current prototype
+
+Install Python 3.10 or newer and the optional test dependencies:
+
+    python -m pip install -e ".[test]"
+
+Run the existing paired grocery comparison:
+
+    python -m sim.integration paired --households 250 --seeds 17 18 --policies groceries --out outputs/grocery-pair
+
+The output directory must be new. Completed runs contain hashed inputs, economic events, terminal state, decisions, household results, logistics, and journey references. This command runs the existing food-policy prototype, not the planned Toronto 3D environment.
+
+## Project documents
 
 | Document | Purpose |
 | --- | --- |
-| [Next steps](NEXT_STEPS.md) | Immediate 3D milestone, backend ownership, data acquisition, model expansion, and live LLM integration |
-| [System architecture](docs/architecture.md) | Authority, modules, interfaces, event flow, persistence, and 3D synchronization |
-| [Economic and agent model](docs/simulation.md) | Food, money, households, behavior, LLM decisions, and modeled feelings |
-| [Policies and evidence](docs/policies-and-evidence.md) | Verified Toronto status, baseline economic context, and policy timing |
-| [Data plan](docs/data-plan.md) | Datasets, provenance, synthetic population, ingestion, and missing measurements |
-| [Experiments and validation](docs/experiments-and-validation.md) | Counterfactuals, uncertainty, acceptance gates, and real-world evaluation |
-| [Delivery and costs](docs/delivery.md) | Milestones, backlog, staffing, proposed budgets, and first tasks |
-| [Architecture decision](docs/architecture-decision.md) | Orange-skills candidate comparison, chosen base, and tradeoffs |
-| [Integration status](docs/integration.md) | Selected PR components, current contracts, validation, and revision priorities |
-| [Source register](planning/sources.json) | Primary URLs and the claims they support |
-| [Scenario catalog](planning/scenarios.json) | Machine-readable planning scenarios and LLM limits |
-| [Decision trail](planning/decisions.tsv) | Evidence behind the planning decisions |
+| [Product plan](PLAN.md) | Product goal, three solutions, pedestrian agents, and rollout planner |
+| [Next steps](NEXT_STEPS.md) | Toronto 3D-first implementation sequence |
+| [System architecture](docs/architecture.md) | World ownership, agent decisions, planner, and economic state |
+| [Economic and agent model](docs/simulation.md) | Pedestrians, households, interventions, and modeled response |
+| [Policies and evidence](docs/policies-and-evidence.md) | Existing Toronto policy evidence and limitations |
+| [Data plan](docs/data-plan.md) | Toronto geometry, population, services, and provenance |
+| [Experiments and validation](docs/experiments-and-validation.md) | Agent, rollout, economic, and response evaluation |
+| [Delivery plan](docs/delivery.md) | Proposed milestones and acceptance gates |
+| [Architecture decision](docs/architecture-decision.md) | Previous decision and revised engine direction |
+| [Integration status](docs/integration.md) | What the current Python prototype implements |
+| [Scenario catalog](planning/scenarios.json) | Three solution IDs, delivery enablers, and legacy fixture aliases |
+| [Source register](planning/sources.json) | Primary sources and supported claims |
+| [Decision trail](planning/decisions.tsv) | Planning decisions and their evidence |
 
-Run the planning-package checks from this folder in PowerShell:
+The planning-package checker validates documents and planning manifests:
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-plan.ps1
-```
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-plan.ps1
 
-This checks documents and planning manifests. The simulator tests run separately with pytest. Remaining simulation and research gates are recorded in the integration status document.
+The simulator tests are a separate check. Current implementation limits and future acceptance gates are listed in the [integration status](docs/integration.md).
