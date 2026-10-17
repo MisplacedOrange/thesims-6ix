@@ -1,0 +1,348 @@
+{
+  "schema_version": 1,
+  "cutoff": "2026-10-17",
+  "status": "Planning source register. Not a raw dataset archive.",
+  "sources": [
+    {
+      "id": "council-groceries",
+      "publisher": "Toronto City Council",
+      "published_at": "2026-03-26",
+      "evidence_type": "verified_policy",
+      "url": "https://secure.toronto.ca/council/agenda-item.do?item=2026.MM39.27",
+      "supports": "Adopted amended pilot parameters and Q2 2027 strategy deadline, not an opening date.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "grocery-finance",
+      "publisher": "City of Toronto",
+      "published_at": "2026-03-25",
+      "evidence_type": "verified_policy",
+      "url": "https://www.toronto.ca/legdocs/mmis/2026/rm/bgrd/backgroundfile-285659.pdf",
+      "supports": "Dated funding assessment at Council consideration, page 9.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "daily-bread-feasibility",
+      "publisher": "Daily Bread Food Bank",
+      "published_at": "2026-03-24",
+      "evidence_type": "stakeholder_submission",
+      "url": "https://www.toronto.ca/legdocs/mmis/2026/mm/comm/communicationfile-206612.pdf",
+      "supports": "Feasibility recommendation and limited-margin argument, not measured pilot impact.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "processing-launch",
+      "publisher": "Second Harvest",
+      "published_at": "2026-09-15",
+      "evidence_type": "announced_capacity",
+      "url": "https://www.secondharvest.ca/post/second-harvest-new-food-processing-facility",
+      "supports": "Facility launch, nominal annual capacity, intended student reach, and purchased plus rescued inputs.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "school-food-award",
+      "publisher": "City of Toronto",
+      "published_at": "2026-02-24",
+      "evidence_type": "announced_program",
+      "url": "https://www.toronto.ca/news/torontos-school-food-program-wins-1-4-million-prize-as-city-tackles-affordability/",
+      "supports": "School expansion, award, and FoodReach partnership.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "tph-budget",
+      "publisher": "Toronto Public Health",
+      "published_at": null,
+      "evidence_type": "approved_budget",
+      "url": "https://www.toronto.ca/wp-content/uploads/2026/03/86ce-2026-Public-Book-TPH-V1.pdf",
+      "supports": "Expansion appropriation and planned spring/fall phases. Exact publication day unknown; month encoded separately below.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null,
+      "publication_month": "2026-03"
+    },
+    {
+      "id": "cpi-august",
+      "publisher": "Statistics Canada",
+      "published_at": "2026-09-14",
+      "evidence_type": "observed_statistic",
+      "url": "https://www150.statcan.gc.ca/n1/daily-quotidien/260914/dq260914a-eng.htm",
+      "supports": "National August 2026 grocery price changes and next release date.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "labour-september",
+      "publisher": "Statistics Canada",
+      "published_at": "2026-10-09",
+      "evidence_type": "observed_statistic",
+      "url": "https://www150.statcan.gc.ca/n1/daily-quotidien/261009/t008a-eng.htm",
+      "supports": "Toronto CMA monthly seasonally adjusted labour characteristics.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "toronto-food-context",
+      "publisher": "City of Toronto",
+      "published_at": null,
+      "evidence_type": "undated_live_reference",
+      "url": "https://www.toronto.ca/city-government/accountability-operations-customer-service/long-term-vision-plans-and-strategies/poverty-reduction-strategy/food-security-in-toronto-poverty-reduction-strategy/",
+      "supports": "Food insecurity and nutritious-basket context. Publication vintage unresolved.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "whos-hungry-2025",
+      "publisher": "Daily Bread and North York Harvest",
+      "published_at": "2025-10-27",
+      "evidence_type": "observed_service_report",
+      "url": "https://www.dailybread.ca/wp-content/uploads/2025/12/DB-WHR-2025-Final_Nov-3_reader.pdf",
+      "supports": "Network visits and survey methods. Revised report file path is December 2025.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "cpi-table",
+      "publisher": "Statistics Canada",
+      "published_at": null,
+      "evidence_type": "located_dataset",
+      "url": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000401",
+      "supports": "Monthly CPI table, complete resource ingestion pending.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "retail-prices",
+      "publisher": "Statistics Canada",
+      "published_at": null,
+      "evidence_type": "located_dataset",
+      "url": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810024501",
+      "supports": "Monthly average product prices, supported geography and units need extraction.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "cost-of-living",
+      "publisher": "City of Toronto",
+      "published_at": null,
+      "evidence_type": "located_dataset",
+      "url": "https://open.toronto.ca/dataset/cost-of-living-in-toronto-for-low-income-households/",
+      "supports": "Household budget scenario data, downloadable resource unresolved.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "census-backgrounder",
+      "publisher": "City of Toronto",
+      "published_at": null,
+      "evidence_type": "located_dataset",
+      "url": "https://www.toronto.ca/wp-content/uploads/2022/07/9877-City-Planning-2021-Census-Backgrounder-Families-Hhlds-Marital-Status-Income.pdf",
+      "supports": "Historic Census household and income context, underlying controls needed.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "supermarkets",
+      "publisher": "City of Toronto",
+      "published_at": null,
+      "evidence_type": "located_dataset",
+      "url": "https://gis.toronto.ca/arcgis/rest/services/cot_geospatial26/MapServer/4",
+      "supports": "Full-service store GIS layer, record dates and current status unverified.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "centreline",
+      "publisher": "City of Toronto",
+      "published_at": null,
+      "evidence_type": "located_dataset",
+      "url": "https://ckan0.cf.opendata.inter.prod-toronto.ca/en/dataset/toronto-centreline-tcl",
+      "supports": "Network geometry; traversable modes and archive dates require validation.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "ttc",
+      "publisher": "City of Toronto and TTC",
+      "published_at": null,
+      "evidence_type": "located_dataset",
+      "url": "https://open.toronto.ca/dataset/ttc-routes-and-schedules/",
+      "supports": "GTFS schedule source, feed extraction and validity check pending.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "schools",
+      "publisher": "Toronto District School Board",
+      "published_at": null,
+      "evidence_type": "located_dataset",
+      "url": "https://www.tdsb.on.ca/Open-Data",
+      "supports": "School data entry point, other boards and program participation still needed.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "massing",
+      "publisher": "City of Toronto",
+      "published_at": null,
+      "evidence_type": "located_dataset",
+      "url": "https://open.toronto.ca/dataset/3d-massing/",
+      "supports": "Potential building geometry, resources and coordinate metadata not ingested.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "toronto-licence",
+      "publisher": "City of Toronto",
+      "published_at": null,
+      "evidence_type": "licence_reference",
+      "url": "https://open.toronto.ca/open-data-licence/",
+      "supports": "Reuse conditions and attribution.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "meituan-reference",
+      "publisher": "Meituan",
+      "published_at": "2026-01-06",
+      "evidence_type": "company_report",
+      "url": "https://www.meituan.com/news/NN260106200001758",
+      "supports": "Company-reported operating scale abroad, not Canadian unit economics.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "meituan-shanghai",
+      "publisher": "Meituan",
+      "published_at": "2026-09-11",
+      "evidence_type": "company_report",
+      "url": "https://www.meituan.com/news/NN260911177010407",
+      "supports": "Route network and receiving equipment reference.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "tc-bvlos",
+      "publisher": "Transport Canada",
+      "published_at": null,
+      "evidence_type": "regulatory_reference",
+      "url": "https://tc.canada.ca/en/aviation/drone-safety/2025-summary-changes-canada-drone-regulations",
+      "supports": "Lower-risk BVLOS conditions, not dense Toronto route approval.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "tc-sites",
+      "publisher": "Transport Canada",
+      "published_at": null,
+      "evidence_type": "regulatory_reference",
+      "url": "https://tc.canada.ca/en/aviation/drone-safety/learn-rules-you-fly-your-drone/where-fly-your-drone",
+      "supports": "Site and airspace guidance, not an approval record.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "competition",
+      "publisher": "Competition Bureau",
+      "published_at": "2023-06-27",
+      "evidence_type": "research_reference",
+      "url": "https://competition-bureau.canada.ca/en/how-we-foster-competition/education-and-outreach/canada-needs-more-grocery-competition",
+      "supports": "Grocery competition, entry barriers and margin definitions.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "school-attendance-study",
+      "publisher": "Borbely and colleagues",
+      "published_at": "2024-10-21",
+      "evidence_type": "research_reference",
+      "url": "https://strathprints.strath.ac.uk/90936/",
+      "supports": "Scottish universal meal uptake and attendance study, transferability limited.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "tfss-research",
+      "publisher": "Toronto Foundation for Student Success",
+      "published_at": null,
+      "evidence_type": "research_reference",
+      "url": "https://tfss.ca/research/",
+      "supports": "Local evaluation index, not a citywide causal estimate.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "odd",
+      "publisher": "Grimm and colleagues",
+      "published_at": null,
+      "evidence_type": "technical_reference",
+      "url": "https://www.jasss.org/23/2/7.html",
+      "supports": "ODD model description protocol, published 2020.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "python-random",
+      "publisher": "Python Software Foundation",
+      "published_at": null,
+      "evidence_type": "technical_reference",
+      "url": "https://docs.python.org/3/library/random.html",
+      "supports": "Generators, state and reproducibility caveat.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "three-instancing",
+      "publisher": "Three.js",
+      "published_at": null,
+      "evidence_type": "technical_reference",
+      "url": "https://threejs.org/docs/pages/InstancedMesh.html",
+      "supports": "Repeated geometry rendering capability.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "fastapi-websockets",
+      "publisher": "FastAPI",
+      "published_at": null,
+      "evidence_type": "technical_reference",
+      "url": "https://fastapi.tiangolo.com/advanced/websockets/",
+      "supports": "WebSocket endpoints, application recovery not supplied.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "sqlite-atomic",
+      "publisher": "SQLite",
+      "published_at": null,
+      "evidence_type": "technical_reference",
+      "url": "https://www.sqlite.org/atomiccommit.html",
+      "supports": "Atomic transaction design and storage caveats.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "godot-headless",
+      "publisher": "Godot",
+      "published_at": null,
+      "evidence_type": "technical_reference",
+      "url": "https://docs.godotengine.org/en/4.5/tutorials/export/exporting_for_dedicated_servers.html",
+      "supports": "Alternative architecture headless export capability.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    },
+    {
+      "id": "godot-csharp",
+      "publisher": "Godot",
+      "published_at": null,
+      "evidence_type": "technical_reference",
+      "url": "https://docs.godotengine.org/en/4.5/tutorials/scripting/c_sharp/",
+      "supports": "Alternative C# platform support limits.",
+      "checked_on": "2026-10-17",
+      "raw_snapshot_sha256": null
+    }
+  ]
+}

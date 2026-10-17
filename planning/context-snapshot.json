@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "cutoff": "2026-10-17",
+  "status": "Context observations and announcements only. No cleaned calibration dataset.",
+  "values": [
+    {
+      "id": "canada-grocery-yoy",
+      "value": 2.8,
+      "unit": "percent year over year",
+      "geography": "Canada",
+      "reference_period": "2026-08",
+      "released_on": "2026-09-14",
+      "evidence_state": "observed",
+      "source_id": "cpi-august",
+      "restriction": "National grocery category index; not Toronto shelf prices.",
+      "eligible_for_calibration": false
+    },
+    {
+      "id": "canada-grocery-since-2021",
+      "value": 29,
+      "unit": "percent change since August 2021",
+      "geography": "Canada",
+      "reference_period": "2026-08",
+      "released_on": "2026-09-14",
+      "evidence_state": "observed",
+      "source_id": "cpi-august",
+      "restriction": "Cumulative category index; not annual inflation.",
+      "eligible_for_calibration": false
+    },
+    {
+      "id": "toronto-cma-unemployment",
+      "value": 7.2,
+      "unit": "percent monthly seasonally adjusted",
+      "geography": "Toronto CMA",
+      "reference_period": "2026-09",
+      "released_on": "2026-10-09",
+      "evidence_state": "observed",
+      "source_id": "labour-september",
+      "restriction": "CMA differs from Toronto City.",
+      "eligible_for_calibration": false
+    },
+    {
+      "id": "toronto-food-insecurity",
+      "value": 24.7,
+      "unit": "percent of households",
+      "geography": "Toronto City",
+      "reference_period": "2024",
+      "released_on": null,
+      "evidence_state": "provisional_live_page",
+      "source_id": "toronto-food-context",
+      "restriction": "Publication vintage, survey definition and precision need confirmation.",
+      "eligible_for_calibration": false
+    },
+    {
+      "id": "toronto-nutritious-basket",
+      "value": 1242,
+      "unit": "CAD per month for two adults and children aged 8 and 14",
+      "geography": "Toronto City",
+      "reference_period": "2026",
+      "released_on": null,
+      "evidence_state": "provisional_live_page",
+      "source_id": "toronto-food-context",
+      "restriction": "Standard basket, not average household expenditure. Publication day unresolved.",
+      "eligible_for_calibration": false
+    },
+    {
+      "id": "food-bank-visits",
+      "value": 4124313,
+      "unit": "client visits",
+      "geography": "Toronto reporting food-bank network",
+      "reference_period": "2024-04 through 2025-03",
+      "released_on": "2025-10-27",
+      "evidence_state": "observed_service_report",
+      "source_id": "whos-hungry-2025",
+      "restriction": "Repeat visits, not unique people or prevalence.",
+      "eligible_for_calibration": false
+    },
+    {
+      "id": "processing-capacity",
+      "value": 750000,
+      "unit": "pounds fresh produce per year maximum",
+      "geography": "Second Harvest Etobicoke facility",
+      "reference_period": "announced 2026-09",
+      "released_on": "2026-09-15",
+      "evidence_state": "announced",
+      "source_id": "processing-launch",
+      "restriction": "Nominal maximum, not actual output or rescued share.",
+      "eligible_for_calibration": false
+    },
+    {
+      "id": "processing-student-reach",
+      "value": 28000,
+      "unit": "students intended to receive prepared fruits and vegetables",
+      "geography": "TFSS partnership",
+      "reference_period": "fall 2026 intended",
+      "released_on": "2026-09-15",
+      "evidence_state": "announced",
+      "source_id": "processing-launch",
+      "restriction": "Not meals, unique additional beneficiaries, or audited delivery.",
+      "eligible_for_calibration": false
+    },
+    {
+      "id": "school-expansion-schools",
+      "value": 155,
+      "unit": "additional schools announced",
+      "geography": "Toronto City",
+      "reference_period": "2026 planned",
+      "released_on": "2026-02-24",
+      "evidence_state": "announced",
+      "source_id": "school-food-award",
+      "restriction": "Active service dates and participation not verified.",
+      "eligible_for_calibration": false
+    },
+    {
+      "id": "school-expansion-students",
+      "value": 62000,
+      "unit": "additional students announced",
+      "geography": "Toronto City",
+      "reference_period": "2026 planned",
+      "released_on": "2026-02-24",
+      "evidence_state": "announced",
+      "source_id": "school-food-award",
+      "restriction": "Not daily meals. May overlap with processing student reach.",
+      "eligible_for_calibration": false
+    }
+  ]
+}

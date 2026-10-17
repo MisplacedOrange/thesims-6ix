@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "kind": "planning_catalog_not_executable",
+  "cutoff": "2026-10-17",
+  "interventions": [
+    {
+      "id": "groceries",
+      "source_ids": [
+        "council-groceries",
+        "daily-bread-feasibility",
+        "grocery-finance"
+      ],
+      "baseline": "No operating pilot assumed from adoption alone.",
+      "depends_on": [
+        "funding",
+        "site",
+        "operator",
+        "procurement"
+      ]
+    },
+    {
+      "id": "processing",
+      "source_ids": [
+        "processing-launch"
+      ],
+      "baseline": "Separate verified operation from nominal capacity and purchased input.",
+      "depends_on": [
+        "eligible_supply",
+        "shifts",
+        "cold_chain",
+        "buyers"
+      ]
+    },
+    {
+      "id": "school",
+      "source_ids": [
+        "school-food-award",
+        "tph-budget"
+      ],
+      "baseline": "Use confirmed active programs; isolate unknown rollout variants.",
+      "depends_on": [
+        "school_readiness",
+        "participation",
+        "menu",
+        "procurement_mode"
+      ]
+    },
+    {
+      "id": "drones",
+      "source_ids": [
+        "meituan-reference",
+        "tc-bvlos",
+        "tc-sites"
+      ],
+      "baseline": "Off. No Toronto route approval established.",
+      "depends_on": [
+        "route_eligibility",
+        "sites",
+        "weather",
+        "ground_fallback"
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "baseline",
+      "enabled": [],
+      "mode": "observed_service_with_explicit_unknowns"
+    },
+    {
+      "id": "groceries_only",
+      "enabled": [
+        "groceries"
+      ],
+      "mode": "hypothetical_policy"
+    },
+    {
+      "id": "processing_only",
+      "enabled": [
+        "processing"
+      ],
+      "mode": "capacity_change"
+    },
+    {
+      "id": "school_only",
+      "enabled": [
+        "school"
+      ],
+      "mode": "expansion_with_declared_procurement"
+    },
+    {
+      "id": "procurement_nested",
+      "enabled": [
+        "school"
+      ],
+      "mode": "pooled_versus_decentralized_at_equal_meals"
+    },
+    {
+      "id": "drones_only",
+      "enabled": [
+        "drones"
+      ],
+      "mode": "hypothetical_route_with_no_approval_branch"
+    },
+    {
+      "id": "combined",
+      "enabled": [
+        "groceries",
+        "processing",
+        "school",
+        "drones"
+      ],
+      "mode": "hypothetical_mature_programs"
+    }
+  ],
+  "screening": {
+    "binary_switches": 4,
+    "cells": 16,
+    "paired_seed_blocks": 30,
+    "total_runs": 480,
+    "default_agent_policy": "rules",
+    "rollout_study_separate": true
+  },
+  "llm_limits": {
+    "focal_households": 40,
+    "days": 30,
+    "choices_per_household_day": 1,
+    "max_attempts": 1200,
+    "max_input_tokens_per_attempt": 1500,
+    "max_output_tokens_per_attempt": 200,
+    "max_input_tokens": 1800000,
+    "max_output_tokens": 240000,
+    "concurrency": 4,
+    "max_live_requests_per_barrier": 4,
+    "barrier_selection": "predeclared_stratified_schedule",
+    "deadline_wall_seconds": 10,
+    "deadline_scope": "entire_decision_barrier",
+    "automatic_retries": 0,
+    "run_budget_cad": 30,
+    "prices_are_quotes": false
+  },
+  "budget": {
+    "weeks": 16,
+    "hours_per_full_time_week": 40,
+    "roles": [
+      {
+        "name": "engineers",
+        "hours": 1280,
+        "rate_cad": 120
+      },
+      {
+        "name": "analyst",
+        "hours": 320,
+        "rate_cad": 100
+      },
+      {
+        "name": "designer",
+        "hours": 160,
+        "rate_cad": 90
+      },
+      {
+        "name": "domain_review",
+        "hours": 64,
+        "rate_cad": 100
+      }
+    ],
+    "labor_cad": 206400,
+    "contingency_fraction": 0.2,
+    "contingency_cad": 41280,
+    "labor_with_contingency_cad": 247680,
+    "hosting_monthly_cad": 500,
+    "llm_monthly_cad": 300,
+    "allowance_months": 6,
+    "operating_allowance_cad": 4800,
+    "total_example_cad": 252480,
+    "rates_are_hypothetical": true
+  }
+}

@@ -1,0 +1,13 @@
+ts	phase	decision	why	evidence	result
+2026-10-17T16:57:32Z	frame	Scoped deliverable as a planning package in the requested repository	User requested an in-depth plan for a 3D LLM-agent Toronto simulator	PLAN.md	plan drafted
+2026-10-17T16:57:32Z	ground	Located installed Orange skill sources	Use the user's existing architecture and parallel-work workflow	docs/architecture-decision.md	skills applied
+2026-10-17T16:57:32Z	research	Separated adoption and announced reach from observed service	Primary records do not establish realized savings or full program delivery	docs/policies-and-evidence.md	evidence limits recorded
+2026-10-17T16:57:32Z	compare	Compared Python authority with Godot authority using two workers and a read-only judge	Different product priorities imply different state ownership and delivery constraints	docs/architecture-decision.md	both candidates reviewed
+2026-10-17T16:57:32Z	synthesis	Selected Python authority with browser 3D and second-level timing	Research workflow favored Python and short delivery events required finer time resolution	docs/architecture.md	base selected and repairs integrated
+2026-10-17T16:57:32Z	agents	Chose bounded options, durable receipts, and no automatic retries	Provider output and uncertain external billing cannot own economic state	docs/simulation.md	failure contract specified
+2026-10-17T16:57:32Z	delivery	Expanded prototype estimate from candidate 12 weeks to 16 weeks	All four workstreams need data provenance, recovery, and review time	docs/delivery.md	conditional estimate recorded
+2026-10-17T16:59:46Z	review	Corrected inventory expense recognition and the inclusive delivery schedule	Independent final review found double-counting risk and inconsistent schedule wording	planning/review.md	findings fixed
+2026-10-17T16:59:46Z	agents	Specified a predeclared four-request subset for each decision barrier	Response timing must not change the households admitted for live choice	docs/simulation.md	deadline and sampling clarified
+2026-10-17T16:59:46Z	verification	Exercised deliberate invalid source, policy, and budget data in an isolated copy	The checker needed to reject actual corruption rather than only pass valid files	planning/review.md	negative fixture failed as expected
+2026-10-17T16:59:46Z	review	Received independent PASS after corrections	Reviewer reread changed contracts and reran the package checker	planning/review.md	all three findings resolved
+2026-10-17T17:00:00Z	verification	Resolved the final report link and reran all package checks	Expanded link coverage caught the report before it was created	planning/review.md	checks passed after report capture
