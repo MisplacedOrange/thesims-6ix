@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "timezone": "America/Toronto",
+  "epoch": "2026-10-19T04:00:00Z",
+  "evidence_state": "illustrative",
+  "note": "Each day declares its own length in simulation seconds. This week is 86400 seconds per day. A later daylight-saving day can use a different length without changing the kernel.",
+  "days": [
+    {"day_index": 0, "local_date": "2026-10-19", "start_second": 0, "length_seconds": 86400},
+    {"day_index": 1, "local_date": "2026-10-20", "start_second": 86400, "length_seconds": 86400},
+    {"day_index": 2, "local_date": "2026-10-21", "start_second": 172800, "length_seconds": 86400},
+    {"day_index": 3, "local_date": "2026-10-22", "start_second": 259200, "length_seconds": 86400},
+    {"day_index": 4, "local_date": "2026-10-23", "start_second": 345600, "length_seconds": 86400},
+    {"day_index": 5, "local_date": "2026-10-24", "start_second": 432000, "length_seconds": 86400},
+    {"day_index": 6, "local_date": "2026-10-25", "start_second": 518400, "length_seconds": 86400}
+  ]
+}

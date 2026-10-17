@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "scenario_id": "literal-fixture-v1",
+  "label": "Literal purchase, consumption, and processing fixture. Inputs only.",
+  "evidence_state": "illustrative",
+  "cutoff": "2026-10-17",
+  "timezone": "America/Toronto",
+  "epoch": "2026-10-19T04:00:00Z",
+  "catalog_id": "sim6ix-basket-v1",
+  "price_base_month": null,
+  "planning_ref": {
+    "scenario_id": "baseline",
+    "mode": "observed_service_with_explicit_unknowns",
+    "enabled": []
+  },
+  "actors": [
+    {"actor_id": "H", "kind": "household", "account_id": "acct-H"},
+    {"actor_id": "M", "kind": "municipality", "account_id": "acct-M"},
+    {"actor_id": "R", "kind": "retailer", "account_id": "acct-R"},
+    {"actor_id": "P", "kind": "processor", "account_id": "acct-P"}
+  ],
+  "external_account_id": "acct-external-opening",
+  "external_owner_id": "external",
+  "opening_cash_cents": {
+    "acct-H": 1000,
+    "acct-M": 500,
+    "acct-R": 0,
+    "acct-P": 0
+  },
+  "opening_lots": [
+    {
+      "lot_id": "lot-produce-open",
+      "product_id": "produce.fresh",
+      "owner_id": "R",
+      "place_id": "store-R",
+      "grams": 1000,
+      "acquisition_cents": 0,
+      "unsafe_after": null
+    }
+  ],
+  "subsidy_example": {
+    "list_price_cents": 400,
+    "basket_grams": 600,
+    "requested_discount_cents": 200,
+    "full_budget_cents": 200,
+    "exhausted_budget_cents": 100,
+    "reference_need_grams": 1000,
+    "product_id": "produce.fresh",
+    "planning_scenario_id": "groceries_only",
+    "planning_mode": "hypothetical_policy"
+  }
+}

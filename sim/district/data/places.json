@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "evidence_state": "illustrative",
+  "note": "Shelf prices are scenario parameters in cents per 100 g. They are not Toronto shelf prices. The municipal candidate is closed in the baseline.",
+  "municipality": {
+    "actor_id": "muni",
+    "account_id": "acct-muni",
+    "opening_cash_cents": 0
+  },
+  "areas": [
+    {"area_id": "area-a", "school_id": "school-a", "store_id": "store-a"},
+    {"area_id": "area-b", "school_id": "school-b", "store_id": "store-b"},
+    {"area_id": "area-c", "school_id": "school-c", "store_id": "store-c"},
+    {"area_id": "area-d", "school_id": "school-d", "store_id": "store-d"}
+  ],
+  "stores": [
+    {
+      "store_id": "store-a",
+      "actor_id": "store-a",
+      "account_id": "acct-store-a",
+      "area_id": "area-a",
+      "operating": true,
+      "price_cents_per_100g": 70,
+      "opening_grams": 800000,
+      "acquisition_cents_per_100g": 30,
+      "quality_score": 5,
+      "open_offset_seconds": 28800,
+      "close_offset_seconds": 72000,
+      "product_id": "produce.fresh",
+      "lot_id": "lot-store-a",
+      "place_id": "store-a",
+      "unsafe_after_second": 864000,
+      "evidence_state": "illustrative"
+    },
+    {
+      "store_id": "store-b",
+      "actor_id": "store-b",
+      "account_id": "acct-store-b",
+      "area_id": "area-b",
+      "operating": true,
+      "price_cents_per_100g": 55,
+      "opening_grams": 800000,
+      "acquisition_cents_per_100g": 30,
+      "quality_score": 8,
+      "open_offset_seconds": 28800,
+      "close_offset_seconds": 72000,
+      "product_id": "produce.fresh",
+      "lot_id": "lot-store-b",
+      "place_id": "store-b",
+      "unsafe_after_second": 864000,
+      "evidence_state": "illustrative"
+    },
+    {
+      "store_id": "store-c",
+      "actor_id": "store-c",
+      "account_id": "acct-store-c",
+      "area_id": "area-c",
+      "operating": true,
+      "price_cents_per_100g": 50,
+      "opening_grams": 800000,
+      "acquisition_cents_per_100g": 30,
+      "quality_score": 8,
+      "open_offset_seconds": 28800,
+      "close_offset_seconds": 72000,
+      "product_id": "produce.fresh",
+      "lot_id": "lot-store-c",
+      "place_id": "store-c",
+      "unsafe_after_second": 864000,
+      "evidence_state": "illustrative"
+    },
+    {
+      "store_id": "store-d",
+      "actor_id": "store-d",
+      "account_id": "acct-store-d",
+      "area_id": "area-d",
+      "operating": true,
+      "price_cents_per_100g": 35,
+      "opening_grams": 200000,
+      "acquisition_cents_per_100g": 30,
+      "quality_score": 4,
+      "open_offset_seconds": 28800,
+      "close_offset_seconds": 72000,
+      "product_id": "produce.fresh",
+      "lot_id": "lot-store-d",
+      "place_id": "store-d",
+      "unsafe_after_second": 864000,
+      "evidence_state": "illustrative"
+    },
+    {
+      "store_id": "store-municipal",
+      "actor_id": "store-municipal",
+      "account_id": "acct-store-municipal",
+      "area_id": "area-a",
+      "operating": false,
+      "price_cents_per_100g": 40,
+      "opening_grams": 0,
+      "acquisition_cents_per_100g": 0,
+      "quality_score": 0,
+      "open_offset_seconds": 28800,
+      "close_offset_seconds": 72000,
+      "product_id": "produce.fresh",
+      "lot_id": "lot-store-municipal",
+      "place_id": "store-municipal",
+      "unsafe_after_second": 864000,
+      "evidence_state": "illustrative",
+      "note": "Candidate site. The baseline does not operate it and does not stock it."
+    }
+  ],
+  "schools": [
+    {
+      "school_id": "school-a",
+      "actor_id": "school-a",
+      "account_id": "acct-school-a",
+      "area_id": "area-a",
+      "program_status": "active",
+      "age_bands": ["5-12", "13-17"],
+      "evidence_state": "illustrative"
+    },
+    {
+      "school_id": "school-b",
+      "actor_id": "school-b",
+      "account_id": "acct-school-b",
+      "area_id": "area-b",
+      "program_status": "none",
+      "age_bands": ["5-12", "13-17"],
+      "evidence_state": "illustrative"
+    },
+    {
+      "school_id": "school-c",
+      "actor_id": "school-c",
+      "account_id": "acct-school-c",
+      "area_id": "area-c",
+      "program_status": "active",
+      "age_bands": ["5-12", "13-17"],
+      "evidence_state": "illustrative"
+    },
+    {
+      "school_id": "school-d",
+      "actor_id": "school-d",
+      "account_id": "acct-school-d",
+      "area_id": "area-d",
+      "program_status": "none",
+      "age_bands": ["5-12", "13-17"],
+      "evidence_state": "illustrative"
+    }
+  ]
+}

@@ -2,6 +2,8 @@
 
 ## Caller experience and proposed interfaces
 
+Implementation status: `sim/core` owns economic transitions; `sim/district` supplies frozen synthetic inputs and a regression baseline; `sim/policies`, `sim/logistics`, `sim/behavior`, and `sim/experiments` supply the selected mechanisms. `sim/integration` adapts them into one runnable district and terminal exports. The package layout and service interfaces later in this document remain the target design. API, durable storage, and provider transport have not been implemented or assigned to the frontend owner. See [integration status](integration.md).
+
 An analyst creates a scenario, runs a baseline, forks a treatment, compares results, and opens a replay. That is the public interface. The package hides scheduling, settlement, provider calls, persistence, and projection details.
 
 The following is a design sketch. These commands and Python functions do not exist in the current repository.
