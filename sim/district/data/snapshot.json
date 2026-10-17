@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "snapshot_id": "synthetic-district-snapshot-v1",
+  "scenario_id": "synthetic-district-v1",
+  "label": "Synthetic 250-household district inspired by Toronto. Not an observed neighbourhood and not a calibration dataset.",
+  "evidence_state": "illustrative",
+  "cutoff": "2026-10-17",
+  "catalog_id": "sim6ix-basket-v1",
+  "timezone": "America/Toronto",
+  "epoch": "2026-10-19T04:00:00Z",
+  "price_base_month": null,
+  "planning_scenario_id": "baseline",
+  "planning_mode": "observed_service_with_explicit_unknowns",
+  "planning_enabled": [],
+  "generator_version": "district-pop-1",
+  "note": "Quotas, prices, travel times, and behavior coefficients are illustrative. They are not Census counts, Toronto shelf prices, or measured walk times."
+}

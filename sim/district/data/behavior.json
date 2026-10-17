@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "habit_score": 80,
+  "preference_score": 20,
+  "nutrition_score_per_gram": 2,
+  "time_sensitivity_per_minute": 10,
+  "noise_span": 3,
+  "package_grams": 100,
+  "shop_offset_seconds": 36000,
+  "mobility_multiplier": {"walk": 1, "limited": 2},
+  "evidence_state": "illustrative",
+  "note": "Illustrative rule scores. Price sensitivity is points per dollar; the score divides cents by 100. Time sensitivity is points per minute; the score divides seconds by 60."
+}
