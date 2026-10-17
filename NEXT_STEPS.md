@@ -12,21 +12,21 @@ The repository does not contain the Toronto 3D world, autonomous pedestrian agen
 
 ### 1. Establish Toronto in 3D
 
-Choose an initial geographic snapshot and verify Toronto building massing, street geometry, coordinate systems, licenses, and data vintages. Render a citywide context with stable feature IDs. Identify one active area for detailed routes and agents. Keep synthetic or missing data visibly labeled.
+Choose an initial geographic snapshot and verify Toronto building massing, street geometry, coordinate systems, licenses, and data vintages. Render a browser scene with citywide context and stable feature IDs. Identify one active area for detailed routes and agents. Keep synthetic or missing data visibly labeled. Decide which desktop browsers and devices the first slice must support.
 
 Complete this step when the scene opens at Toronto scale, the active area aligns with source geography, and a selected building or street can be traced to its source feature.
 
 ### 2. Move pedestrian agents
 
-Add a pedestrian network and a small synthetic population in the active area. Give each person a position, destination, schedule, mobility profile, and current activity. Use deterministic movement and rule policies first. Add a small-model interface and a fixed, bounded LLM panel for selected decisions after legal options and replay records exist.
+Add a pedestrian network and a small synthetic population in the active area. Give each person a position, destination, schedule, mobility profile, and current activity. Advance movement and rule policies in the Python simulation service; send timestamped positions and events to the browser for rendering. Add a small-model interface and a fixed, bounded LLM panel for selected decisions after legal options and replay records exist.
 
 Complete this step when a resident follows a valid path between two Toronto destinations, and replay produces the same positions and choices from recorded inputs.
 
 ### 3. Connect the existing economics
 
-Connect one pedestrian trip to the Python economic kernel. Use one existing purchase or school-service transaction to verify that the scene, route, household account, food stock, and event record agree. The person may carry out a household purchase while the household remains the account owner.
+Connect one pedestrian trip to the Python economic kernel. Use one existing purchase or school-service transaction to verify that the browser scene, route, household account, food stock, and event record agree. The person may carry out a household purchase while the household remains the account owner. The browser sends commands and displays server-confirmed events; it does not settle the transaction.
 
-Complete this step when the world runtime waits for the economic receipt before displaying a purchase or service as complete. A rendered run and a headless run with the same decisions must produce matching economic hashes.
+Complete this step when the server commits the economic receipt before the browser displays a purchase or service as complete. Browser rendering and a headless run with the same inputs must produce matching world and economic hashes.
 
 ### 4. Plan and stage the school rollout
 
@@ -47,7 +47,7 @@ Complete this step when every reported measure has a unit, provenance, populatio
 ## Decisions before expanding
 
 - Confirm the exact three solutions. Existing documents point to groceries, rescue and processing, and school meals. Meituan-style drones are treated here as a delivery scenario.
-- Confirm whether the first 3D build is browser-based or a desktop application. Godot is the leading engine candidate; the earlier Three.js plan needs a movement-focused comparison.
+- Choose the first supported browsers and device classes, and decide whether the Python simulation service is local or hosted. The proposed browser renderer is Three.js; test it against the first Toronto area before scaling the scene.
 - Choose the first active Toronto area and the public data layers it requires.
 - Define the unlimited-lunch service before estimating infrastructure or sentiment effects.
 - Set model-call limits, persistence, staffing, budget, and schedule after the first vertical slice.

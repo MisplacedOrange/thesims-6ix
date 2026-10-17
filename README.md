@@ -6,7 +6,7 @@ A Toronto 3D pedestrian simulation for exploring public food solutions, infrastr
 
 This repository contains a headless Python research prototype. It runs one synthetic school day for up to 250 households and models one produce component. The run includes school meals, municipal groceries, food rescue and processing, procurement, and ground or hypothetical drone delivery.
 
-The prototype has no Toronto 3D scene, autonomous pedestrian population, infrastructure rollout planner, API, durable run database, or live LLM connection. The existing school-day run is an economic integration fixture. It is not the product's main environment or time horizon. [Here is why the current fixture says school day](docs/integration.md#why-the-prototype-says-school-day).
+The Python simulator has no Toronto 3D scene, autonomous pedestrian population, infrastructure rollout planner, API, durable run database, or live LLM connection. A separate browser demonstration in apps/web renders a synthetic scene and playback but is not connected to the simulator. The existing school-day run is an economic integration fixture. It is not the product's main environment or time horizon. [Here is why the current fixture says school day](docs/integration.md#why-the-prototype-says-school-day).
 
 ## Target product
 
@@ -16,7 +16,7 @@ The existing documents point to three Toronto solutions: municipal groceries, fo
 
 ## Proposed technology
 
-The leading design uses Godot 4 .NET/C# for Toronto, world time, and pedestrian movement; Python for the existing economic kernel, planner, and studies; a versioned local bridge; and SQLite for future durable run storage. This is a proposed stack. Only the headless Python economic prototype and terminal exports exist today. The world runtime is not final until a visible/headless movement slice proves replay and economic receipts. See the [architecture decision](docs/architecture-decision.md).
+Browser delivery is a product requirement. A local frontend prototype exists in [apps/web](apps/web/): TypeScript, React, Three.js, and Vite display and replay one fixed synthetic recording. It has no live simulation connection. The simulator itself remains a headless Python economic prototype. The proposed production design keeps world simulation, pedestrian state, and economic settlement authoritative in Python, with a versioned API to the browser; FastAPI with HTTP commands and WebSocket event updates is a candidate. SQLite and immutable, content-hashed files are proposed for local run storage. The deployment topology and target browser/device range still need decisions. See the [architecture decision](docs/architecture-decision.md).
 
 Read [the revised product plan](PLAN.md) first. The [next steps](NEXT_STEPS.md) prioritize the Toronto world and pedestrian agents. The specifications cover the world and state ownership in [architecture](docs/architecture.md), agent and outcome semantics in [simulation](docs/simulation.md), Toronto inputs in [the data plan](docs/data-plan.md), and study design in [experiments and validation](docs/experiments-and-validation.md).
 
@@ -44,7 +44,7 @@ The output directory must be new. Completed runs contain hashed inputs, economic
 | [Data plan](docs/data-plan.md) | Toronto geometry, population, services, and provenance |
 | [Experiments and validation](docs/experiments-and-validation.md) | Agent, rollout, economic, and response evaluation |
 | [Delivery plan](docs/delivery.md) | Proposed milestones and acceptance gates |
-| [Architecture decision](docs/architecture-decision.md) | Previous decision and revised engine direction |
+| [Architecture decision](docs/architecture-decision.md) | Browser client proposal, state ownership, and open deployment choices |
 | [Integration status](docs/integration.md) | What the current Python prototype implements |
 | [Scenario catalog](planning/scenarios.json) | Three solution IDs, delivery enablers, and legacy fixture aliases |
 | [Source register](planning/sources.json) | Primary sources and supported claims |

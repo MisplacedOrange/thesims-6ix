@@ -4,7 +4,7 @@
 
 The target model represents people moving through a 3D Toronto environment while public solutions are planned and rolled out over time. The first policy examples are municipal groceries, food rescue and processing, and expanded school meals. The current code covers only a synthetic food-economy slice; it is not a citywide model or an observed forecast. It measures direct household, institutional, and municipal effects. It does not infer employment multipliers, land-price changes, long-run migration, clinical health outcomes, or Toronto GDP.
 
-The world runtime owns pedestrian positions, paths, physical activities, and simulation time. The Python economic kernel owns money, food, household accounts, and settled services. A school schedule is one possible local schedule inside the world. The current one-day school fixture is not the target time horizon; see [why the prototype says school day](integration.md#why-the-prototype-says-school-day).
+The Python simulation service is the authority for pedestrian positions, paths, physical activities, and logical simulation time, as well as the economic kernel's money, food, household accounts, and settled services. The browser receives versioned snapshots and events and renders them; its frame loop and camera cannot advance simulation state. A school schedule is one possible local schedule inside the world. The current one-day school fixture is not the target time horizon; see [why the prototype says school day](integration.md#why-the-prototype-says-school-day).
 
 Use integer Canadian cents for money, integer grams for food mass, integer simulation seconds for time, and metres for route geometry. Record conversion and rounding rules. Monetary comparisons use a declared base month. Cash balances remain nominal. Converting reported outcomes into real dollars must never rewrite historical ledger entries.
 
@@ -88,7 +88,7 @@ Reported facility capacity is an upper bound. Daily output is limited by inbound
 
 Generate synthetic residents and household attributes from aggregate controls. A resident carries a current location, destination, activity, schedule, mobility profile, and known information. A household carries size, child age bands, income band, essential non-food expenses, home, cooking access, food preferences, cash, and pantry. Do not infer individual routines from neighbourhood averages or assign preferences through ethnic stereotypes.
 
-The world runtime moves residents along a sourced or explicitly illustrative pedestrian network. Route feasibility accounts for barriers, crossings, mobility constraints, access time, and destination opening hours when those data exist. A straight line between home and a store is not a measured walkable route. Agents may walk, wait, attend a service, shop, or return home; movement state does not directly settle an economic event.
+The Python simulation service moves residents along a sourced or explicitly illustrative pedestrian network. Route feasibility accounts for barriers, crossings, mobility constraints, access time, and destination opening hours when those data exist. A straight line between home and a store is not a measured walkable route. Agents may walk, wait, attend a service, shop, or return home; movement state does not directly settle an economic event.
 
 At a shopping opportunity, construct feasible baskets and routes using available stock, prices, opening hours, household cash, storage, and time. Include a no-purchase or delayed-purchase option so residents can fail to meet need. The household retains spending authority even when one member carries out the trip.
 
@@ -140,7 +140,7 @@ Report unserved orders separately. Dividing by all requested orders would hide t
 
 ## Bounded pedestrian-model decisions
 
-At a decision boundary, the model gateway receives a stable decision ID, resident ID, linked household or service context, world and economic revisions, known facts, recent event references, and a finite set of legal intent IDs. It returns one intent ID and an optional short explanation. It receives no unrestricted tools or database credentials. Python validates the selected intent; the world runtime still checks the route and movement constraints.
+At a decision boundary, the model gateway receives a stable decision ID, resident ID, linked household or service context, world and economic revisions, known facts, recent event references, and a finite set of legal intent IDs. It returns one intent ID and an optional short explanation. It receives no unrestricted tools or database credentials. The Python service validates the selected intent, route, movement constraints, and any economic effects before committing a transition.
 
 A resident cannot know another household's balance, future stock, or unannounced plan unless the scenario gives that information. Household purchase authorization remains separate from a pedestrian destination choice. Observations are built by explicit knowledge rules. Generated narrative and retrieved text are untrusted data.
 

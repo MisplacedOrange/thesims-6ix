@@ -90,7 +90,7 @@ These are future acceptance gates. The planning-package checker does not execute
 | Modeled response | Every proxy is labeled modeled and can be inspected separately from behavior and observed survey evidence |
 | Operational recovery | Disconnect, process failure, duplicate command, partial export, and unsupported replay version behave as specified |
 
-Measure movement, rendering, bridge, Python economics, model-provider latency, and archive performance separately on declared hardware. Set numeric limits after the first world slice and the active-area scale are known. Do not treat a planning target as a measured result.
+Measure movement, rendering, API/event-stream transport, Python economics, model-provider latency, and archive performance separately on declared hardware. Set numeric limits after the first world slice and the active-area scale are known. Do not treat a planning target as a measured result.
 
 ## Learning from real implementation
 
@@ -102,6 +102,6 @@ Use observations to test the simulator's mechanisms and predictions. Publish dis
 
 ## Result package
 
-Each completed study exports the world-package and source hashes, active area, scenario and rollout versions, population definition, code and runtime versions, seeds, pedestrian decisions, bridge receipts, event log, ledgers, subgroup outcomes, uncertainty intervals, modeled-response labels, costs, failure counts, and completion marker.
+Each completed study exports the world-package and source hashes, active area, scenario and rollout versions, population definition, code and runtime versions, seeds, pedestrian decisions, service command receipts, event log, ledgers, subgroup outcomes, uncertainty intervals, modeled-response labels, costs, failure counts, and completion marker.
 
 The report begins with the actual question, modeled population, baseline, and result. It distinguishes observed inputs, estimates, assumptions, and generated narrative. Include limitations and adverse outcomes beside benefits. A video of residents moving through the city is not validation.

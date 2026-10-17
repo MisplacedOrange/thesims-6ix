@@ -12,14 +12,14 @@ The school-day language comes from the existing `sim.integration` prototype. Its
 
 ## Architecture direction
 
-Two architecture candidates were compared: Python as world authority with browser Three.js, and Godot as the world/movement runtime with Python retaining economic authority. The clarified priority favors the latter because resident movement and a navigable 3D Toronto world are core behavior. The design review's recommendation is recorded in [the architecture decision](../docs/architecture-decision.md).
+The earlier scope review favored Godot as the world/movement runtime with Python retaining economic authority. The user has since made browser delivery a product requirement, which supersedes that engine recommendation. The current proposed direction is a TypeScript/React/Three.js client with Python as the sole world and economic authority. The frontend prototype in apps/web uses fixed synthetic snapshots and playback; it is not connected to a simulation service. The updated recommendation and its tradeoffs are recorded in [the architecture decision](../docs/architecture-decision.md).
 
-Godot 4 .NET/C# is the lead runtime, not an irreversible selection. The visible and headless vertical slice must prove synchronized world time, pedestrian movement, Python economic receipts, and replay. Browser delivery remains open. The current repository still implements only the Python economic prototype.
+The Python world clock, pedestrian movement, versioned API, durable run archive, and target-device performance are still unimplemented. Godot 4 .NET/C# is not suitable as the direct browser runtime under its current web-export limitation; see the official [Godot C# documentation](https://docs.godotengine.org/en/stable/tutorials/scripting/c_sharp/c_sharp_basics.html). The first vertical slice must prove authoritative replay and profile the browser projection on the lowest-supported device.
 
 ## Document and planning changes
 
 - Put Toronto 3D and pedestrian agents first in README.md, PLAN.md, and NEXT_STEPS.md.
-- Replaced the Python-world/Three.js architecture as the default proposal with Godot world ownership and Python economic ownership.
+- The previous revision replaced the Python-world/Three.js proposal with Godot world ownership and Python economic ownership; the browser requirement now supersedes that change.
 - Promoted Toronto massing, streets, coordinate systems, and pedestrian links to the first data gate.
 - Reframed studies around geographic validation, pedestrian movement, staged planning, and economic outcomes.
 - Replaced the old 16-week food-policy estimate and illustrative CAD 252,480 budget with dependency-based gates and no schedule or budget claim.
@@ -28,6 +28,6 @@ Godot 4 .NET/C# is the lead runtime, not an irreversible selection. The visible 
 
 ## Verification boundary
 
-The planning-package checker is run after these revisions and recorded in [verification output](verification.txt). It checks document links and consistency, evidence metadata, source IDs, solution coverage, product-scope fields, and decision pointers. It does not verify a running Godot project, a Toronto data ingestion, pedestrian behavior, planner quality, performance, calibration, or real policy outcomes.
+The planning-package checker was run for the earlier scope revision and is recorded in [verification output](verification.txt). It checks document links and consistency, evidence metadata, source IDs, solution coverage, product-scope fields, and decision pointers. It does not verify the current browser prototype, a Toronto data ingestion, pedestrian behavior, planner quality, performance, calibration, or real policy outcomes.
 
 Simulator tests were not run for this documentation scope revision.

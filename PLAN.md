@@ -45,7 +45,7 @@ Represent people as moving agents with a current place, destination, activity, m
 
 Use deterministic rules or small models for routine actions and navigation. Use LLMs for selected choices that benefit from richer context, such as service uptake, a response to a closure, or a change in travel mode. Freeze the LLM panel and decision opportunities before a run. The camera must not decide which people receive model calls.
 
-An agent proposes a legal intent, such as travel to a school, shop, or service. The world runtime checks that a route exists and advances movement. The economic model checks budgets, stock, and policy eligibility before recording purchases or service. A model cannot directly move a person, create food, spend money, or invent capacity.
+An agent proposes a legal intent, such as travel to a school, shop, or service. The Python simulation service checks that a route exists and advances movement. The economic model checks budgets, stock, and policy eligibility before recording purchases or service. A model cannot directly move a person, create food, spend money, or invent capacity.
 
 A household remains the shared financial unit when its members pool food and money. Individual residents can have their own locations, schedules, mobility, and service experiences. The model must state who controls a household purchase and record which resident carried it out.
 
@@ -82,11 +82,11 @@ A visible run and its headless counterpart use the same decisions and economic e
 
 ## Proposed architecture direction
 
-Use a 3D world runtime to own pedestrian locations, movement, and world time. Keep the Python economic kernel as the only writer of money, food, reservations, and settled policy transactions. A versioned bridge sends legal intents and rollout activations to the economic kernel and returns committed receipts before visible economic state changes.
+The simulation must be available as a browser app. Use a TypeScript and React client with Three.js for the Toronto scene, camera, controls, selection, and interpolation; Vite is the current prototype's development/build tool. Keep the browser as a renderer and command surface; it must not own authoritative simulation state. A Python simulation service advances logical world time, resident movement, policy events, and economic settlement. The existing Python economic kernel remains the only writer of money, food, reservations, and settled policy transactions. A versioned API accepts legal intents and rollout commands and returns committed events or receipts before the client displays economic changes.
 
-Godot is the leading engine candidate for embodied movement. The prior browser-first Three.js decision predates the clarified product priority. Keep the engine choice open until a vertical slice proves a Toronto map, one moving pedestrian, one economic receipt, and deterministic replay in visible and headless modes. If browser delivery is required, measure that constraint before committing to Godot.
+Use the same Python simulation path for rendered, headless, and replay runs. Logical simulation time and event ordering must not depend on browser frame rate, dropped frames, or camera position. The vertical slice must load a Toronto map, move one synthetic pedestrian, settle one economic action, and replay the same recorded events in the browser and headlessly. This browser-first direction supersedes the prior Godot 4 .NET/C# proposal; the Godot web-export documentation currently says Godot 4 C# projects cannot be exported to the web.
 
-Use immutable snapshots for source data, scenarios, planner proposals, and completed runs. Add durable storage and recovery before enabling long live sessions or provider calls. Do not create a service per pedestrian.
+Use immutable snapshots for source data, scenarios, planner proposals, and completed runs. Add durable storage and recovery before enabling long live sessions or provider calls. Do not create a service per pedestrian. Keep the browser rendering only the active area at full detail and use simpler citywide context; establish device and performance targets through measurement on the lowest supported hardware.
 
 ## First release and boundaries
 
@@ -98,7 +98,7 @@ Keep all three solutions in the scenario registry from the start. The school mea
 
 - Confirm the names and rules for the three solutions. The school proposal needs an exact definition of "unlimited lunches."
 - Select the first active Toronto area and confirm which source data and licenses support it.
-- Decide whether the first release must run in a browser or can be a desktop app.
+- Select the first supported browsers and device classes, and decide whether the Python service is local to one user's machine or hosted for shared access.
 - Define which pedestrian decisions use rules, small models, or LLMs and set a run-level cost and latency limit.
 - Choose the first economic and modeled-response outcomes with domain reviewers.
 - Set staffing, schedule, hardware, and operating budgets for the revised scope. Existing estimates describe the earlier food-policy prototype and do not price this product.
