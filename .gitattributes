@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# These raw bytes are pinned by the immutable input manifest on every OS.
+sim/core/data/*.json text eol=lf
+sim/district/data/*.json text eol=lf

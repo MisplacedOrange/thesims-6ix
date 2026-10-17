@@ -2,6 +2,10 @@
 
 ## What we are building
 
+The October 17 revision adds an explicit infrastructure-planning agent and emphasizes current-world economic inputs, repeatable acquisition checkpoints, realistic rollout durations, and inspectable human responses. Keep the food-policy scope below. The planner must propose sourced sites, costs, dependencies, timing ranges, and capacity ramps for deterministic validation; it cannot create infrastructure by assertion. It is separate from household choice agents.
+
+The consolidated implementation is an initial mechanism-integration milestone. It is not completion of the 16-week plan. [Integration status](docs/integration.md) records what runs and what remains, including current-data ingestion, infrastructure planning, multi-product adequacy, longer horizons, persistence, and the browser connection.
+
 Build a stylized 3D Toronto neighbourhood with households, stores, schools, a food hub, processing equipment, vans, and optional delivery drones. Residents shop, travel, receive school meals, encounter shortages, change plans, and explain selected choices through bounded LLM agents. An analyst can change a policy and compare outcomes against the same neighbourhood without that change.
 
 The central product question is concrete. Who gets more usable food, how much money and time do they save, who remains underserved, and what does the municipality pay?

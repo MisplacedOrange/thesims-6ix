@@ -2,6 +2,8 @@
 
 ## Evidence states
 
+Current implementation: the connected district uses the content-hashed illustrative snapshot under `sim/district/data`. Its exports include that source manifest and explicit synthetic labels. The API acquisition and refresh workflow below remains required implementation work; public-source links are not evidence that observations have been ingested.
+
 Each parameter carries one of four states: observed, announced, estimated, or illustrative. Unknown is a missing value with a reason, not a zero. A source can be verified while its input remains unsuitable for calibration because geography, timing, or definition does not match.
 
 No complete raw data ingestion has been performed in this planning task. Public sources have been located and selected claims checked. Partner-held prices, costs, utilization, and behavior still require access. The initial runnable dataset must identify every illustrative substitute.

@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "catalog_id": "sim6ix-basket-v1",
+  "frozen_on": "2026-10-17",
+  "evidence_state": "illustrative",
+  "note": "Synthetic basket components for the first district. Illustrative cents are not Statistics Canada shelf prices and not the Toronto nutritious food basket.",
+  "products": [
+    {
+      "product_id": "produce.fresh",
+      "label": "Fresh produce",
+      "storage_class": "refrigerated",
+      "pricing_unit": "100g",
+      "illustrative_retail_cents_per_100g": 50,
+      "illustrative_procurement_cents_per_100g": 30,
+      "illustrative_max_storage_seconds": 345600,
+      "recipe_roles": ["rescue_input", "basket_component"],
+      "evidence_state": "illustrative",
+      "note": "Eligible rescue input and a basket component. Scenario prices override the illustrative retail figure."
+    },
+    {
+      "product_id": "produce.prepared",
+      "label": "Prepared produce",
+      "storage_class": "refrigerated",
+      "pricing_unit": "100g",
+      "illustrative_retail_cents_per_100g": 80,
+      "illustrative_procurement_cents_per_100g": 0,
+      "illustrative_max_storage_seconds": 172800,
+      "recipe_roles": ["recipe_output", "basket_component"],
+      "evidence_state": "illustrative",
+      "note": "Edible output of the illustrative prepare-produce recipe. Not an audited plant yield."
+    },
+    {
+      "product_id": "staple.rice",
+      "label": "Rice",
+      "storage_class": "ambient",
+      "pricing_unit": "100g",
+      "illustrative_retail_cents_per_100g": 40,
+      "illustrative_procurement_cents_per_100g": 25,
+      "illustrative_max_storage_seconds": 2592000,
+      "recipe_roles": ["basket_component"],
+      "evidence_state": "illustrative",
+      "note": "Dry staple. Not interchangeable with produce of the same mass."
+    },
+    {
+      "product_id": "protein.beans",
+      "label": "Dry beans",
+      "storage_class": "ambient",
+      "pricing_unit": "100g",
+      "illustrative_retail_cents_per_100g": 45,
+      "illustrative_procurement_cents_per_100g": 28,
+      "illustrative_max_storage_seconds": 2592000,
+      "recipe_roles": ["basket_component"],
+      "evidence_state": "illustrative",
+      "note": "Dry protein. Not interchangeable with produce of the same mass."
+    },
+    {
+      "product_id": "dairy.milk",
+      "label": "Milk",
+      "storage_class": "refrigerated",
+      "pricing_unit": "100g",
+      "illustrative_retail_cents_per_100g": 60,
+      "illustrative_procurement_cents_per_100g": 40,
+      "illustrative_max_storage_seconds": 345600,
+      "recipe_roles": ["basket_component"],
+      "evidence_state": "illustrative",
+      "note": "Refrigerated dairy component."
+    },
+    {
+      "product_id": "staple.bread",
+      "label": "Bread",
+      "storage_class": "ambient",
+      "pricing_unit": "100g",
+      "illustrative_retail_cents_per_100g": 55,
+      "illustrative_procurement_cents_per_100g": 32,
+      "illustrative_max_storage_seconds": 432000,
+      "recipe_roles": ["basket_component"],
+      "evidence_state": "illustrative",
+      "note": "Ambient staple. Not interchangeable with produce of the same mass."
+    }
+  ],
+  "recipes": [
+    {
+      "recipe_id": "prepare-produce-v1",
+      "input_product_id": "produce.fresh",
+      "output_product_id": "produce.prepared",
+      "edible_numerator": 3,
+      "edible_denominator": 4,
+      "remainder_to": "process_loss",
+      "evidence_state": "illustrative",
+      "note": "400 g of fresh produce yields 300 g edible and 100 g process loss when the remainder goes to process loss. Not an audited yield."
+    }
+  ]
+}

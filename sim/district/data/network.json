@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "evidence_state": "illustrative",
+  "note": "Walk seconds are an attribute of each edge. Shortest paths minimize seconds, not metres. These are not measured Toronto walk times.",
+  "nodes": [
+    "area-a",
+    "area-b",
+    "area-c",
+    "area-d",
+    "store-a",
+    "store-b",
+    "store-c",
+    "store-d",
+    "school-a",
+    "school-b",
+    "school-c",
+    "school-d"
+  ],
+  "edges": [
+    {"edge_id": "e-ab", "a": "area-a", "b": "area-b", "metres": 800, "walk_seconds": 600},
+    {"edge_id": "e-bc", "a": "area-b", "b": "area-c", "metres": 700, "walk_seconds": 540},
+    {"edge_id": "e-cd", "a": "area-c", "b": "area-d", "metres": 900, "walk_seconds": 720},
+    {"edge_id": "e-sa", "a": "area-a", "b": "store-a", "metres": 150, "walk_seconds": 120},
+    {"edge_id": "e-sb", "a": "area-b", "b": "store-b", "metres": 160, "walk_seconds": 120},
+    {"edge_id": "e-sc", "a": "area-c", "b": "store-c", "metres": 140, "walk_seconds": 120},
+    {"edge_id": "e-sd", "a": "area-d", "b": "store-d", "metres": 180, "walk_seconds": 120},
+    {"edge_id": "e-ka", "a": "area-a", "b": "school-a", "metres": 200, "walk_seconds": 180},
+    {"edge_id": "e-kb", "a": "area-b", "b": "school-b", "metres": 220, "walk_seconds": 180},
+    {"edge_id": "e-kc", "a": "area-c", "b": "school-c", "metres": 210, "walk_seconds": 180},
+    {"edge_id": "e-kd", "a": "area-d", "b": "school-d", "metres": 240, "walk_seconds": 180}
+  ]
+}
