@@ -2,7 +2,9 @@
 
 ## Status and product boundary
 
-This is the proposed architecture for a Toronto-first 3D pedestrian simulation delivered through a browser app. A local frontend prototype exists in apps/web and demonstrates inspection, simple Three.js presentation, and deterministic playback of one fixed synthetic recording. It is not connected to a simulation service. The authoritative implementation remains a limited headless Python economic prototype; see [integration status](integration.md).
+The current visual milestone is implemented in apps/web as a standalone browser environment. It loads sourced Toronto geometry and generates seeded outdoor pedestrian itineraries. The browser samples that visual timeline directly. Public solutions, economic integration, and the Python service described below are deferred. See the [environment implementation](environment-implementation.md) for the current design.
+
+The rest of this document proposes the broader service architecture for a Toronto 3D pedestrian simulation. The current browser environment is independent of the limited headless Python economic prototype described in [integration status](integration.md).
 
 The product should open on a recognizable Toronto 3D context, then focus on active areas where geography, routes, pedestrians, services, and outcomes are modeled in detail. The first planner demonstration may stage the school-meal proposal, but schools do not define the city or the simulation clock.
 

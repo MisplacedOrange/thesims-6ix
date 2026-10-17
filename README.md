@@ -1,24 +1,40 @@
 # The Sims 6ix
 
-A Toronto 3D pedestrian simulation for exploring public food solutions, infrastructure rollouts, and their economic and human effects.
+A browser 3D environment for exploring downtown Toronto and watching synthetic pedestrians move through its streets.
 
-## Current state
+## Active deliverable
+
+The current milestone is the visual environment and pedestrian agents. Public solutions, infrastructure planning, and economic outcomes are deferred.
+
+The application in [apps/web](apps/web/) loads a frozen, attributed OpenStreetMap snapshot of downtown Toronto. It includes building massing, stylized CN Tower and Rogers Centre models, parks, streets, the waterfront, moving pedestrians, resident inspection, camera compositions, lighting, layers, and playback controls. It runs independently of the Python economic fixture.
+
+Use Node.js 24 or newer:
+
+    cd apps/web
+    npm install
+    npm run dev
+
+Open the Local URL printed by Vite. See the [environment guide](apps/web/README.md) for controls, tests, data licensing, and limitations.
+
+## Legacy economic fixture
 
 This repository contains a headless Python research prototype. It runs one synthetic school day for up to 250 households and models one produce component. The run includes school meals, municipal groceries, food rescue and processing, procurement, and ground or hypothetical drone delivery.
 
-The Python simulator has no Toronto 3D scene, autonomous pedestrian population, infrastructure rollout planner, API, durable run database, or live LLM connection. A separate browser demonstration in apps/web renders a synthetic scene and playback but is not connected to the simulator. The existing school-day run is an economic integration fixture. It is not the product's main environment or time horizon. [Here is why the current fixture says school day](docs/integration.md#why-the-prototype-says-school-day).
+The Python fixture remains separate from the browser environment. It has no infrastructure rollout planner, API, durable run database, or live LLM connection. The existing school-day run is an economic integration fixture. [Here is why the current fixture says school day](docs/integration.md#why-the-prototype-says-school-day).
 
-## Target product
+## Deferred research direction
 
 The 3D Toronto environment is the primary experience. Residents move through a geospatial city model as pedestrian agents. A separate infrastructure planner proposes sourced, staged rollouts for three public solutions. The simulation validates each stage and records economic outcomes and clearly labeled modeled human responses.
 
 The existing documents point to three Toronto solutions: municipal groceries, food rescue and processing, and expanded school meals. The school proposal may include unlimited lunches, but its service rules need definition. Meituan-style drones remain a delivery scenario rather than a fourth policy solution unless the team decides otherwise.
 
-## Proposed technology
+## Technology
 
-Browser delivery is a product requirement. A local frontend prototype exists in [apps/web](apps/web/): TypeScript, React, Three.js, and Vite display and replay one fixed synthetic recording. It has no live simulation connection. The simulator itself remains a headless Python economic prototype. The proposed production design keeps world simulation, pedestrian state, and economic settlement authoritative in Python, with a versioned API to the browser; FastAPI with HTTP commands and WebSocket event updates is a candidate. SQLite and immutable, content-hashed files are proposed for local run storage. The deployment topology and target browser/device range still need decisions. See the [architecture decision](docs/architecture-decision.md).
+TypeScript, React, Three.js, and Vite implement the current environment. A pure pedestrian module generates seeded itineraries on the connected map and samples them at simulation time. The browser owns this visual timeline. There is no service or provider dependency. The Python-authoritative service and storage architecture in the earlier [architecture decision](docs/architecture-decision.md) remains a future proposal.
 
 Read [the revised product plan](PLAN.md) first. The [next steps](NEXT_STEPS.md) prioritize the Toronto world and pedestrian agents. The specifications cover the world and state ownership in [architecture](docs/architecture.md), agent and outcome semantics in [simulation](docs/simulation.md), Toronto inputs in [the data plan](docs/data-plan.md), and study design in [experiments and validation](docs/experiments-and-validation.md).
+
+The research documents describe a broader future product. The active scope above governs current implementation.
 
 ## Run the current prototype
 
@@ -36,6 +52,8 @@ The output directory must be new. Completed runs contain hashed inputs, economic
 
 | Document | Purpose |
 | --- | --- |
+| [Environment guide](apps/web/README.md) | Run and explore the current visual environment |
+| [Environment implementation](docs/environment-implementation.md) | Current scope, design choice, and acceptance criteria |
 | [Product plan](PLAN.md) | Product goal, three solutions, pedestrian agents, and rollout planner |
 | [Next steps](NEXT_STEPS.md) | Toronto 3D-first implementation sequence |
 | [System architecture](docs/architecture.md) | World ownership, agent decisions, planner, and economic state |

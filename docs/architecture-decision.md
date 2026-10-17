@@ -2,7 +2,9 @@
 
 ## Decision status
 
-Browser delivery is now a product requirement. This updates the earlier Godot-led proposal. The browser prototype in apps/web demonstrates UI, a simple Three.js scene, and playback of one fixed synthetic recording; it does not execute or connect to the simulation.
+The active visual milestone is a standalone TypeScript, React, and Three.js environment in apps/web. Seeded pedestrian itineraries run in the browser without a Python service. The user has deferred public solutions and economic outcomes. The Python-authoritative service design below is a future proposal, not a dependency of this milestone.
+
+Browser delivery is now a product requirement. The browser prototype in apps/web demonstrates UI, a simple Three.js scene, and playback of one fixed synthetic recording; it does not execute or connect to the simulation.
 
 The proposed production direction is a **browser client in TypeScript/React and Three.js, backed by a Python-authoritative simulation service**. The browser renders a Toronto scene, accepts user commands, and interpolates committed state updates. Python advances logical time and resident movement and remains the only writer of economic state. This architecture is not implemented; API ownership, hosting, and the supported browser/device matrix remain open.
 
@@ -11,8 +13,6 @@ The proposed production direction is a **browser client in TypeScript/React and 
 | Option | Strength for this product | Main cost or risk |
 | --- | --- | --- |
 | Python-authoritative simulation + browser Three.js client | Direct browser access, one authoritative event/replay path, and reuse of Python economics | Large scenes and agent counts need profiling and level-of-detail controls; service deployment and reconnection must be designed |
-| Godot 4 GDScript web export + Python service | Integrated scene/navigation tooling with a web export path | A separate engine runtime and Python service still need a versioned bridge; it does not reuse the current Python simulation loop |
-| Godot 4 .NET/C# world + Python economy | Strong native 3D tooling and reuse of the Python kernel | Godot 4 C# projects currently cannot export to web, so it cannot directly satisfy browser delivery; native and browser clients would split |
 
 The browser-native option is the current recommendation because it serves the product requirement while keeping the existing Python economic code on the authoritative path. This is an architecture judgment, not a performance benchmark. The highest risks are rendering scale on lower-powered devices and keeping the client projection synchronized after dropped connections.
 
@@ -53,7 +53,7 @@ Build the smallest runnable slice before expanding the city:
 
 If this proof cannot preserve ordering and replay, reconsider the API and run-coordinator boundaries before adding population or policy complexity. Do not increase scene detail or agent counts until the lowest-supported device passes the agreed performance gate.
 
-Godot 4 C# is excluded from the direct browser runtime because its official documentation states that C# projects cannot currently be exported to web: [Godot C# basics](https://docs.godotengine.org/en/stable/tutorials/scripting/c_sharp/c_sharp_basics.html). Three.js is distributed as browser JavaScript and its official guide recommends npm with a build tool such as Vite for most projects: [Three.js installation](https://threejs.org/manual/pages/installation.html).
+Three.js is distributed as browser JavaScript and its official guide recommends npm with a build tool such as Vite for most projects: [Three.js installation](https://threejs.org/manual/pages/installation.html).
 
 ## Scope implications
 

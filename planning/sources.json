@@ -323,26 +323,6 @@
       "supports": "Atomic transaction design and storage caveats.",
       "checked_on": "2026-10-17",
       "raw_snapshot_sha256": null
-    },
-    {
-      "id": "godot-headless",
-      "publisher": "Godot",
-      "published_at": null,
-      "evidence_type": "technical_reference",
-      "url": "https://docs.godotengine.org/en/4.5/tutorials/export/exporting_for_dedicated_servers.html",
-      "supports": "Alternative architecture headless export capability.",
-      "checked_on": "2026-10-17",
-      "raw_snapshot_sha256": null
-    },
-    {
-      "id": "godot-csharp",
-      "publisher": "Godot",
-      "published_at": null,
-      "evidence_type": "technical_reference",
-      "url": "https://docs.godotengine.org/en/4.5/tutorials/scripting/c_sharp/",
-      "supports": "Alternative C# platform support limits.",
-      "checked_on": "2026-10-17",
-      "raw_snapshot_sha256": null
     }
   ]
 }

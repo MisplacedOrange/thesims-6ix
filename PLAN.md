@@ -1,5 +1,9 @@
 # The Sims 6ix: a 3D Toronto pedestrian simulation
 
+## Active implementation scope
+
+The current deliverable is a polished browser 3D Toronto environment with synthetic pedestrian agents. The implementation in apps/web focuses on geography, landmarks, movement, camera controls, lighting, and inspection. Public solutions, infrastructure planning, and economic outcomes are deferred. The broader research plan below describes future work and does not authorize those features in this milestone.
+
 ## Product goal
 
 Build a 3D simulation of Toronto where pedestrians move through a recognizable city environment, public solutions roll out over time, and the simulation records changes in access, household economics, public cost, and modeled human response.
@@ -84,7 +88,7 @@ A visible run and its headless counterpart use the same decisions and economic e
 
 The simulation must be available as a browser app. Use a TypeScript and React client with Three.js for the Toronto scene, camera, controls, selection, and interpolation; Vite is the current prototype's development/build tool. Keep the browser as a renderer and command surface; it must not own authoritative simulation state. A Python simulation service advances logical world time, resident movement, policy events, and economic settlement. The existing Python economic kernel remains the only writer of money, food, reservations, and settled policy transactions. A versioned API accepts legal intents and rollout commands and returns committed events or receipts before the client displays economic changes.
 
-Use the same Python simulation path for rendered, headless, and replay runs. Logical simulation time and event ordering must not depend on browser frame rate, dropped frames, or camera position. The vertical slice must load a Toronto map, move one synthetic pedestrian, settle one economic action, and replay the same recorded events in the browser and headlessly. This browser-first direction supersedes the prior Godot 4 .NET/C# proposal; the Godot web-export documentation currently says Godot 4 C# projects cannot be exported to the web.
+Use the same Python simulation path for rendered, headless, and replay runs. Logical simulation time and event ordering must not depend on browser frame rate, dropped frames, or camera position. The vertical slice must load a Toronto map, move one synthetic pedestrian, settle one economic action, and replay the same recorded events in the browser and headlessly. This browser-first direction reflects the direct-browser delivery requirement.
 
 Use immutable snapshots for source data, scenarios, planner proposals, and completed runs. Add durable storage and recovery before enabling long live sessions or provider calls. Do not create a service per pedestrian. Keep the browser rendering only the active area at full detail and use simpler citywide context; establish device and performance targets through measurement on the lowest supported hardware.
 
