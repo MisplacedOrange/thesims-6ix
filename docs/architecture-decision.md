@@ -2,6 +2,8 @@
 
 ## Decision status
 
+The active visual milestone is a standalone TypeScript, React, and Three.js environment in apps/web. Seeded pedestrian itineraries run in the browser without a Python service. The user has deferred public solutions and economic outcomes. The Python-authoritative service design below is a future proposal, not a dependency of this milestone.
+
 Browser delivery is now a product requirement. This updates the earlier Godot-led proposal. The browser prototype in apps/web demonstrates UI, a simple Three.js scene, and playback of one fixed synthetic recording; it does not execute or connect to the simulation.
 
 The proposed production direction is a **browser client in TypeScript/React and Three.js, backed by a Python-authoritative simulation service**. The browser renders a Toronto scene, accepts user commands, and interpolates committed state updates. Python advances logical time and resident movement and remains the only writer of economic state. This architecture is not implemented; API ownership, hosting, and the supported browser/device matrix remain open.
