@@ -20,6 +20,7 @@ Start with [the product and build plan](PLAN.md), then read the specifications r
 
 | Document | Purpose |
 | --- | --- |
+| [Next steps](NEXT_STEPS.md) | Immediate 3D milestone, backend ownership, data acquisition, model expansion, and live LLM integration |
 | [System architecture](docs/architecture.md) | Authority, modules, interfaces, event flow, persistence, and 3D synchronization |
 | [Economic and agent model](docs/simulation.md) | Food, money, households, behavior, LLM decisions, and modeled feelings |
 | [Policies and evidence](docs/policies-and-evidence.md) | Verified Toronto status, baseline economic context, and policy timing |
