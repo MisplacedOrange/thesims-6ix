@@ -2,7 +2,7 @@
 
 ## Current implementation status
 
-The browser app in apps/web provides the visual foundation: a sourced downtown Toronto scene, seeded pedestrian itineraries, camera and layer controls, and resident inspection. It is not yet connected to a proposal chat, department agents, or an ongoing policy simulation. This plan describes the target product and a staged path toward it; it does not claim those components are implemented.
+The browser app provides a sourced downtown Toronto scene and seeded pedestrian traces. A bounded local Council path now preserves exact Markdown revisions, records explicit scope and a typed plan, presents deterministic non-authoritative advice, and records approve, request-revision, or reject decisions. One supported municipal food-site action produces a matched six-hour baseline/intervention pair through the Python economic kernel. SQLite stores revisioned records, idempotent command receipts, and immutable traces; a loopback service supplies the browser. This remains a local scenario workflow, not an ongoing multi-day city, general agent council, external-model workflow, refreshed evidence service, or real City authority. This plan describes the broader target product and its remaining work.
 
 ## Product scope
 
@@ -44,13 +44,11 @@ The exact eligibility, participation, menu, and service promise for the unlimite
 
 Maintain and expand the existing frozen downtown Toronto scene using licensed building massing, street geometry, and other verified geographic layers. Use a citywide visual overview with lower detail outside the active simulation areas. Give selected neighborhoods detailed routes, people, destinations, and policy infrastructure first.
 
-A visible building does not imply that the model knows its rent, capacity, ownership, or activity. Keep geometry and economic attributes as separate evidence-bearing data. Use stable feature IDs to connect the scene, pedestrian network, public services, and rollout proposals.
+A visible building does not imply that the model knows its rent, capacity, ownership, or activity. Keep geometry and economic attributes as separate evidence-bearing data. Use stable feature IDs to connect the scene, pedestrian network, and public services.
 
 ## Council chat and proposal intake
 
-The side-panel chat is the working session for a simulated City Council. The user can upload a Markdown proposal, deliberate on its goals, ask for departmental analysis, amend interpretation, inspect sources, and record a versioned Council decision. The intake agent extracts named actors, requested changes, geographic and service constraints, outcome measures, timelines, funding, unknowns, and assumptions. It preserves citations and quotes for review; it does not turn unsupported claims into facts or silently fill missing values. The decision and approval rules for the demo remain open, and nothing authorizes real City action.
-
-For each proposal, intake should also map affected population groups, businesses and organizations that control relevant resources or services, responsible public authorities, and likely spillover effects. Keep actual resident, worker, business, and community input as dated, source-linked evidence, separate from synthetic household behavior and simulated department or stakeholder recommendations. Record known gaps in who was reached; generated dialogue must not imply real consultation, endorsement, or representation.
+The broader side-panel chat is intended to support a simulated City Council. The current bounded panel accepts Markdown, preserves source material and recognized spans, and keeps unclassified text visible. The reviewer explicitly saves the evaluated scope, chooses a supported action, and supplies labeled parameters; deterministic role notes do not make decisions. A reviewed version can receive one of three explicit decisions. It does not infer authorization from keywords or treat citations as verified evidence. Nothing authorizes real City action.
 
 The initial three proposals should be loaded through this same path. A new proposal must be representable without adding a new product-specific solution ID or code branch. When a proposal omits a required value, the system records an unknown, offers explicit scenario ranges where appropriate, or asks the user to clarify.
 
@@ -68,16 +66,6 @@ An agent proposes a legal intent, such as travel to a school, shop, or service. 
 
 A household remains the shared financial unit when its members pool food and money. Individual residents can have their own locations, schedules, mobility, and service experiences. The model must state who controls a household purchase and record which resident carried it out.
 
-## Infrastructure rollout planner
-
-Build a coordinated team of simulated expert agents that proposes how to phase each uploaded proposal into Toronto. Department roles can cover public health, planning and construction, finance, procurement, food operations, and logistics. The team works from the approved proposal, frozen evidence snapshot, current infrastructure, available budgets, and rollout constraints. It can identify dependencies and disagreements, but cannot invent authority, funding, or capacity.
-
-The agents return structured work packages with candidate sites, required equipment, staffing, storage, procurement and delivery dependencies, capital and operating costs, time ranges, capacity ramps, uncertainties, outcome measures, and stop conditions. Each sourced claim includes source IDs. Unknown values stay unknown. Council approval is recorded separately from departmental recommendations.
-
-A deterministic validator checks source references, site eligibility, units, budgets, dependencies, timing, and capacity consistency. A reviewer accepts or rejects the validated plan. The simulation activates only accepted milestones, and it records each delayed, reduced, or canceled stage. The planner cannot create infrastructure by assertion.
-
-Department planning operates on a slower schedule than pedestrian choices. It can propose a multi-year rollout while daily agents move, attend services, shop, and respond to changes. The world persists across rollout stages and records the policy, source, approval, and outcome events that change its state. A deliberate alternative plan creates a versioned branch at a recorded boundary.
-
 ## Economic and human outcomes
 
 Use the existing ledger approach to record money and food. Extend it to the selected Toronto services and infrastructure rather than replacing it with generated narrative.
@@ -94,7 +82,6 @@ If the project later collects consented survey responses, store them as a separa
 | --- | --- | --- | --- |
 | Explore | 3D world with staged time controls | Rules and selected bounded model decisions | Inspect pedestrian activity and infrastructure changes |
 | Council | Uploaded proposal and evolving simulation | Chat supports simulated deliberation; human records the decision | Turn a sourced proposal into an explicit, versioned simulation decision |
-| Plan | Current world and approved proposal | Department agents propose work packages; deterministic checks validate | Coordinate feasible rollout stages and surface conflicts or unknowns |
 | Experiment | Headless or rendered replicated runs | Declared rule, small-model, or recorded policy | Compare economic and modeled response outcomes |
 | Replay | Recorded world and economic events | No new model calls | Inspect a completed run and its causes |
 
@@ -106,22 +93,20 @@ The simulation must be available as a browser app. Use a TypeScript and React cl
 
 Use the same Python simulation path for rendered, headless, and replay runs. Logical simulation time and event ordering must not depend on browser frame rate, dropped frames, or camera position. The vertical slice must load a Toronto map, move one synthetic pedestrian, settle one economic action, and replay the same recorded events in the browser and headlessly. This browser-first direction reflects the direct-browser delivery requirement.
 
-Use immutable snapshots for source data, scenarios, planner proposals, and completed runs. Add durable storage and recovery before enabling long live sessions or provider calls. Do not create a service per pedestrian. Keep the browser rendering only the active area at full detail and use simpler citywide context; establish device and performance targets through measurement on the lowest supported hardware.
+Use immutable snapshots for source data, scenarios, and completed runs. Add durable storage and recovery before enabling long live sessions or provider calls. Do not create a service per pedestrian. Keep the browser rendering only the active area at full detail and use simpler citywide context; establish device and performance targets through measurement on the lowest supported hardware.
 
 ## First release and boundaries
 
-The first release should preserve the Toronto 3D environment, add the Council chat and proposal intake, and run an ongoing authoritative simulation for a selected area. The demo should load the grocery, surplus-processing, and school-food Markdown proposals through the shared intake path and show proposal-specific metrics, unknowns, expert work packages, staged simulated changes, and a replayable event history. New proposals should follow the same flow without code changes.
+The first release should preserve the Toronto 3D environment, add the Council chat and proposal intake, and run an ongoing authoritative simulation for a selected area. The demo should load the grocery, surplus-processing, and school-food Markdown proposals through the shared intake path and show proposal-specific metrics, unknowns, and a replayable event history. New proposals should follow the same flow without code changes. See the [agent planner plan](docs/agent-planner-plan.md) for work-package and staged-change requirements.
 
 Keep the first active geography and population small enough to validate data, replay, department coordination, and performance. Detailed character customization, residential interiors, photorealistic assets, and real-world operational authority are outside the first release.
 
 ## Open decisions
 
-- Define which decisions the Council chat records as human-approved and which work packages department agents can resolve within approved limits.
 - Define the reusable Markdown proposal contract, source extraction, unknown handling, outcome metrics, and version lifecycle.
-- Map simulated expert roles to real department responsibilities without implying official City participation or authority.
 - Specify how an ongoing simulation is checkpointed, paused, resumed, forked, and replayed.
 - Define how the first three demonstration proposals represent open questions such as grocery sites and school meal service rules.
 - Validate the current active Toronto area and its source data and licenses; select the next area for expansion.
 - Select the first supported browsers and device classes, and decide whether the Python service is local to one user's machine or hosted for shared access.
-- Define which pedestrian and department decisions use rules, small models, or LLMs and set run-level cost, latency, and audit limits.
+- Define which pedestrian decisions use rules, small models, or LLMs and set run-level cost, latency, and audit limits.
 - Choose the first economic and modeled-response outcomes with domain reviewers.

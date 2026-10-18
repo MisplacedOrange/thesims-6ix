@@ -1,10 +1,10 @@
+import { isRunRef } from './runRef.ts';
+import type { CouncilRunRef, PresetRunRef, RunRef } from './runRef.ts';
+
 export const LIVE_RUN_CHANNEL = 'the-sims-6ix:live-run:v1';
 
-export type LiveRunState = {
+type LiveRunFields = {
   type: 'simulation-state';
-  run_id: string;
-  population: number;
-  policy: 'baseline' | 'emergency';
   scenario_id: string;
   seed: number;
   input_snapshot_id: string | null;
@@ -16,38 +16,43 @@ export type LiveRunState = {
   published_at: number;
 };
 
-export type DashboardCommand =
-  | { type: 'dashboard-seek'; seconds: number }
-  | { type: 'dashboard-select-run'; population: number; policy: 'baseline' | 'emergency' };
+export type LiveRunState = LiveRunFields & (
+  | { run_ref: PresetRunRef; population: number; policy: 'baseline' | 'emergency' }
+  | { run_ref: CouncilRunRef; population: number; policy: 'council' }
+);
 
-export function liveRunId(state: Pick<LiveRunState, 'scenario_id' | 'population' | 'policy' | 'seed' | 'input_snapshot_id' | 'source_snapshot_id'>): string {
-  return [state.scenario_id, state.population, state.policy, state.seed,
-    state.input_snapshot_id ?? 'no-input-snapshot', state.source_snapshot_id ?? 'no-source-snapshot'].join(':');
+export type DashboardCommand =
+  | { type: 'dashboard-seek'; run_ref: RunRef; seconds: number }
+  | { type: 'dashboard-select-run'; run_ref: RunRef };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
 }
 
 export function isLiveRunState(value: unknown): value is LiveRunState {
-  if (!value || typeof value !== 'object') return false;
-  const state = value as Partial<LiveRunState>;
-  return state.type === 'simulation-state'
-    && typeof state.run_id === 'string'
-    && typeof state.population === 'number' && [200, 600, 1200].includes(state.population)
-    && (state.policy === 'baseline' || state.policy === 'emergency')
-    && typeof state.scenario_id === 'string'
-    && typeof state.seed === 'number' && Number.isFinite(state.seed)
-    && (state.input_snapshot_id === null || typeof state.input_snapshot_id === 'string')
-    && (state.source_snapshot_id === null || typeof state.source_snapshot_id === 'string')
-    && typeof state.seconds === 'number' && Number.isFinite(state.seconds)
-    && typeof state.horizon_seconds === 'number' && Number.isFinite(state.horizon_seconds)
-    && typeof state.paused === 'boolean'
-    && typeof state.speed === 'number' && Number.isFinite(state.speed)
-    && typeof state.published_at === 'number' && Number.isFinite(state.published_at);
+  if (!isRecord(value) || value.type !== 'simulation-state' || !isRunRef(value.run_ref)) return false;
+  const runRef = value.run_ref;
+  const identityMatches = runRef.kind === 'preset'
+    ? value.population === runRef.population && value.policy === runRef.policy
+    : Number.isInteger(value.population) && isFiniteNumber(value.population) && value.population > 0 && value.policy === 'council';
+  return identityMatches
+    && typeof value.scenario_id === 'string'
+    && isFiniteNumber(value.seed)
+    && (value.input_snapshot_id === null || typeof value.input_snapshot_id === 'string')
+    && (value.source_snapshot_id === null || typeof value.source_snapshot_id === 'string')
+    && isFiniteNumber(value.seconds) && value.seconds >= 0
+    && isFiniteNumber(value.horizon_seconds) && value.horizon_seconds >= 0
+    && typeof value.paused === 'boolean'
+    && isFiniteNumber(value.speed)
+    && isFiniteNumber(value.published_at);
 }
 
 export function isDashboardCommand(value: unknown): value is DashboardCommand {
-  if (!value || typeof value !== 'object') return false;
-  const command = value as Record<string, unknown>;
-  if (command.type === 'dashboard-seek') return typeof command.seconds === 'number' && Number.isFinite(command.seconds) && command.seconds >= 0;
-  return command.type === 'dashboard-select-run'
-    && typeof command.population === 'number' && [200, 600, 1200].includes(command.population)
-    && (command.policy === 'baseline' || command.policy === 'emergency');
+  if (!isRecord(value) || !isRunRef(value.run_ref)) return false;
+  if (value.type === 'dashboard-seek') return isFiniteNumber(value.seconds) && value.seconds >= 0;
+  return value.type === 'dashboard-select-run';
 }

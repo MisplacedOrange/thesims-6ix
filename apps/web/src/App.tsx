@@ -1,15 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { ArrowDownLeft, ArrowRight, BarChart3, Check, ChevronRight, Compass, Expand, Eye, Footprints, Info, Layers3,
+import { ArrowDownLeft, ArrowRight, BarChart3, Check, ChevronRight, Compass, Expand, Eye, Footprints, Info, Landmark, Layers3,
   MapPin, Moon, Pause, Play, Plus, Minus, RotateCcw, Settings2, Sun, Sunrise, Trees,
   VolumeX, X } from 'lucide-react';
 import { loadDistrict, loadIslands } from './district.ts';
-import type { District } from './district.ts';
+import type { District, Point } from './district.ts';
 import type { Layer, Lighting, SceneTick, TorontoScene } from './scene.ts';
-import { foodView, loadFoodTrace } from './interactables.ts';
-import type { FoodTrace } from './interactables.ts';
+import { foodView } from './interactables.ts';
+import type { CouncilFoodTrace, FoodTrace } from './interactables.ts';
 import { HouseholdDetails } from './FoodDetails.tsx';
-import { isDashboardCommand, LIVE_RUN_CHANNEL, liveRunId } from './liveRun.ts';
+import { isDashboardCommand, LIVE_RUN_CHANNEL } from './liveRun.ts';
+import { parseRunRef, sameRunRef, serializeRunRef } from './runRef.ts';
+import type { RunRef } from './runRef.ts';
+import { loadRunTrace } from './runTrace.ts';
+import { CouncilPanel } from './CouncilPanel.tsx';
 
 const emptyTick: SceneTick = { seconds: 0, walking: 0, resting: 0, selected: null };
 function clock(seconds: number): string {
@@ -24,6 +28,26 @@ function initialPopulation(): number {
   const value = Number(new URLSearchParams(window.location.search).get('population'));
   return [200, 600, 1200].includes(value) ? value : 600;
 }
+function initialRunRef(): RunRef {
+  const fromUrl = new URLSearchParams(window.location.search).get('run');
+  const parsed = parseRunRef(fromUrl);
+  if (parsed) return parsed;
+  return { kind: 'preset', population: initialPopulation(), policy: initialPolicy() };
+}
+function updateRunUrl(runRef: RunRef, seconds: number): void {
+  const url = new URL(window.location.href);
+  const serialized = serializeRunRef(runRef);
+  if (runRef.kind === 'council') {
+    url.searchParams.set('run', serialized ?? '');
+    url.searchParams.delete('population'); url.searchParams.delete('policy');
+  } else {
+    url.searchParams.delete('run');
+    url.searchParams.set('population', String(runRef.population));
+    url.searchParams.set('policy', runRef.policy);
+  }
+  url.searchParams.set('time', String(Math.floor(seconds)));
+  window.history.replaceState(null, '', url);
+}
 
 export function App() {
   const container = useRef<HTMLDivElement>(null), engine = useRef<TorontoScene | null>(null);
@@ -31,8 +55,14 @@ export function App() {
   const dialog = useRef<HTMLDialogElement>(null);
   const [district, setDistrict] = useState<District | null>(null);
   const [trace, setTrace] = useState<FoodTrace | null>(null);
-  const [policy, setPolicy] = useState<'baseline' | 'emergency'>(initialPolicy);
+  const [runRef, setRunRef] = useState<RunRef>(initialRunRef);
+  const activeRunRef = useRef(runRef);
+  const [policy, setPolicy] = useState<'baseline' | 'emergency' | 'council'>(() => {
+    const initial = initialRunRef(); return initial.kind === 'council' ? 'council' : initial.policy;
+  });
   const [siteId, setSiteId] = useState<string | null>(null);
+  const [projectedPoint, setProjectedPoint] = useState<Point | null>(null);
+  const [councilOpen, setCouncilOpen] = useState(false);
   const [busy, setBusy] = useState(false), [runError, setRunError] = useState<string | null>(null);
   const traceRequest = useRef(0);
   const [ready, setReady] = useState(false), [error, setError] = useState<string | null>(null);
@@ -41,14 +71,17 @@ export function App() {
   const [lighting, setLighting] = useState<Lighting>('golden');
   const [uiVisible, setUiVisible] = useState(true), [settingsOpen, setSettingsOpen] = useState(false);
   const [layers, setLayers] = useState<Record<Layer, boolean>>({ buildings: true, greenery: true, paths: false, traffic: true });
+  useEffect(() => { activeRunRef.current = runRef; }, [runRef]);
   useEffect(() => {
     let active = true;
     async function start() {
+      const requestedRun = initialRunRef();
       try {
-        const [map, islands, module, food] = await Promise.all([loadDistrict(), loadIslands(), import('./scene.ts'), loadFoodTrace(population, policy)]);
+        const [map, islands, module] = await Promise.all([loadDistrict(), loadIslands(), import('./scene.ts')]);
+        const food = await loadRunTrace(requestedRun);
         if (!active || !container.current) return;
         const view = new module.TorontoScene(container.current, map, islands, setTick,
-          id => { setSelected(id); if (id !== null) setSiteId(null); }, food, setSiteId);
+          id => { setSelected(id); if (id !== null) setSiteId(null); }, food, setSiteId, requestedRun);
         const params = new URLSearchParams(window.location.search);
         const requestedTime = params.has('time') ? Number(params.get('time')) : NaN;
         const startAt = Number.isFinite(requestedTime) ? Math.max(0, Math.min(requestedTime, food.horizon_seconds)) : 0;
@@ -57,8 +90,15 @@ export function App() {
         if (Number.isInteger(requestedResident) && requestedResident >= 0 && requestedResident < food.households.length) view.select(requestedResident);
         const requestedSite = params.get('site');
         if (requestedSite) { setSiteId(requestedSite); view.focusSite(requestedSite); }
-        engine.current = view; setDistrict(map); setTrace(food); setTick({ ...emptyTick, seconds: startAt }); setReady(true);
-      } catch (e) { if (active) setError(e instanceof Error ? e.message : 'The 3D environment could not start.'); }
+        engine.current = view; setDistrict(map); setTrace(food); setRunRef(requestedRun);
+        setPopulation(food.population); setPolicy(food.policy); setTick({ ...emptyTick, seconds: startAt }); setReady(true);
+      } catch (e) {
+        if (!active) return;
+        const message = e instanceof Error ? e.message : 'The requested run could not load.';
+        setError(requestedRun.kind === 'council'
+          ? `Council run ${requestedRun.run_id} (${requestedRun.arm}) is unavailable. ${message}`
+          : message);
+      }
     }
     void start();
     return () => { active = false; traceRequest.current++; engine.current?.dispose(); engine.current = null; };
@@ -70,8 +110,9 @@ export function App() {
     channel.onmessage = event => {
       const command = event.data;
       if (!isDashboardCommand(command)) return;
-      if (command.type === 'dashboard-seek') engine.current?.seek(command.seconds);
-      else void loadRun(command.population, command.policy);
+      if (command.type === 'dashboard-seek') {
+        if (sameRunRef(command.run_ref, activeRunRef.current)) engine.current?.seek(command.seconds);
+      } else void loadRunRef(command.run_ref);
     };
     return () => { channel.close(); liveChannel.current = null; };
   }, []);
@@ -79,7 +120,9 @@ export function App() {
   useEffect(() => { engine.current?.setSpeed(speed); }, [speed, ready]);
   useEffect(() => {
     function keyboard(event: KeyboardEvent) {
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || dialog.current?.open) return;
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement
+          || event.target instanceof HTMLSelectElement || (event.target instanceof HTMLElement && event.target.isContentEditable)
+          || dialog.current?.open) return;
       if (event.code === 'Space' && !(event.target instanceof HTMLButtonElement)) { event.preventDefault(); setPaused(p => !p); }
       if (event.key.toLowerCase() === 'h') setUiVisible(v => !v);
       if (event.key.toLowerCase() === 'r') engine.current?.reset();
@@ -93,35 +136,63 @@ export function App() {
     return () => { window.removeEventListener('keydown', keyboard); element?.removeEventListener('scene-error', contextError); };
   }, []);
   function chooseLight(id: Lighting) { setLighting(id); engine.current?.setLighting(id); }
-  async function loadRun(count: number, nextPolicy: 'baseline' | 'emergency') {
+  async function loadRunRef(nextRunRef: RunRef) {
     const request = ++traceRequest.current;
+    activeRunRef.current = nextRunRef;
     setBusy(true); setRunError(null);
     try {
-      const next = await loadFoodTrace(count, nextPolicy);
+      const next = await loadRunTrace(nextRunRef);
       if (request !== traceRequest.current || !engine.current) return;
-      engine.current.setFoodTrace(next); setTick(emptyTick); setTrace(next); setPopulation(count); setPolicy(nextPolicy); setSiteId(null);
+      engine.current.setFoodTrace(next, nextRunRef); setTick(emptyTick); setTrace(next); setRunRef(nextRunRef);
+      setPopulation(next.population); setPolicy(next.policy); setSiteId(null); setProjectedPoint(null);
+      updateRunUrl(nextRunRef, 0);
     } catch (e) {
       if (request === traceRequest.current) setRunError(e instanceof Error ? e.message : 'The scenario could not load.');
     } finally { if (request === traceRequest.current) setBusy(false); }
   }
+  async function loadRun(count: number, nextPolicy: 'baseline' | 'emergency') {
+    await loadRunRef({ kind: 'preset', population: count, policy: nextPolicy });
+  }
+  const onCouncilRunLoaded = useCallback((nextRunRef: Extract<RunRef, { kind: 'council' }>, next: CouncilFoodTrace) => {
+    traceRequest.current++;
+    activeRunRef.current = nextRunRef;
+    engine.current?.setFoodTrace(next, nextRunRef);
+    setTrace(next); setRunRef(nextRunRef); setPopulation(next.population); setPolicy('council');
+    setTick(emptyTick); setSiteId(null); setRunError(null); setBusy(false); setCouncilOpen(false);
+    updateRunUrl(nextRunRef, 0);
+  }, []);
+  const onProjectLocation = useCallback((point: Point | null) => setProjectedPoint(point), []);
+  const onFocusLocation = useCallback((point: Point) => engine.current?.focusProposedSite(point), []);
+  const onSeekToRolloutStage = useCallback((seconds: number) => {
+    const next = Math.max(0, Math.min(seconds, trace?.horizon_seconds ?? seconds));
+    engine.current?.seek(next);
+    setTick(previous => ({ ...previous, seconds: next }));
+    updateRunUrl(runRef, next);
+  }, [runRef, trace]);
+  useEffect(() => { engine.current?.setProposedLocation(projectedPoint); }, [projectedPoint, ready]);
   useEffect(() => {
     if (!trace || busy || !liveChannel.current) return;
-    const run = {
-      type: 'simulation-state' as const,
-      population,
-      policy,
-      scenario_id: trace.scenario_id,
-      seed: trace.seed,
-      input_snapshot_id: trace.data_snapshot?.content.snapshot_id ?? null,
-      source_snapshot_id: trace.data_snapshot?.content.source_snapshot_id ?? null,
-      seconds: Math.max(0, Math.min(tick.seconds, trace.horizon_seconds)),
-      horizon_seconds: trace.horizon_seconds,
-      paused: paused || busy || tick.seconds >= trace.horizon_seconds,
-      speed,
-      published_at: Date.now(),
+    const publish = () => {
+      liveChannel.current?.postMessage({
+        type: 'simulation-state' as const,
+        run_ref: runRef,
+        population,
+        policy,
+        scenario_id: trace.scenario_id,
+        seed: trace.seed,
+        input_snapshot_id: trace.data_snapshot?.content.snapshot_id ?? null,
+        source_snapshot_id: trace.data_snapshot?.content.source_snapshot_id ?? null,
+        seconds: Math.max(0, Math.min(tick.seconds, trace.horizon_seconds)),
+        horizon_seconds: trace.horizon_seconds,
+        paused: paused || busy || tick.seconds >= trace.horizon_seconds,
+        speed,
+        published_at: Date.now(),
+      });
     };
-    liveChannel.current.postMessage({ ...run, run_id: liveRunId(run) });
-  }, [trace, population, policy, tick.seconds, paused, busy, speed]);
+    publish();
+    const timer = window.setInterval(publish, 1000);
+    return () => window.clearInterval(timer);
+  }, [trace, runRef, population, policy, tick.seconds, paused, busy, speed]);
   function toggleLayer(layer: Layer) {
     const visible = !layers[layer]; setLayers(previous => ({ ...previous, [layer]: visible })); engine.current?.setLayer(layer, visible);
   }
@@ -146,8 +217,13 @@ export function App() {
           <div className="location"><span className="location-dot" /><span>DOWNTOWN TORONTO<small>43.6500° N &nbsp; 79.3850° W</small></span></div>
           <nav className="header-actions" aria-label="Environment tools">
             <a className="quiet-button analytics-link" aria-label="Open run dashboard" target="_blank" rel="noreferrer"
-              href={'/dashboard?population=' + population + '&policy=' + policy + '&time=' + Math.floor(tick.seconds)
-                + (siteId ? '&site=' + encodeURIComponent(siteId) : '')}><BarChart3 size={15} /> Run dashboard <ArrowRight size={14} /></a>
+              href={'/dashboard?' + (runRef.kind === 'council'
+                ? `run=${encodeURIComponent(serializeRunRef(runRef) ?? '')}`
+                : `population=${runRef.population}&policy=${runRef.policy}`)
+                + '&time=' + Math.floor(tick.seconds) + (siteId ? '&site=' + encodeURIComponent(siteId) : '')}>
+              <BarChart3 size={15} /> Run dashboard <ArrowRight size={14} /></a>
+            <button className="quiet-button council-toggle" aria-expanded={councilOpen} aria-controls="council-panel"
+              onClick={() => { setCouncilOpen(open => !open); setSettingsOpen(false); }}><Landmark size={15} /> Council</button>
             <button className="icon-button info-button" onClick={() => dialog.current?.showModal()} aria-label="About the environment"><Info size={18} /></button>
             <button className="icon-button mobile-settings" onClick={() => setSettingsOpen(v => !v)} aria-label="Toggle city settings"><Settings2 size={18} /></button>
             <button className="quiet-button hide-button" onClick={() => setUiVisible(false)}><Expand size={15} /> Hide interface <kbd>H</kbd></button>
@@ -166,14 +242,18 @@ export function App() {
         </section>}
         {busy && <div className="food-loading" role="status">Loading food scenario…</div>}
         {runError && <div className="food-run-error" role="alert">{runError}</div>}
+        <CouncilPanel id="council-panel" open={councilOpen} ready={ready} population={population}
+          seed={trace?.seed ?? 0} currentTrace={trace} currentRunRef={runRef} currentSeconds={tick.seconds}
+          onClose={() => setCouncilOpen(false)} onRunLoaded={onCouncilRunLoaded}
+          onProjectLocation={onProjectLocation} onFocusLocation={onFocusLocation} onSeekTo={onSeekToRolloutStage} />
         <button className="meet-button glass" disabled={!ready} onClick={() => engine.current?.meetResident()}>
           <span className="resident-avatars"><i /><i /><i /></span><span>Every dot has somewhere to be.<b>Meet a resident <ArrowRight size={13} /></b></span>
         </button>
-        <section className={'settings-panel glass' + (settingsOpen ? ' mobile-open' : '')} aria-label="City settings">
+        <section className={'settings-panel glass' + (settingsOpen ? ' mobile-open' : '') + (councilOpen ? ' council-covered' : '')} aria-label="City settings">
           <div className="settings-title"><span><Layers3 size={15} /> City settings</span></div>
           <label className="section-label">CITY LIFE <span>{population.toLocaleString()}</span></label>
           <div className="segmented population" aria-label="Pedestrian population">
-            {[{ n: 200, label: 'Quiet' }, { n: 600, label: 'Everyday' }, { n: 1200, label: 'Lively' }].map(option => <button key={option.n} className={population === option.n ? 'selected' : ''} aria-pressed={population === option.n} disabled={!ready || busy} onClick={() => { void loadRun(option.n, policy); }}>{option.label}</button>)}
+            {[{ n: 200, label: 'Quiet' }, { n: 600, label: 'Everyday' }, { n: 1200, label: 'Lively' }].map(option => <button key={option.n} className={population === option.n ? 'selected' : ''} aria-pressed={population === option.n} disabled={!ready || busy} onClick={() => { void loadRun(option.n, policy === 'council' ? 'baseline' : policy); }}>{option.label}</button>)}
           </div>
           <div className="setting-divider" />
           <label className="section-label">FOOD SCENARIO</label>

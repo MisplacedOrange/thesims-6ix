@@ -122,6 +122,5 @@ The Toronto food-access ABM literature provides a useful initial scope: the FAAM
 4. **Expand food measures carefully.** Add other food groups or nutritional measures only when product composition, preparation, storage, and household food-use rules support those units. The produce-only `unmet_grams` value is not diet adequacy or observed food insecurity.
 5. **Extend the economic model with evidence.** Add income timing, non-food essentials, labor, rent, operating costs, or margins only when the scenario has defensible inputs and a clear accounting treatment.
 6. **Extend beyond the six-hour day.** Add multi-day budgets, replenishment, schedules, and persistence before using this module to claim longer-term household or policy effects.
-7. **Connect staged policy rollout.** When the persistent world service exists, tie service openings and capacity changes to committed rollout milestones and continue measuring food and economic outcomes before and after activation.
 
 Keep deterministic rule choices as the baseline. Conservation of money and food, legal action generation, route feasibility, and repeated-run determinism are implementation checks, not evidence of real-world calibration. Add model-based choices only after the food/accounting measures and replay behavior are stable.

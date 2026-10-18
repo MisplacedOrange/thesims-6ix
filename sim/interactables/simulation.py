@@ -62,6 +62,22 @@ class Site:
     network_point: list[float] | None = None
 
 
+@dataclass(frozen=True)
+class MunicipalSiteSchedule:
+    site_id: str
+    location_id: str
+    grant_cents: int
+    stock_grams: int
+    service_capacity: int
+    readiness_second: int
+    funding_second: int
+    delivery_second: int
+    commissioning_second: int
+    open_second: int
+    close_second: int
+    blocker_reasons: tuple[str, ...] = ()
+
+
 class WalkingNetwork:
     def __init__(self, district: dict, closed_edges: tuple[tuple[int, int], ...]):
         self.nodes = district["walkNodes"]
@@ -140,7 +156,9 @@ class WalkingNetwork:
 
 def run(district: dict, population: int = 600, seed: int = 2026,
         emergency: bool = False, closed_edges: tuple[tuple[int, int], ...] = (),
-        site_snapshot: dict | None = None, site_snapshot_sha256: str | None = None) -> dict:
+        site_snapshot: dict | None = None, site_snapshot_sha256: str | None = None,
+        municipal_site: MunicipalSiteSchedule | None = None,
+        council_run_ref: dict | None = None) -> dict:
     """Return a deterministic event trace and scene projection with a no-policy default."""
     core.require_int(population, "population")
     core.require_int(seed, "seed")
@@ -154,6 +172,12 @@ def run(district: dict, population: int = 600, seed: int = 2026,
     scenario_id = (
         f"{PARAMETER}-{site_snapshot['snapshot_id']}" if site_snapshot is not None else PARAMETER
     )
+    if council_run_ref is not None:
+        if (council_run_ref.get("kind") != "council"
+                or council_run_ref.get("arm") not in {"baseline", "intervention"}
+                or not isinstance(council_run_ref.get("run_id"), str)):
+            raise ValueError("invalid Council run identity")
+        scenario_id = f"council-food-site-{council_run_ref['run_id']}"
     catalog = core.load_catalog()
     state = core.empty_state(run_id=f"walk-{seed}-{population}-{'aid' if emergency else 'base'}",
                             scenario_id=scenario_id, catalog_id=catalog.catalog_id,
@@ -256,6 +280,48 @@ def run(district: dict, population: int = 600, seed: int = 2026,
             network_point=network_point if source else None,
         )
         sites.append(site)
+    if municipal_site is not None:
+        if site_snapshot is None or municipal_site.location_id not in source_sites:
+            raise ValueError("Council site requires a location from the pinned source snapshot")
+        if any(s.id == municipal_site.site_id for s in sites):
+            raise ValueError("Council site identifier collides with an existing scenario site")
+        source = source_sites[municipal_site.location_id]
+        point = source["scene_point"]
+        node = network.nearest(point)
+        network_point = list(network.nodes[node])
+        snap_distance = math.dist(point, network_point)
+        if snap_distance > 100:
+            raise ValueError("Council source location is too far from the walking network")
+        sites.append(Site(
+            municipal_site.site_id,
+            "Hypothetical municipal food site",
+            "council",
+            node,
+            municipal_site.open_second,
+            municipal_site.close_second,
+            0,
+            0,
+            60,
+            0,
+            active_from=municipal_site.open_second,
+            source_id=source.get("source_id"),
+            source_record_id=source.get("source_record_id"),
+            source_site_id=source.get("source_site_id"),
+            source_url=source.get("source_url"),
+            source_record_url=source.get("source_record_url"),
+            source_snapshot_id=source.get("source_snapshot_id"),
+            source_retrieved_at=source.get("source_retrieved_at"),
+            source_published_at=source.get("source_published_at"),
+            source_updated_at=source.get("source_updated_at"),
+            source_address=source.get("address"),
+            source_quality_flags=source.get("quality_flags"),
+            location_evidence_state=source.get("location_evidence_state"),
+            operations_evidence_state=source.get("operations_evidence_state"),
+            listing_current_status=source.get("listing_current_status"),
+            map_snap_distance_m=round(snap_distance, 1),
+            point=list(point),
+            network_point=network_point,
+        ))
     by_site = {s.id: s for s in sites}
     households = []
     rng = random.Random(seed)
@@ -297,6 +363,7 @@ def run(district: dict, population: int = 600, seed: int = 2026,
                    owner_id=owner, place_id=place, grams=grams, acquisition_cents=0, unsafe_after=None)
 
     events, queue = [], []
+    rollout_events = []
     schedule_index = 0
     journeys = {}
     consumed = {h["id"]: 0 for h in households}
@@ -304,6 +371,8 @@ def run(district: dict, population: int = 600, seed: int = 2026,
     received = {h["id"]: 0 for h in households}
     purchased = {h["id"]: 0 for h in households}
     city_spending = 0
+    council_blocker = None
+    council_ready = council_funded = council_delivered = council_commissioned = False
 
     def household_view(h):
         pantry = stock(h["id"], f"home-{h['id']}")
@@ -344,6 +413,18 @@ def run(district: dict, population: int = 600, seed: int = 2026,
         event["public_spending_cents"] = city_spending
         events.append(event)
 
+    def emit_rollout(stage, second, status, reason=None, s=None, amount_cents=0,
+                     stock_grams=0):
+        record = dict(event_id=f"rollout-{len(rollout_events)}", stage=stage,
+                      simulation_time=second, status=status, reason=reason,
+                      amount_cents=amount_cents, stock_grams=stock_grams,
+                      capacity=s.capacity if s else 0)
+        rollout_events.append(record)
+        if s is not None:
+            emit(second, f"rollout_{stage}", status, s=s,
+                 reason=reason, stage=stage, amount_cents=amount_cents,
+                 stock_grams=stock_grams, capacity=s.capacity)
+
     def schedule(second, phase, kind, h=None, payload=None):
         nonlocal schedule_index
         schedule_index += 1
@@ -372,6 +453,25 @@ def run(district: dict, population: int = 600, seed: int = 2026,
         schedule(3600, core.PHASE_POLICY, "activate")
         schedule(3660, core.PHASE_SETTLE, "delivery", payload=("emergency", population * 100))
         schedule(18000, core.PHASE_POLICY, "shutdown")
+    if municipal_site is not None:
+        if municipal_site.blocker_reasons:
+            for stage, second in (
+                ("readiness", municipal_site.readiness_second),
+                ("funding", municipal_site.funding_second),
+                ("delivery", municipal_site.delivery_second),
+                ("commissioning", municipal_site.commissioning_second),
+                ("opening", municipal_site.open_second),
+                ("closure", municipal_site.close_second),
+            ):
+                schedule(second, core.PHASE_POLICY, "council_no_launch",
+                         payload=(municipal_site.site_id, stage, second))
+        else:
+            schedule(municipal_site.readiness_second, core.PHASE_POLICY, "council_readiness")
+            schedule(municipal_site.funding_second, core.PHASE_POLICY, "council_funding")
+            schedule(municipal_site.delivery_second, core.PHASE_SETTLE, "council_delivery")
+            schedule(municipal_site.commissioning_second, core.PHASE_POLICY, "council_commissioning")
+            schedule(municipal_site.open_second, core.PHASE_POLICY, "council_open")
+            schedule(municipal_site.close_second, core.PHASE_POLICY, "council_close")
 
     while queue:
         second, phase, _, _, kind, h, payload = heapq.heappop(queue)
@@ -386,6 +486,95 @@ def run(district: dict, population: int = 600, seed: int = 2026,
                  shutdown_condition="13:30 simulation time", capacity_effect=by_site["emergency"].capacity)
         elif kind == "shutdown":
             emit(second, "policy_shutdown", s=by_site["emergency"])
+        elif kind == "council_readiness":
+            s = by_site[municipal_site.site_id]
+            emit_rollout("readiness", second, "completed", s=s,
+                         reason="site readiness is a scenario assumption; authority and current operation remain unknown")
+            council_ready = True
+        elif kind == "council_funding":
+            s = by_site[municipal_site.site_id]
+            if council_blocker:
+                emit_rollout("funding", second, "not_started", council_blocker, s=s)
+                continue
+            if not council_ready or cash("city") < municipal_site.grant_cents:
+                council_blocker = "readiness or scenario city funds are unavailable"
+                emit_rollout("blocked", second, "blocked", council_blocker, s=s)
+                emit_rollout("no_launch", second, "blocked", council_blocker, s=s)
+                continue
+            commit(core.TransferCash, second, phase, from_account_id="city", to_account_id=s.id,
+                   cents=municipal_site.grant_cents, memo="illustrative Council scenario grant")
+            city_spending += municipal_site.grant_cents
+            council_funded = True
+            emit_rollout("funding", second, "completed", s=s,
+                         reason="scenario grant transferred through sim.core",
+                         amount_cents=municipal_site.grant_cents)
+        elif kind == "council_delivery":
+            s = by_site[municipal_site.site_id]
+            if council_blocker:
+                emit_rollout("delivery", second, "not_started", council_blocker, s=s)
+                continue
+            required_cash = municipal_site.stock_grams * 20 // 100
+            if not council_funded or stock("supplier") < municipal_site.stock_grams or cash(s.id) < required_cash:
+                council_blocker = "full supplier quantity or procurement payment is unavailable"
+                grant_balance = cash(s.id)
+                if grant_balance:
+                    commit(core.TransferCash, second, phase, from_account_id=s.id, to_account_id="city",
+                           cents=grant_balance, memo="return unspent Council scenario grant")
+                    city_spending -= grant_balance
+                emit_rollout("blocked", second, "blocked", council_blocker, s=s)
+                emit_rollout("no_launch", second, "blocked", council_blocker, s=s)
+                continue
+            move_food("supplier", s.id, s.id, municipal_site.stock_grams,
+                      second, core.PHASE_SETTLE, 20)
+            s.received_grams += municipal_site.stock_grams
+            s.spending_cents += required_cash
+            council_delivered = True
+            emit_rollout("delivery", second, "completed", s=s,
+                         reason="supplier stock and full payment settled through sim.core",
+                         amount_cents=required_cash, stock_grams=municipal_site.stock_grams)
+        elif kind == "council_commissioning":
+            s = by_site[municipal_site.site_id]
+            if council_blocker:
+                emit_rollout("commissioning", second, "not_started", council_blocker, s=s)
+                continue
+            if not council_delivered or stock(s.id) < 100:
+                council_blocker = "site has no delivered stock to commission"
+                emit_rollout("blocked", second, "blocked", council_blocker, s=s)
+                emit_rollout("no_launch", second, "blocked", council_blocker, s=s)
+                continue
+            council_commissioned = True
+            emit_rollout("commissioning", second, "completed", s=s,
+                         reason="commissioned; capacity remains zero until opening")
+        elif kind == "council_open":
+            s = by_site[municipal_site.site_id]
+            if council_blocker:
+                emit_rollout("opening", second, "not_started", council_blocker, s=s)
+                continue
+            if not council_commissioned:
+                council_blocker = "site commissioning did not complete"
+                emit_rollout("blocked", second, "blocked", council_blocker, s=s)
+                emit_rollout("no_launch", second, "blocked", council_blocker, s=s)
+                continue
+            s.capacity = municipal_site.service_capacity
+            emit_rollout("opening", second, "completed", s=s,
+                         reason="hypothetical service opened under the approved scenario assumption")
+        elif kind == "council_close":
+            s = by_site[municipal_site.site_id]
+            if council_blocker:
+                emit_rollout("closure", second, "not_started", council_blocker, s=s)
+                continue
+            s.capacity = 0
+            emit_rollout("closure", second, "completed", s=s,
+                         reason="scenario service closed; no later service is available")
+        elif kind == "council_no_launch":
+            site_id, stage, stage_second = payload
+            s = by_site[site_id]
+            if stage == "readiness":
+                emit_rollout("blocked", second, "blocked", "; ".join(municipal_site.blocker_reasons), s=s)
+                emit_rollout("no_launch", second, "blocked", "; ".join(municipal_site.blocker_reasons), s=s)
+            else:
+                emit_rollout(stage, stage_second, "not_started",
+                             "; ".join(municipal_site.blocker_reasons), s=s)
         elif kind == "price":
             s = by_site[payload[0]]
             s.price_cents_per_100g = payload[1]
@@ -412,7 +601,7 @@ def run(district: dict, population: int = 600, seed: int = 2026,
                 route = network.route(h["home_node"], s.node, h["speed"])
                 if (s.eligible == "school" and not h["children"]) or (s.eligible == "low-income" and h["income_band"] != "low"):
                     reason = "ineligible"
-                elif s.type == "emergency" and second < s.active_from:
+                elif s.type in {"emergency", "council"} and second < s.active_from:
                     reason = "inactive"
                 elif route is None:
                     reason = "inaccessible_route"
@@ -537,7 +726,8 @@ def run(district: dict, population: int = 600, seed: int = 2026,
     if problems:
         raise core.ConservationError(problems)
     terminal = {h["id"]: household_view(h) for h in households}
-    result = dict(schema=1, scenario_id=scenario_id, policy="emergency" if emergency else "baseline", seed=seed,
+    result = dict(schema=1, scenario_id=scenario_id,
+                policy="council" if council_run_ref is not None else "emergency" if emergency else "baseline", seed=seed,
                 horizon_seconds=HORIZON, start_time="2026-10-17T08:30:00",
                 evidence_state="mixed" if site_snapshot else "illustrative",
                 geography="downtown Toronto walking graph", population=population,
@@ -555,6 +745,10 @@ def run(district: dict, population: int = 600, seed: int = 2026,
                                 remaining_grams=sum(l.grams for l in state.lots),
                                 total_cash_cents=sum(a.settled_cents for a in state.accounts),
                                 invariant_problems=list(problems)))
+    if council_run_ref is not None:
+        result["run_id"] = council_run_ref["run_id"]
+        result["run_ref"] = council_run_ref
+        result["rollout_events"] = rollout_events
     if site_snapshot is not None:
         result["data_snapshot"] = {
             "content": site_snapshot,

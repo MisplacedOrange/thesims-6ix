@@ -13,6 +13,7 @@ import { buildSurroundings, CAMERA_LIMIT, clampToBox, CORE, donValleyX, FILL_LIM
 import { GroundBuilder, groundLayer } from './ground.ts';
 import { noiseTexture, sleeperTexture, waterNormalTexture } from './textures.ts';
 import { Sky } from './atmosphere.ts';
+import type { RunRef } from './runRef.ts';
 
 export type Lighting = 'day' | 'golden' | 'blue';
 export type Layer = 'buildings' | 'greenery' | 'paths' | 'traffic';
@@ -288,6 +289,7 @@ export class TorontoScene {
   private readonly facadeUniforms: FacadeUniforms = { uNight: { value: 0 } };
   private readonly ring: THREE.Mesh;
   private readonly route = new THREE.Group();
+  private readonly proposedLocationMarker = new THREE.Group();
   private readonly shoreline: Point[];
   private readonly land: Point[];
   private readonly atmosphere = { top: new THREE.Color(), horizon: new THREE.Color(), sun: new THREE.Color(), sunDirection: new THREE.Vector3(), azimuth: 0, elevation: 0 };
@@ -322,7 +324,7 @@ export class TorontoScene {
 
   constructor(private readonly container: HTMLDivElement, private readonly district: District, private readonly islands: Islands,
     private readonly onTick: (tick: SceneTick) => void, private readonly onSelect: (id: number | null) => void,
-    private trace: FoodTrace, private readonly onSelectSite: (id: string | null) => void) {
+    private trace: FoodTrace, private readonly onSelectSite: (id: string | null) => void, private runRef: RunRef) {
     this.crowd = foodCrowd(trace, district);
     this.shoreline = joinShoreline(district.shores);
     this.land = landPolygon(this.shoreline, 30000);
@@ -334,6 +336,7 @@ export class TorontoScene {
     this.renderer.toneMappingExposure = lightRecipes.golden.exposure;
     this.renderer.domElement.setAttribute('aria-label', 'Interactive 3D view of downtown Toronto. Drag to orbit, right drag to pan, scroll to zoom.');
     this.renderer.domElement.setAttribute('role', 'img');
+    this.updateRunRefLabel();
     container.appendChild(this.renderer.domElement);
     this.camera = new THREE.PerspectiveCamera(38, 1, 2, 16000);
     this.camera.position.copy(initialCamera.position);
@@ -359,7 +362,8 @@ export class TorontoScene {
     Object.assign(this.light.shadow.camera, { near: 50, far: 9000 });
     this.light.shadow.normalBias = 0.8; this.light.shadow.bias = -0.0002;
     this.scene.add(this.sky.mesh, this.light, this.light.target, this.ambient, this.city, this.people, this.route);
-    this.city.add(this.buildings, this.greenery, this.paths, this.traffic); this.paths.visible = false;
+    this.city.add(this.buildings, this.greenery, this.paths, this.traffic, this.proposedLocationMarker); this.paths.visible = false;
+    this.buildProposedLocationMarker();
     this.buildLandscape(); this.buildTraffic(); this.buildArchitecture(); this.buildSurroundings(); this.buildTrees(); this.buildLandmarks(); this.buildPeople();
     this.ring = new THREE.Mesh(new THREE.RingGeometry(0.7, 0.9, 48), new THREE.MeshBasicMaterial({ color: '#e5f5b7', side: THREE.DoubleSide }));
     this.ring.rotation.x = -Math.PI / 2; this.ring.visible = false; this.ring.renderOrder = 10; this.scene.add(this.ring);
@@ -827,8 +831,8 @@ export class TorontoScene {
   setLayer(layer: Layer, visible: boolean): void {
     this[layer].visible = visible;
   }
-  setFoodTrace(trace: FoodTrace): void {
-    this.trace = trace; this.crowd = foodCrowd(trace, this.district);
+  setFoodTrace(trace: FoodTrace, runRef: RunRef): void {
+    this.trace = trace; this.runRef = runRef; this.updateRunRefLabel(); this.crowd = foodCrowd(trace, this.district);
     this.reset(); this.buildPeople(); this.onSelectSite(null);
   }
   reset(): void { this.seconds = 0; this.lastTime = 0; this.backgroundLastTime = performance.now(); this.lastTick = 0; this.select(null); }
@@ -838,6 +842,14 @@ export class TorontoScene {
     if (!site || this.seconds < site.active_from) return;
     this.select(null); this.onSelectSite(id);
     this.fly(new THREE.Vector3(site.point[0] + 180, 300, site.point[1] + 230), new THREE.Vector3(site.point[0], 8, site.point[1]));
+  }
+  setProposedLocation(point: Point | null): void {
+    this.proposedLocationMarker.visible = point !== null;
+    if (point) this.proposedLocationMarker.position.set(point[0], 0, point[1]);
+  }
+  focusProposedSite(point: Point): void {
+    this.select(null); this.onSelectSite(null);
+    this.fly(new THREE.Vector3(point[0] + 180, 300, point[1] + 230), new THREE.Vector3(point[0], 8, point[1]));
   }
   resetCamera(): void { this.following = false; this.fly(initialCamera.position.clone(), initialCamera.target.clone()); }
   zoom(direction: number): void {
@@ -875,6 +887,24 @@ export class TorontoScene {
   }
   private fly(position: THREE.Vector3, target: THREE.Vector3): void {
     this.flight = { from: this.camera.position.clone(), to: position, targetFrom: this.controls.target.clone(), targetTo: target, start: performance.now() };
+  }
+  private buildProposedLocationMarker(): void {
+    const halo = new THREE.Mesh(new THREE.CircleGeometry(17, 40), new THREE.MeshBasicMaterial({
+      color: '#d8f08a', transparent: true, opacity: 0.78, depthWrite: false, side: THREE.DoubleSide,
+    }));
+    halo.rotation.x = -Math.PI / 2; halo.position.y = 0.45; halo.renderOrder = 9;
+    const pin = new THREE.Mesh(new THREE.ConeGeometry(5, 22, 14), new THREE.MeshBasicMaterial({ color: '#315d42' }));
+    pin.position.y = 12; pin.renderOrder = 10;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(3.7, 16, 12), new THREE.MeshBasicMaterial({ color: '#e7f5ad' }));
+    head.position.y = 23; head.renderOrder = 11;
+    this.proposedLocationMarker.add(halo, pin, head);
+    this.proposedLocationMarker.visible = false;
+  }
+  private updateRunRefLabel(): void {
+    const identity = this.runRef.kind === 'council'
+      ? `Council run ${this.runRef.run_id}, ${this.runRef.arm} arm`
+      : `${this.runRef.population} resident ${this.runRef.policy} preset`;
+    this.renderer.domElement.setAttribute('aria-label', `Interactive 3D view of downtown Toronto showing ${identity}. Drag to orbit, right drag to pan, scroll to zoom.`);
   }
   dispose(): void {
     this.disposed = true; this.renderer.setAnimationLoop(null);

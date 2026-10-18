@@ -11,28 +11,12 @@ The validation order follows the product scope:
 | Toronto world | Does the 3D scene align with source geography and licenses? | Stable feature IDs, CRS checks, visual alignment samples, source manifest |
 | Proposal intake | Does the system preserve a Markdown proposal faithfully and expose its measures and unknowns? | Immutable source/version, traceable claims, extracted outcome definitions, explicit unknowns, clarification and review record |
 | Pedestrians | Can agents traverse valid routes and make replayable choices? | Route feasibility, movement replay, access and mobility diagnostics |
-| Expert roles and rollout planner | Can simulated department roles coordinate a feasible staged buildout from evidence without inventing authority or facts? | Role-bounded work packages, disagreements, source trace, deterministic validator result, review/approval record |
 | Ongoing simulation | Can the world continue across stages and recover from interruptions? | Checkpoint/resume, event continuity, branch provenance, deterministic replay |
 | Outcomes | What changes in the model as validated stages activate and operate? | Proposal-defined measures plus matched baseline/treatment, economic ledger, reach, travel, and modeled response over declared intervals |
 
 Do not begin with an arbitrary run count. Set a minimum practically meaningful difference in each outcome with the analyst, then choose replication counts using measured runtime and variance.
 
-## Baseline and rollout design
-
-Freeze source snapshots, world package, synthetic population, schedules, product catalog, agent-policy versions, and external shocks. The baseline represents verified active service where known. Unknown capacity remains explicit and can be represented with separate conservative and announced-capacity cases.
-
-The [scenario catalog](../planning/scenarios.json) is a planning registry, not an executable scenario file. It retains grocery, food rescue/processing, and school-food entries as initial demonstration fixtures for the open proposal-intake workflow. It is not an exhaustive catalog or a claim that the proposal facts are settled. A new Markdown proposal should use the same intake, review, validation, and rollout path. Confirm proposal-specific intervention boundaries and measures before a study treats them as defined.
-
-A rollout study compares the same world, population, seed, and external shocks under baseline and an approved plan. The plan has dependencies, stage windows, capacity ramps, and delay or stop conditions. Include no-launch, delayed, reduced-capacity, and budget-exhaustion cases. If two interventions are tested together, measure their interaction explicitly:
-
-```text
-interaction = outcome(A and B) - outcome(A only)
-              - outcome(B only) + outcome(baseline)
-```
-
-Do not infer a citywide impact from a single active area. Report modeled geography and population coverage. Expand the study area only after geographic and behavioral validation.
-
-The simulation horizon should follow the question. Pedestrian schedules and service days unfold at daily scale; infrastructure rollout can span multiple years. A school-year cycle may matter for a school-service experiment, but one school day is neither the default product clock nor sufficient evidence of annual performance.
+Planner rollout study design, scenario matching, and sensitivity factors are in the [agent planner plan](agent-planner-plan.md).
 
 ## Pedestrian and model-policy comparison
 
@@ -65,7 +49,6 @@ Behavior, modeled response, and explanation are separate records. A proxy such a
 | Municipal groceries | Subsidy, overhead, supplier prices, uptake, location, delayed opening, incumbent response |
 | Rescue and processing | Eligible supply, purchased input, yield, shifts, cold storage, demand, transport delay |
 | School meals | Participation, attendance, substitution, menus, readiness, calendar, definition of “unlimited” |
-| Rollout | Stage delay, capital and operating cost, prerequisites, budget exhaustion, stop conditions |
 | Modeled response | Proxy weights, persistence, recovery, trust update, perceived-access rule |
 
 Use observed evidence where compatible. Otherwise label ranges exploratory and include null and adverse cases. A policy does not pass because one favorable parameter set makes it look effective.
@@ -85,12 +68,12 @@ These are future acceptance gates. The planning-package checker does not execute
 | Economic conservation | Every transition balances money and food; invalid and concurrent transactions cannot spend the same resources twice |
 | Pedestrian feasibility | Agents do not traverse blocked or unsupported paths; infeasible destinations are surfaced and handled deterministically |
 | Agent grounding | Invalid intents, invented facts, refusals, late replies, and exhausted budgets produce recorded fallbacks |
-| Planner feasibility | Bad source references, site constraints, units, budget, dependencies, and capacity are rejected before a plan can be approved |
-| Staged activation | A site or capacity change appears only after the required funding and prerequisites commit |
 | 3D traceability | A selected purchase, service, route, or infrastructure stage opens its causal events and source data |
 | Data quality | Mixed units, invalid geography, stale resources, missing vintages, and duplicate IDs cannot enter a validated scenario silently |
 | Modeled response | Every proxy is labeled modeled and can be inspected separately from behavior and observed survey evidence |
 | Operational recovery | Disconnect, process failure, duplicate command, partial export, and unsupported replay version behave as specified |
+
+Planner-specific acceptance gates are in the [agent planner plan](agent-planner-plan.md).
 
 Measure movement, rendering, API/event-stream transport, Python economics, model-provider latency, and archive performance separately on declared hardware. Set numeric limits after the first world slice and the active-area scale are known. Do not treat a planning target as a measured result.
 

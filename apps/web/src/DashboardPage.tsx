@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDownLeft, ArrowRight, Clock3, Download, Search, Users } from 'lucide-react';
-import { foodTimeline, foodView, loadFoodTrace, siteStockHistory } from './interactables.ts';
+import { foodTimeline, foodView, siteStockHistory } from './interactables.ts';
 import type { FoodTimelinePoint, FoodTrace, InteractionEvent, Site, SiteStockPoint } from './interactables.ts';
 import { at, dollars, duration, grams, HouseholdDetails, words } from './FoodDetails.tsx';
-import { isDashboardCommand, isLiveRunState, LIVE_RUN_CHANNEL } from './liveRun.ts';
+import { isLiveRunState, LIVE_RUN_CHANNEL } from './liveRun.ts';
 import type { DashboardCommand, LiveRunState } from './liveRun.ts';
+import { parseRunRef, sameRunRef, serializeRunRef } from './runRef.ts';
+import type { RunRef } from './runRef.ts';
+import { loadRunTrace } from './runTrace.ts';
 
 type DashboardSection = 'overview' | 'interactions' | 'sites' | 'households';
 type GroupDimension = 'income_band' | 'area' | 'mobility' | 'size';
@@ -24,6 +27,18 @@ const populationFromQuery = () => {
 };
 const policyFromQuery = (): 'baseline' | 'emergency' =>
   new URLSearchParams(window.location.search).get('policy') === 'emergency' ? 'emergency' : 'baseline';
+const runRefFromQuery = (): RunRef => parseRunRef(new URLSearchParams(window.location.search).get('run'))
+  ?? { kind: 'preset', population: populationFromQuery(), policy: policyFromQuery() };
+function cityUrl(runRef: RunRef, seconds: number, siteId: string | null, residentId: number | null): string {
+  const params = new URLSearchParams();
+  const serialized = serializeRunRef(runRef);
+  if (runRef.kind === 'council') params.set('run', serialized ?? '');
+  else { params.set('population', String(runRef.population)); params.set('policy', runRef.policy); }
+  params.set('time', String(Math.floor(seconds)));
+  if (siteId) params.set('site', siteId);
+  if (residentId !== null) params.set('resident', String(residentId));
+  return '/?' + params.toString();
+}
 const timeFromQuery = (horizon: number) => {
   const raw = new URLSearchParams(window.location.search).get('time');
   const value = raw === null ? NaN : Number(raw);
@@ -196,8 +211,14 @@ function EventDetails({ trace, event, onSite, onHousehold }: {
 export function DashboardPage() {
   const [section, setSection] = useState<DashboardSection>(sectionFromQuery);
   const [trace, setTrace] = useState<FoodTrace | null>(null);
-  const [policy, setPolicy] = useState<'baseline' | 'emergency'>(policyFromQuery);
-  const [population, setPopulation] = useState(populationFromQuery);
+  const [runRef, setRunRef] = useState<RunRef>(runRefFromQuery);
+  const [policy, setPolicy] = useState<'baseline' | 'emergency' | 'council'>(() => {
+    const initial = runRefFromQuery(); return initial.kind === 'council' ? 'council' : initial.policy;
+  });
+  const [population, setPopulation] = useState(() => {
+    const initial = runRefFromQuery();
+    return initial.kind === 'preset' ? initial.population : populationFromQuery();
+  });
   const [playhead, setPlayhead] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -217,19 +238,23 @@ export function DashboardPage() {
   const [liveState, setLiveState] = useState<LiveRunState | null>(null);
   const [now, setNow] = useState(Date.now());
   const liveChannel = useRef<BroadcastChannel | null>(null);
-  const pendingRun = useRef<{ population: number; policy: 'baseline' | 'emergency' } | null>(null);
+  const activeRunRef = useRef(runRef);
+  useEffect(() => { activeRunRef.current = runRef; }, [runRef]);
 
   useEffect(() => {
     let active = true;
     setLoading(true); setError(null); setTrace(null); setPlayhead(0);
     setSelectedEventId(null); setSelectedHouseholdId(null); setEventLimit(60); setHouseholdLimit(80);
-    void loadFoodTrace(population, policy).then(next => {
-      if (active) { setTrace(next); setPlayhead(timeFromQuery(next.horizon_seconds)); }
+    void loadRunTrace(runRef).then(next => {
+      if (active) {
+        setTrace(next); setPlayhead(timeFromQuery(next.horizon_seconds));
+        setPopulation(next.population); setPolicy(next.policy);
+      }
     }).catch(reason => {
       if (active) setError(reason instanceof Error ? reason.message : 'The run could not be loaded.');
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [population, policy, retry]);
+  }, [runRef, retry]);
 
   useEffect(() => {
     if (typeof BroadcastChannel === 'undefined') return;
@@ -237,9 +262,7 @@ export function DashboardPage() {
     liveChannel.current = channel;
     channel.onmessage = event => {
       if (!isLiveRunState(event.data)) return;
-      const requested = pendingRun.current;
-      if (requested && (event.data.population !== requested.population || event.data.policy !== requested.policy)) return;
-      if (requested) pendingRun.current = null;
+      if (!sameRunRef(event.data.run_ref, activeRunRef.current)) return;
       setLiveState(event.data);
       setNow(Date.now());
       setPopulation(event.data.population);
@@ -262,7 +285,7 @@ export function DashboardPage() {
   const timeline = useMemo(() => trace ? foodTimeline(trace, view?.seconds ?? playhead) : [], [trace, view?.seconds, playhead]);
   const stockHistory = useMemo(() => trace ? siteStockHistory(trace, view?.seconds ?? playhead) : [], [trace, view?.seconds, playhead]);
   const liveConnected = !!liveState && now - liveState.published_at < 5000
-    && liveState.population === population && liveState.policy === policy
+    && sameRunRef(liveState.run_ref, runRef)
     && (!trace || (liveState.scenario_id === trace.scenario_id && liveState.seed === trace.seed
       && liveState.input_snapshot_id === (trace.data_snapshot?.content.snapshot_id ?? null)
       && liveState.source_snapshot_id === (trace.data_snapshot?.content.source_snapshot_id ?? null)));
@@ -315,21 +338,35 @@ export function DashboardPage() {
     window.history.replaceState(null, '', url);
   }
   function chooseRun(nextPopulation: number, nextPolicy: 'baseline' | 'emergency') {
+    const nextRunRef: RunRef = { kind: 'preset', population: nextPopulation, policy: nextPolicy };
     if (liveConnected) {
-      pendingRun.current = { population: nextPopulation, policy: nextPolicy };
-      const command: DashboardCommand = { type: 'dashboard-select-run', population: nextPopulation, policy: nextPolicy };
+      const command: DashboardCommand = { type: 'dashboard-select-run', run_ref: nextRunRef };
       liveChannel.current?.postMessage(command);
     }
     const url = new URL(window.location.href);
     url.searchParams.set('population', String(nextPopulation));
     url.searchParams.set('policy', nextPolicy);
+    url.searchParams.delete('run');
     url.searchParams.delete('time');
     window.history.replaceState(null, '', url);
-    setPopulation(nextPopulation); setPolicy(nextPolicy);
+    setPopulation(nextPopulation); setPolicy(nextPolicy); setRunRef(nextRunRef);
+  }
+  function chooseCouncilArm(arm: 'baseline' | 'intervention') {
+    if (runRef.kind !== 'council' || runRef.arm === arm) return;
+    const nextRunRef: RunRef = { kind: 'council', run_id: runRef.run_id, arm };
+    if (liveConnected) {
+      const command: DashboardCommand = { type: 'dashboard-select-run', run_ref: nextRunRef };
+      liveChannel.current?.postMessage(command);
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.set('run', serializeRunRef(nextRunRef) ?? '');
+    url.searchParams.delete('population'); url.searchParams.delete('policy');
+    window.history.replaceState(null, '', url);
+    setRunRef(nextRunRef); setPolicy('council');
   }
   function chooseTime(seconds: number) {
     if (liveConnected) {
-      const command: DashboardCommand = { type: 'dashboard-seek', seconds };
+      const command: DashboardCommand = { type: 'dashboard-seek', run_ref: runRef, seconds };
       liveChannel.current?.postMessage(command);
     }
     setPlayhead(seconds);
@@ -374,7 +411,7 @@ export function DashboardPage() {
         <span className={'live-indicator' + (liveConnected ? ' live-connected' : '')}><i />
           {liveConnected ? liveState?.paused ? 'TRACE PLAYBACK PAUSED' : 'TRACE PLAYBACK LIVE' : 'NO SIMULATION TAB'}</span>
         <p>{liveConnected ? 'Charts follow committed events in the open simulation tab.' : 'Open the simulation in another tab to sync its playhead.'}</p>
-        <a target="_blank" rel="noreferrer" href={'/?population=' + population + '&policy=' + policy + '&time=' + Math.floor(view?.seconds ?? playhead)} className="back-to-city">
+        <a target="_blank" rel="noreferrer" href={cityUrl(runRef, view?.seconds ?? playhead, selectedSiteId, null)} className="back-to-city">
           <ArrowDownLeft size={14} /> Open simulation
         </a>
       </div>
@@ -384,9 +421,8 @@ export function DashboardPage() {
       <header className="analytics-topbar">
         <div className="analytics-breadcrumb"><span>SIMULATION</span><i>/</i><b>RUN ANALYTICS</b></div>
         <div className="analytics-top-actions"><span className="readonly-badge"><i /> {liveConnected ? liveState?.paused ? 'TRACE PLAYBACK / PAUSED' : 'TRACE PLAYBACK / SYNCED' : 'LOCAL TRACE REPLAY'}</span>
-          <a target="_blank" rel="noreferrer" href={'/?population=' + population + '&policy=' + policy + '&time=' + Math.floor(view?.seconds ?? 0)
-            + (selectedSiteId ? '&site=' + encodeURIComponent(selectedSiteId) : '')
-            + (selectedEvent?.resident_id !== null && selectedEvent ? '&resident=' + selectedEvent.resident_id : '')} className="city-link">Open city <ArrowDownLeft size={14} /></a>
+          <a target="_blank" rel="noreferrer" href={cityUrl(runRef, view?.seconds ?? 0, selectedSiteId,
+            selectedEvent?.resident_id !== null && selectedEvent ? selectedEvent.resident_id : null)} className="city-link">Open city <ArrowDownLeft size={14} /></a>
         </div>
       </header>
 
@@ -398,15 +434,28 @@ export function DashboardPage() {
         </section>
 
         <section className="analytics-commandbar" aria-label="Run controls">
-          <label><span>SCENARIO</span><select value={policy} onChange={event => chooseRun(population, event.target.value as 'baseline' | 'emergency')}>
+          <label><span>SCENARIO</span><select value={policy} onChange={event => {
+            if (event.target.value === 'baseline' || event.target.value === 'emergency') chooseRun(population, event.target.value);
+          }}>
             <option value="baseline">Baseline / no intervention</option><option value="emergency">Emergency food site</option>
+            <option value="council" disabled={runRef.kind !== 'council'}>Council run</option>
           </select></label>
-          <label><span>POPULATION</span><select value={population} onChange={event => chooseRun(Number(event.target.value), policy)}>
+          <label><span>POPULATION</span><select value={population} onChange={event => chooseRun(Number(event.target.value), policy === 'council' ? 'baseline' : policy)}>
             {[200, 600, 1200].map(count => <option value={count} key={count}>{count.toLocaleString()} households</option>)}
           </select></label>
           <div className="commandbar-meta"><span>TRACE KEY</span><b>{trace ? trace.scenario_id + ' / ' + trace.population + ' / ' + trace.policy + ' / seed ' + trace.seed : 'LOADING TRACE'}</b></div>
           <div className="commandbar-meta"><span>GEOGRAPHY</span><b>{trace?.geography ?? 'Downtown Toronto'}</b></div>
         </section>
+
+        {runRef.kind === 'council' && <section className="council-arm-control" aria-label="Council run comparison">
+          <div><span className="analytics-kicker">EXACT COUNCIL RUN</span><b>{runRef.run_id}</b>
+            <small>Baseline and intervention are stored arms of this same run.</small></div>
+          <label><span>COMPARISON ARM</span><select value={runRef.arm} onChange={event => {
+            if (event.target.value === 'baseline' || event.target.value === 'intervention') chooseCouncilArm(event.target.value);
+          }}>
+            <option value="baseline">Paired baseline</option><option value="intervention">Intervention</option>
+          </select></label>
+        </section>}
 
         {loading && <div className="analytics-state" role="status"><span className="loading-diamond"><span /></span><b>Loading committed run data</b><small>Rebuilding the event projection for this run.</small></div>}
         {!loading && error && <div className="analytics-state analytics-error" role="alert"><b>Run data unavailable</b><p>{error}</p>
@@ -499,7 +548,7 @@ export function DashboardPage() {
               <span className="scope-label">{sites.length} LOCATIONS IN RUN</span></div>
             <div className="terminal-filterbar site-filterbar">
               <label><span>LOCATION TYPE</span><select value={siteTypeFilter} onChange={event => setSiteTypeFilter(event.target.value)}>
-                <option value="all">All locations</option>{['retailer', 'support', 'school', 'emergency'].map(type => <option key={type} value={type}>{words(type)}</option>)}</select></label>
+                <option value="all">All locations</option>{['retailer', 'support', 'school', 'emergency', 'council'].map(type => <option key={type} value={type}>{words(type)}</option>)}</select></label>
             </div>
             <div className="analytics-detail-layout">
               <section className="terminal-panel terminal-table-panel">

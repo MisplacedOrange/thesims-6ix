@@ -1,5 +1,6 @@
 import type { District, Point } from './district.ts';
 import type { Crowd, Inspection, Pose, Resident } from './pedestrians.ts';
+import type { CouncilRunRef } from './runRef.ts';
 
 export type Household = {
   id: string; resident_id: number; size: number; income_band: string; mobility: string; children: number;
@@ -11,7 +12,7 @@ export type HouseholdState = {
   unmet_grams: number; expenditure_cents: number; received_grams: number; purchased_grams: number;
 };
 export type Site = {
-  id: string; name: string; type: 'retailer' | 'support' | 'school' | 'emergency'; node: number; point: Point;
+  id: string; name: string; type: 'retailer' | 'support' | 'school' | 'emergency' | 'council'; node: number; point: Point;
   opens: number; closes: number; price_cents_per_100g: number; capacity: number; service_seconds: number;
   active_from: number; eligible: string;
   source_id?: string; source_record_id?: string; source_site_id?: string; source_url?: string; source_record_url?: string;
@@ -41,14 +42,24 @@ export type Journey = {
   depart: number; arrival: number; travel_seconds: number; return_start: number; home_at: number;
   service_start?: number; result: string;
 };
-export type FoodTrace = {
-  schema: number; scenario_id: string; policy: 'baseline' | 'emergency'; seed: number; horizon_seconds: number;
+export type FoodTraceFields = {
+  schema: number; scenario_id: string; seed: number; horizon_seconds: number;
   start_time: string; evidence_state: string; geography: string; population: number;
   sites: Site[]; households: Household[]; initial_households: Record<string, HouseholdState>;
   initial_sites: Record<string, SiteState>; journeys: Record<string, Journey>; events: InteractionEvent[];
   assumptions: { parameter_id: string; food_use: string; crossing_delay_seconds: number; scope: string; unknown_inputs: string[] };
   accounting: { invariant_problems: string[]; total_cash_cents: number; imported_grams: number; consumed_grams: number; remaining_grams: number };
   data_snapshot?: { content: { snapshot_id: string; source_snapshot_id: string; evidence_limits: string[] }; content_sha256: string };
+};
+export type PresetFoodTrace = FoodTraceFields & { policy: 'baseline' | 'emergency' };
+export type CouncilFoodTrace = FoodTraceFields & {
+  policy: 'council'; run_id: string; run_ref: CouncilRunRef; rollout_events: RolloutEvent[];
+};
+export type FoodTrace = PresetFoodTrace | CouncilFoodTrace;
+export type RolloutEvent = {
+  event_id: string; stage: 'readiness' | 'funding' | 'delivery' | 'commissioning' | 'opening' | 'closure' | 'blocked' | 'no_launch';
+  simulation_time: number; status: 'completed' | 'blocked' | 'not_started'; reason: string | null;
+  amount_cents: number; stock_grams: number; capacity: number;
 };
 export type FoodView = {
   households: Record<string, HouseholdState>; sites: Record<string, SiteState>; events: InteractionEvent[];

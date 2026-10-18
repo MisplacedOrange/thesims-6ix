@@ -1,12 +1,20 @@
 # Consolidated simulation implementation
 
-The current product direction is a Toronto 3D simulation with a side-panel Council chat for Markdown proposals, simulated departmental expert agents, and ongoing staged infrastructure changes. The system should preserve proposal evidence, outcome measures, unknowns, and tracked metrics over the life of the simulation. None of those target features is implemented in the code described below: this document records a legacy economic vertical slice that can supply mechanisms and fixtures. Its school-day framing does not define the product.
+The current product direction is a Toronto 3D simulation with a side-panel Council workflow, staged infrastructure changes, and proposal-specific outcomes. A bounded local Council path is now implemented in `sim/council.py` and the browser; it covers exact Markdown intake, explicit review, one supported site action, and a stored paired scenario. It does not provide general department agents or an ongoing multi-day world. This document also records the separate legacy economic vertical slice and its boundaries. Its school-day framing does not define the product.
 
 ## Browser pedestrian food-access day
 
 The browser now replays bounded runs exported by [`sim/interactables`](../sim/interactables/README.md). That executor routes one resident per household on the browser map, generates deterministic legal choices, and commits retail purchases, food support, school portions, supplier replenishment, and home food use through the public `sim.core` API. An optional emergency-site scenario records a city grant, paid stock delivery, explicit service capacity, activation, and closure. Its dashboard and inspectors read committed event projections at the current playhead; seeking and camera actions never settle transactions.
 
-This is a separate six-hour illustrative scenario, not a connection to the legacy `sim.integration` run or a persistent Python service. Site locations and operating values are scenario assumptions. It provides the initial [pedestrian interactables](pedestrian-interactables-plan.md) while proposal intake, department coordination, multi-day state, and empirical calibration remain open.
+This is a separate six-hour illustrative scenario, not a connection to the legacy `sim.integration` run or a persistent evolving world. Site locations and operating values are scenario assumptions. It provides the initial [pedestrian interactables](pedestrian-interactables-plan.md) while broader department coordination, multi-day state, and empirical calibration remain open.
+
+## Bounded Council workflow
+
+`sim.council` stores a single local Council session in SQLite. It preserves submitted Markdown byte-for-byte as text, records recognized section spans and unclassified text, labels citations unverified, and pins the proposal to the location snapshot used for planning. The reviewer explicitly saves a narrower scope, selects `establish_service_site`, supplies labeled parameters, and records approve, request-revision, or reject against the exact proposal, scope, plan, and world hashes. Unsupported actions cannot be approved. Department-style finance, readiness, supply, and access notes are deterministic advice with no authority to schedule or spend.
+
+The only supported action creates a hypothetical municipal food site for one six-hour scenario. The plan pins population, seed, map, catalog, location snapshot, and a content hash of the Python simulator inputs. Baseline and intervention are separate same-population, same-seed runs. Readiness, funding, supplier delivery, commissioning, opening, and closure appear as committed rollout events. Money and stock changes pass through `sim.core`; a runtime shortage produces a no-launch, returns unspent grant funds, and leaves service capacity at zero. This is a bounded scenario comparison, not persistent City state, observed operations, evidence refresh, or real authorization.
+
+The loopback API is `GET /api/council`, mutation routes under `/api/council`, and exact stored traces under `/api/council/runs/{run_id}/traces/{arm}`. Commands require schema version 1, an expected revision, and an idempotency key. Successful command receipts, immutable workflow records, and paired trace JSON survive a service restart. See the [local app guide](../apps/web/README.md) for startup and the [planner plan](agent-planner-plan.md) for future extensions.
 
 ## Why the prototype says school day
 
@@ -88,11 +96,11 @@ The experiment executor creates a new world for every cell and seed, checks supp
 | --- | --- | --- |
 | Current economic data | Source register and illustrative snapshot only | Toronto API/resource downloads, Statistics Canada inputs, immutable raw checkpoints, dates/geographies/units, rejected-row reports |
 | Toronto 3D world | Frozen, attributed Toronto geometry and a walking graph are used by the browser and bounded food-access traces | Expand source coverage and connect validated geography to a persistent world service |
-| Infrastructure planner | Not implemented | Structured site/cost/dependency/timing/capacity proposals with source IDs and deterministic rejection/revision |
-| Implementation duration | No production schedule is approved | Define dependency sequence with operator evidence, uncertain delays, capacity ramps and no-launch cases |
 | Policy impacts | Connected within-model mechanisms | Multi-product baskets, longer calendars, parameter studies, independent review and observed calibration |
 | Human response | Choices and labeled latent proxies | Behavioral validation; real attitudes require a separate consent-based measurement design |
 | Pedestrian agent layer | Existing choices are deterministic household shopping rules | Add resident positions, paths, schedules, mobility constraints, and rule-driven movement before small-model or LLM calls |
-| Operational platform | Terminal exports only | Assigned backend owner, SQLite commits, restart/recovery, API, projection sequencing, gateway and charge reconciliation |
+| Operational platform | The Council workflow has local SQLite command receipts, immutable paired traces, and a loopback API; `sim.integration` still uses terminal exports | Persistent world state, checkpoints, ordered world events, broader API recovery, gateway and charge reconciliation |
 
-The one-day coordinator does not implement the proposed world clock, pedestrian movement, rollout activation, durable process recovery, whole-world replay, or renderer/headless hash parity. Terminal economic replay and deterministic completed-world checks are narrower evidence. Route coverage, operating data, model behavior, and held-out validation remain open.
+Planner design, authority, and staged activation gates are documented in the [agent planner plan](agent-planner-plan.md).
+
+The legacy one-day `sim.integration` coordinator does not implement the proposed world clock, pedestrian movement, durable process recovery, whole-world replay, or renderer/headless hash parity. The Council service persists its bounded run records and replays stored traces, which is narrower evidence than a recoverable world. Route coverage, operating data, model behavior, and held-out validation remain open.

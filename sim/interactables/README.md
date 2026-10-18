@@ -21,6 +21,27 @@ automatically regenerate them when the map, kernel, catalog, generator, or pinne
 The `PYTHON` environment variable can select a Python executable. Production
 hosting serves the generated traces as static data and needs no Python service.
 
+## Local Council scenario service
+
+`python -m sim.council` starts the separate loopback-only Council service on
+`127.0.0.1:8765`. It stores exact proposal revisions, reviewed scopes and plans,
+decisions, idempotency receipts, and immutable baseline/intervention traces in
+SQLite. The browser's Council panel uses that service for one explicit
+`establish_service_site` action in a matched six-hour scenario. The deterministic
+department-style advice is explanatory only. It is not a model call or a source
+refresh. The service pins the current population, seed, map, location snapshot,
+catalog, simulator input code hash, and Python implementation/version; the map location is not evidence of present-day
+operation or authority.
+
+This local Council service does not replace cached trace playback, create a
+persistent city account, or advance the world across days. Static production
+hosting serves the existing generated traces; it does not provide the Council
+API. See the root [startup guide](../../README.md) for running the local browser
+and service together. Supplier quantities use 100 g purchase units at an
+illustrative 20 cents per 100 g; zero stock is accepted only as an explicitly
+reviewed no-launch plan. Recording a decision rechecks the frozen world and
+simulator inputs, so a stale plan must be replaced before it can be decided.
+
 By default, generated traces use the pinned City-listed location snapshot at
 `sim/data/snapshots/toronto-downtown-sites-v3.json`. Pass
 `--illustrative-sites-only` to retain the original generic site anchors.
@@ -84,6 +105,13 @@ It never updates balances or recalculates purchases. Seeking and restarting are
 read-only replay operations. Changing population or policy loads a separate run
 and resets the playhead. Download exports the complete trace, including later
 events. Site markers and household inspectors show the current playhead state.
+
+In Council traces, `public_spending_cents` is the city's grant cash outflow, net
+of any returned unspent grant. `site.spending_cents` is the site's supplier
+procurement payment; it is not added to the grant transfer as a consolidated
+resource-cost measure. An unspent grant may remain with the hypothetical
+operator at closure. These are distinct cash-flow views, not a total-cost
+estimate.
 
 The dashboard reports current stock, prices, quantities purchased/received,
 pantry, food used, pending/final unmet need, completed trips, attempted-service

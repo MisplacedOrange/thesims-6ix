@@ -10,7 +10,7 @@ Use Node.js 24 or newer, npm, and Python 3.10 or newer.
     npm install
     npm run dev
 
-Open the Local URL printed by Vite. Startup exports cached Python simulation traces when inputs change. The app requires no API key, persistent Python service, or live map request. Production builds include the traces as static data.
+Open the Local URL printed by Vite. The development command starts Vite and the Python Council service together on loopback, and exports cached preset traces when inputs change. The bounded Council workflow requires no API key or external model call. Production builds include preset traces as static data but do not include a Python Council service.
 
 For a production build:
 
@@ -23,7 +23,7 @@ Drag to orbit, right drag to pan, and scroll to zoom. Choose a camera compositio
 
 Pause, change speed, restart, or seek through the six-hour food-access day. Select a food scenario and quiet (200), everyday (600), or lively (1200) household population in city settings; changing either resets the day. Click a food-site marker to select it, then open its record in the dedicated dashboard. Resident inspection includes household cash, pantry, carried food, legal choices, and event history. Switch lighting and building, greenery, and walking-network layers through city settings.
 
-Open the full-page analytics workspace from **Run dashboard** in the simulation header or at /dashboard. Choose a scenario and population, scrub the run timeline, review summary metrics and recent events, search and filter the interaction log, inspect service sites, and drill into household outcomes. Export the selected run as JSON. The dashboard reads cached Python-generated traces; it is not connected to a live simulation service.
+Open the full-page analytics workspace from **Run dashboard** in the simulation header or at /dashboard. Choose a scenario and population, scrub the run timeline, review summary metrics and recent events, search and filter the interaction log, inspect service sites, and drill into household outcomes. Export the selected run as JSON. The dashboard replays cached presets and, when selected from Council, the exact stored six-hour paired-run trace. Its playhead stays paired with the open city tab; seeking does not settle transactions or create persistent multi-day reporting.
 
 Keys 1 through 4 choose views. Space pauses movement. R restarts the pedestrian timeline. H hides the interface.
 
