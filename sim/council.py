@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 from contextlib import closing
 import hashlib
 import json
 import math
+import os
 import re
 import sqlite3
 import sys
@@ -30,6 +32,7 @@ DEFAULT_DB = ROOT / "state" / "council.sqlite"
 DEFAULT_POPULATION = 2400
 DEFAULT_SEED = 2026
 MAX_MARKDOWN = 200_000
+MAX_REQUEST_BODY_BYTES = MAX_MARKDOWN + 16_384
 MAX_GRANT_CENTS = 30_000
 MAX_STOCK_GRAMS = 60_000
 ORGANIZATION_ROLES = {
@@ -992,7 +995,7 @@ class CouncilService:
 
 class CouncilHandler(BaseHTTPRequestHandler):
     service: CouncilService
-    max_body_bytes = MAX_MARKDOWN + 16_384
+    max_body_bytes = MAX_REQUEST_BODY_BYTES
 
     def _reply(self, status: int, body: dict[str, Any]) -> None:
         raw = _json(body).encode("utf-8")
@@ -1003,73 +1006,172 @@ class CouncilHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
-    def _error(self, error: CouncilError) -> None:
-        value = {"error": {"code": error.code, "message": error.message}}
-        if error.current_revision is not None:
-            value["error"]["current_revision"] = error.current_revision
-        self._reply(error.status, value)
+    def _dispatch(self, method: str, body: bytes = b"") -> None:
+        status, response = _handle_council_request(
+            self.service,
+            method,
+            self.path,
+            {name.lower(): value for name, value in self.headers.items()},
+            body,
+        )
+        self._reply(status, response)
 
     def do_GET(self) -> None:
-        path = urlsplit(self.path).path
-        try:
-            if path == "/api/council":
-                self._reply(200, self.service.state())
-                return
-            match = re.fullmatch(r"/api/council/runs/([a-zA-Z0-9-]+)/traces/(baseline|intervention)", path)
-            if match:
-                self._reply(200, self.service.trace(unquote(match.group(1)), match.group(2)))
-                return
-            raise CouncilError(404, "not_found", "Council resource was not found.")
-        except CouncilError as error:
-            self._error(error)
-        except (OSError, ValueError) as error:
-            self._error(CouncilError(503, "service_error", str(error)))
+        self._dispatch("GET")
 
     def do_POST(self) -> None:
-        path = urlsplit(self.path).path
-        route = path.removeprefix("/api/council")
-        if path not in {"/api/council/proposals", "/api/council/organizations",
-                        "/api/council/stakeholder-inputs", "/api/council/scopes", "/api/council/plans",
-                        "/api/council/decisions", "/api/council/runs"}:
-            self._error(CouncilError(404, "not_found", "Council command was not found."))
-            return
-        try:
-            if self.headers.get("X-Council-Schema") != "1":
-                raise CouncilError(400, "unsupported_schema", "X-Council-Schema must be 1.")
-            length_text = self.headers.get("Content-Length", "")
-            if not length_text.isdecimal():
-                raise CouncilError(400, "invalid_length", "Content-Length must be a positive integer.")
+        length_text = self.headers.get("Content-Length", "")
+        raw = b""
+        if length_text.isdecimal():
             length = int(length_text)
-            if length <= 0 or length > self.max_body_bytes:
-                raise CouncilError(413, "body_too_large", "Request body exceeds the local service limit.")
-            raw = self.rfile.read(length)
-            try:
-                payload = json.loads(
-                    raw,
-                    parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)),
-                    parse_float=_finite_float,
-                )
-            except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
-                raise CouncilError(400, "invalid_json", "Request body must be valid JSON without NaN or infinity.") from exc
-            if not isinstance(payload, dict):
-                raise CouncilError(400, "invalid_body", "Request body must be a JSON object.")
-            if_match = self.headers.get("If-Match", "")
-            if not if_match.isdecimal():
-                raise CouncilError(400, "invalid_revision", "If-Match must be a non-negative integer revision.")
-            key = self.headers.get("Idempotency-Key")
-            response = self.service.command(route, int(if_match), key, payload)
-            self._reply(200, response)
-        except CouncilError as error:
-            self._error(error)
-        except (OSError, sqlite3.Error, ValueError) as error:
-            self._error(CouncilError(503, "service_error", str(error)))
+            if 0 < length <= self.max_body_bytes:
+                raw = self.rfile.read(length)
+        self._dispatch("POST", raw)
 
     def log_message(self, format: str, *args: object) -> None:
         print("council: " + format % args)
 
 
-def serve(db_path: Path = DEFAULT_DB, port: int = 8765) -> None:
-    service = CouncilService(db_path)
+def _error_response(error: CouncilError) -> tuple[int, dict[str, Any]]:
+    body: dict[str, Any] = {"error": {"code": error.code, "message": error.message}}
+    if error.current_revision is not None:
+        body["error"]["current_revision"] = error.current_revision
+    return error.status, body
+
+
+def _handle_council_request(service: CouncilService, method: str, raw_path: str,
+                            headers: dict[str, str], raw_body: bytes) -> tuple[int, dict[str, Any]]:
+    path = urlsplit(raw_path).path
+    try:
+        if method == "GET":
+            if path == "/api/council":
+                return 200, service.state()
+            match = re.fullmatch(r"/api/council/runs/([a-zA-Z0-9-]+)/traces/(baseline|intervention)", path)
+            if match:
+                return 200, service.trace(unquote(match.group(1)), match.group(2))
+            raise CouncilError(404, "not_found", "Council resource was not found.")
+
+        if method != "POST":
+            raise CouncilError(405, "method_not_allowed", "Council only accepts GET and POST requests.")
+
+        route = path.removeprefix("/api/council")
+        if path not in {"/api/council/proposals", "/api/council/organizations",
+                        "/api/council/stakeholder-inputs", "/api/council/scopes", "/api/council/plans",
+                        "/api/council/decisions", "/api/council/runs"}:
+            raise CouncilError(404, "not_found", "Council command was not found.")
+        if headers.get("x-council-schema") != "1":
+            raise CouncilError(400, "unsupported_schema", "X-Council-Schema must be 1.")
+        length_text = headers.get("content-length", "")
+        if not length_text.isdecimal():
+            raise CouncilError(400, "invalid_length", "Content-Length must be a positive integer.")
+        length = int(length_text)
+        if length <= 0:
+            raise CouncilError(400, "invalid_length", "Content-Length must be a positive integer.")
+        if length > MAX_REQUEST_BODY_BYTES:
+            raise CouncilError(413, "body_too_large", "Request body exceeds the service limit.")
+        if length != len(raw_body):
+            raise CouncilError(400, "invalid_length", "Content-Length does not match the request body.")
+        try:
+            payload = json.loads(
+                raw_body,
+                parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)),
+                parse_float=_finite_float,
+            )
+        except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
+            raise CouncilError(400, "invalid_json", "Request body must be valid JSON without NaN or infinity.") from exc
+        if not isinstance(payload, dict):
+            raise CouncilError(400, "invalid_body", "Request body must be a JSON object.")
+        if_match = headers.get("if-match", "")
+        if not if_match.isdecimal():
+            raise CouncilError(400, "invalid_revision", "If-Match must be a non-negative integer revision.")
+        return 200, service.command(route, int(if_match), headers.get("idempotency-key"), payload)
+    except CouncilError as error:
+        return _error_response(error)
+    except (OSError, sqlite3.Error, ValueError) as error:
+        return _error_response(CouncilError(503, "service_error", str(error)))
+
+
+def _default_db_path() -> Path:
+    configured_path = os.environ.get("COUNCIL_DB_PATH")
+    if configured_path:
+        return Path(configured_path)
+    if os.environ.get("VERCEL"):
+        return Path("/tmp/council.sqlite")
+    return DEFAULT_DB
+
+
+class CouncilASGI:
+    max_body_bytes = MAX_REQUEST_BODY_BYTES
+
+    def __init__(self) -> None:
+        self._service: CouncilService | None = None
+        self._service_lock = threading.Lock()
+
+    def _get_service(self) -> CouncilService:
+        if self._service is None:
+            with self._service_lock:
+                if self._service is None:
+                    self._service = CouncilService(_default_db_path())
+        return self._service
+
+    def _handle(self, method: str, path: str, headers: dict[str, str], body: bytes) -> tuple[int, dict[str, Any]]:
+        return _handle_council_request(self._get_service(), method, path, headers, body)
+
+    async def __call__(self, scope: dict[str, Any], receive: Callable[..., Any], send: Callable[..., Any]) -> None:
+        if scope["type"] == "lifespan":
+            while True:
+                event = await receive()
+                if event["type"] == "lifespan.startup":
+                    await send({"type": "lifespan.startup.complete"})
+                elif event["type"] == "lifespan.shutdown":
+                    await send({"type": "lifespan.shutdown.complete"})
+                    return
+
+        if scope["type"] != "http":
+            return
+        body = bytearray()
+        oversized = False
+        while True:
+            event = await receive()
+            if event["type"] == "http.disconnect":
+                return
+            if event["type"] == "http.request":
+                body.extend(event.get("body", b""))
+                oversized = oversized or len(body) > self.max_body_bytes
+                if not event.get("more_body", False):
+                    break
+        headers = {
+            name.decode("latin-1").lower(): value.decode("latin-1")
+            for name, value in scope.get("headers", [])
+        }
+        if oversized:
+            status, response = _error_response(CouncilError(413, "body_too_large", "Request body exceeds the service limit."))
+        else:
+            status, response = await asyncio.to_thread(
+                self._handle,
+                scope["method"],
+                scope.get("path", "/"),
+                headers,
+                bytes(body),
+            )
+        raw = _json(response).encode("utf-8")
+        await send({
+            "type": "http.response.start",
+            "status": status,
+            "headers": [
+                (b"content-type", b"application/json; charset=utf-8"),
+                (b"content-length", str(len(raw)).encode("ascii")),
+                (b"cache-control", b"no-store"),
+            ],
+        })
+        await send({"type": "http.response.body", "body": raw})
+
+
+app = CouncilASGI()
+
+
+def serve(db_path: Path | None = None, port: int = 8765) -> None:
+    service = CouncilService(db_path or _default_db_path())
     handler = type("BoundCouncilHandler", (CouncilHandler,), {"service": service})
     server = ThreadingHTTPServer(("127.0.0.1", port), handler)
     server.daemon_threads = True
@@ -1084,7 +1186,7 @@ def serve(db_path: Path = DEFAULT_DB, port: int = 8765) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--db", type=Path, default=DEFAULT_DB)
+    parser.add_argument("--db", type=Path, default=_default_db_path())
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
     if not 1024 <= args.port <= 65535:

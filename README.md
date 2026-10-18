@@ -12,7 +12,13 @@ Use Node.js 24 or newer and Python 3.10 or newer. From the repository root, star
     npm install
     npm run dev
 
-The development command serves Vite and starts the Council API bound only to `127.0.0.1:8765`; Ctrl+C stops both. Static production hosting includes the cached preset traces but does not provide the Council API. Open the Local URL printed by Vite. See the [environment guide](apps/web/README.md) for controls, tests, data licensing, and limitations.
+The development command serves Vite and starts the Council API bound only to `127.0.0.1:8765`; Ctrl+C stops both. Open the Local URL printed by Vite. See the [environment guide](apps/web/README.md) for controls, tests, data licensing, and limitations.
+
+## Vercel deployment
+
+[`vercel.json`](vercel.json) defines a Vite `web` service and a Python `app` service. Requests under `/api/` go to the Council API; all other paths go to the browser app. Set the Vercel project's framework to **Services** and use `vercel dev` to run both services locally.
+
+The Council API uses SQLite. On Vercel its default database path is `/tmp/council.sqlite`, which is temporary and local to a function instance. Records are not durable or shared across instances. Configure a persistent database before relying on saved Council data in production.
 
 ## Legacy economic fixture
 

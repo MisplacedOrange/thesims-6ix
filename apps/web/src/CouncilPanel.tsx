@@ -175,7 +175,7 @@ export function CouncilPanel({ id, open, onClose }: CouncilPanelProps) {
     }).catch(error => {
       if (active) setLoadStatus({
         kind: 'error',
-        message: error instanceof Error ? error.message : 'The local Council service is unavailable.',
+        message: error instanceof Error ? error.message : 'The Council service is unavailable.',
       });
     });
     return () => { active = false; };
@@ -227,7 +227,7 @@ export function CouncilPanel({ id, open, onClose }: CouncilPanelProps) {
       const next = await loadCouncilState();
       setState(next); setLoadStatus({ kind: 'ready' });
     } catch (error) {
-      setLoadStatus({ kind: 'error', message: error instanceof Error ? error.message : 'The local Council service is unavailable.' });
+      setLoadStatus({ kind: 'error', message: error instanceof Error ? error.message : 'The Council service is unavailable.' });
     } finally { setBusy(null); }
   }
   async function saveProposal(event: FormEvent<HTMLFormElement>) {

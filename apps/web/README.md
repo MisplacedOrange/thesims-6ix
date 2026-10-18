@@ -10,7 +10,9 @@ Use Node.js 24 or newer, npm, and Python 3.10 or newer.
     npm install
     npm run dev
 
-Open the Local URL printed by Vite. The development command starts Vite and the Python Council service together on loopback, and exports cached preset traces when inputs change. The service requires no API key or external model call. The Council panel supports proposal intake, proposal-linked organization records, stakeholder-input records, and inspection of organization links on saved rollout events. Scope, plan, decision, and stored-run controls remain unfinished in the UI. Organization references are contextual; they do not yet change simulated organization behavior. The stakeholder form records user-provided evidence and does not conduct outreach or verify representativeness. Production builds include preset traces as static data but do not include a Python Council service.
+Open the Local URL printed by Vite. The development command starts Vite and the Python Council service together on loopback, and exports cached preset traces when inputs change. The service requires no API key or external model call. The Council panel supports proposal intake, proposal-linked organization records, stakeholder-input records, and inspection of organization links on saved rollout events. Scope, plan, decision, and stored-run controls remain unfinished in the UI. Organization references are contextual; they do not yet change simulated organization behavior. The stakeholder form records user-provided evidence and does not conduct outreach or verify representativeness.
+
+The repository also defines separate Vercel services for the browser app and Python Council API. The shared `/api/` path routes to the Council service. Its SQLite database defaults to `/tmp/council.sqlite` on Vercel, which is temporary and local to a function instance; saved records are not durable or shared across instances. Use a persistent database before relying on Council records in production.
 
 For a production build:
 

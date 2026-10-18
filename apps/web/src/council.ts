@@ -292,8 +292,8 @@ function errorMessage(value: unknown, status: number): string {
     const revision = Number.isInteger(value.error.current_revision) ? ` Current revision: ${value.error.current_revision}.` : '';
     return value.error.message + revision;
   }
-  if (status === 404) return 'The Council API endpoint was not found on this host. Static hosting may not provide the local Council service.';
-  if (status >= 500) return `The local Council service is unavailable (HTTP ${status}).`;
+  if (status === 404) return 'The Council API endpoint was not found on this host. The Council service may not be configured.';
+  if (status >= 500) return `The Council service is unavailable (HTTP ${status}).`;
   return `Council request failed (HTTP ${status}).`;
 }
 
@@ -310,11 +310,11 @@ async function readJson(response: Response): Promise<unknown> {
 async function fetchCouncilState(): Promise<CouncilState> {
   let response: Response;
   try { response = await fetch('/api/council'); }
-  catch { throw new Error('The local Council service is unavailable. City playback is still available.'); }
+  catch { throw new Error('The Council service is unavailable. City playback is still available.'); }
   if (!isJsonResponse(response)) throw new Error('The Council API is unavailable on this host. City playback is still available.');
   const payload = await readJson(response);
   if (!response.ok) throw new Error(errorMessage(payload, response.status));
-  if (!isCouncilState(payload)) throw new Error('The local Council service returned data that does not match its contract.');
+  if (!isCouncilState(payload)) throw new Error('The Council service returned data that does not match its contract.');
   return payload;
 }
 
@@ -334,7 +334,7 @@ async function postCouncilCommand(endpoint: CouncilEndpoint, body: object, revis
       body: JSON.stringify(body),
     });
   } catch {
-    throw new Error('The local Council service is unavailable. This command was not confirmed as saved.');
+    throw new Error('The Council service is unavailable. This command was not confirmed as saved.');
   }
   if (!isJsonResponse(response)) throw new Error('The Council API did not return a command response. The command outcome is unknown; refresh before retrying.');
   const payload = await readJson(response);
@@ -491,7 +491,7 @@ export async function loadCouncilTrace(runRef: CouncilRunRef): Promise<CouncilFo
   try {
     response = await fetch(`/api/council/runs/${encodeURIComponent(runRef.run_id)}/traces/${runRef.arm}`);
   } catch {
-    throw new Error('The local Council service is unavailable. This Council run could not be loaded.');
+    throw new Error('The Council service is unavailable. This Council run could not be loaded.');
   }
   if (!isJsonResponse(response)) throw new Error('The Council API is unavailable on this host. No preset trace was loaded.');
   const payload = await readJson(response);
