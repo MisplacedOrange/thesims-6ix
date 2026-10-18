@@ -20,7 +20,7 @@ export type SceneTick = { seconds: number; walking: number; resting: number; sel
 type CameraFlight = { from: THREE.Vector3; to: THREE.Vector3; targetFrom: THREE.Vector3; targetTo: THREE.Vector3; start: number };
 type TrafficPath = { points: Point[]; cumulative: number[]; length: number; width: number };
 type TrafficVehicle = { path: TrafficPath; offset: number; speed: number; lane: number; scale: number; color: string };
-type TrafficRoadEdge = { id: number; a: number; b: number; length: number; width: number };
+type TrafficRoadEdge = { length: number; width: number };
 type TrafficNeighbor = { edge: TrafficRoadEdge; next: number };
 type TrafficNetwork = { points: Point[]; adjacency: TrafficNeighbor[][] };
 const initialCamera = { position: new THREE.Vector3(1900, 1720, 2850), target: new THREE.Vector3(-100, 100, 340) };
@@ -106,7 +106,7 @@ function trafficNetwork(district: District): TrafficNetwork {
         const key = `${Math.min(a, b)}:${Math.max(a, b)}`;
         if (edgeKeys.has(key)) continue;
         edgeKeys.add(key);
-        const edge = { id: edgeKeys.size - 1, a, b, length, width: road.width };
+        const edge = { length, width: road.width };
         adjacency[a]?.push({ edge, next: b }); adjacency[b]?.push({ edge, next: a });
       }
     }
@@ -174,67 +174,75 @@ function rotateTrafficLoop(points: Point[]): Point[] {
   rotated.push(rotated[0]!);
   return rotated;
 }
+function buildTrafficPath(network: TrafficNetwork, start: number, random: () => number): TrafficPath | null {
+  let current = start, previousNode = -1, width = Infinity, length = 0;
+  const lastVisitedDistance = new Map<number, number>([[start, 0]]);
+  const route: Point[] = [network.points[start]!];
+  const targetLength = 45000 + random() * 15000;
+  for (let step = 0; step < 7000 && length < targetLength; step++) {
+    const neighbors = network.adjacency[current] ?? [];
+    const forward = neighbors.filter(neighbor => neighbor.next !== previousNode);
+    const fresh = forward.filter(neighbor => length - (lastVisitedDistance.get(neighbor.next) ?? -Infinity) >= 2500);
+    const continuing = fresh.filter(neighbor => (network.adjacency[neighbor.next] ?? []).some(next =>
+      next.next !== current && length + neighbor.edge.length - (lastVisitedDistance.get(next.next) ?? -Infinity) >= 2500));
+    const choices = continuing.length ? continuing : fresh.length ? fresh : forward.length ? forward : neighbors;
+    if (!choices.length) break;
+    const here = network.points[current]!;
+    const previous = previousNode < 0 ? null : network.points[previousNode]!;
+    const weighted = choices.map(neighbor => {
+      let weight = neighbor.edge.length;
+      if (previous) {
+        const before = Math.hypot(here[0] - previous[0], here[1] - previous[1]) || 1;
+        const next = network.points[neighbor.next]!;
+        const after = Math.hypot(next[0] - here[0], next[1] - here[1]) || 1;
+        const straightness = ((here[0] - previous[0]) * (next[0] - here[0]) +
+          (here[1] - previous[1]) * (next[1] - here[1])) / (before * after);
+        weight *= straightness > 0.8 ? 1.8 : straightness < -0.4 ? 0.45 : 1;
+      }
+      return { neighbor, weight };
+    });
+    let selection = random() * weighted.reduce((sum, choice) => sum + choice.weight, 0);
+    let chosen = weighted[weighted.length - 1]!.neighbor;
+    for (const choice of weighted) {
+      selection -= choice.weight;
+      if (selection <= 0) { chosen = choice.neighbor; break; }
+    }
+    route.push(network.points[chosen.next]!);
+    previousNode = current; current = chosen.next;
+    width = Math.min(width, chosen.edge.width); length += chosen.edge.length; lastVisitedDistance.set(current, length);
+  }
+  if (route.length < 2) return null;
+  const returnRoute = shortestTrafficRoute(network, current, start);
+  if (returnRoute.length < 2) return null;
+  let closureNode = current;
+  for (const next of returnRoute.slice(1)) {
+    const edge = (network.adjacency[closureNode] ?? []).find(neighbor => neighbor.next === next)?.edge;
+    if (edge) width = Math.min(width, edge.width);
+    route.push(network.points[next]!);
+    closureNode = next;
+  }
+  const smoothed = smoothTrafficRoute(rotateTrafficLoop(route));
+  const cumulative = [0];
+  for (let i = 1; i < smoothed.length; i++) {
+    const previous = smoothed[i - 1]!, next = smoothed[i]!;
+    cumulative.push(cumulative[i - 1]! + Math.hypot(next[0] - previous[0], next[1] - previous[1]));
+  }
+  const routeLength = cumulative[cumulative.length - 1]!;
+  return routeLength > 0 ? { points: smoothed, cumulative, length: routeLength, width } : null;
+}
 function trafficPaths(district: District, count: number, random: () => number): TrafficPath[] {
   const network = trafficNetwork(district);
   const starts = network.adjacency.flatMap((edges, id) => edges.length > 0 ? [id] : []);
   if (!starts.length) return [];
   const paths: TrafficPath[] = [];
   for (let vehicle = 0; vehicle < count; vehicle++) {
-    const start = starts[Math.floor(random() * starts.length)]!;
-    let current = start, previousNode = -1, previousEdge = -1, width = Infinity, length = 0;
-    const route: Point[] = [network.points[start]!];
-    const routeNodes = [start];
-    const targetLength = 250 + random() * 450;
-    for (let step = 0; step < 90 && length < targetLength; step++) {
-      const neighbors = network.adjacency[current] ?? [];
-      const forward = neighbors.filter(neighbor => neighbor.edge.id !== previousEdge);
-      const choices = forward.length ? forward : neighbors;
-      if (!choices.length) break;
-      const here = network.points[current]!;
-      const previous = previousNode < 0 ? null : network.points[previousNode]!;
-      const weighted = choices.map(neighbor => {
-        let weight = neighbor.edge.length;
-        if (previous) {
-          const before = Math.hypot(here[0] - previous[0], here[1] - previous[1]) || 1;
-          const next = network.points[neighbor.next]!;
-          const after = Math.hypot(next[0] - here[0], next[1] - here[1]) || 1;
-          const straightness = ((here[0] - previous[0]) * (next[0] - here[0]) +
-            (here[1] - previous[1]) * (next[1] - here[1])) / (before * after);
-          weight *= straightness > 0.8 ? 1.8 : straightness < -0.4 ? 0.45 : 1;
-        }
-        return { neighbor, weight };
-      });
-      let selection = random() * weighted.reduce((sum, choice) => sum + choice.weight, 0);
-      let chosen = weighted[weighted.length - 1]!.neighbor;
-      for (const choice of weighted) {
-        selection -= choice.weight;
-        if (selection <= 0) { chosen = choice.neighbor; break; }
-      }
-      route.push(network.points[chosen.next]!);
-      routeNodes.push(chosen.next);
-      previousNode = current; current = chosen.next; previousEdge = chosen.edge.id;
-      width = Math.min(width, chosen.edge.width); length += chosen.edge.length;
+    let best: TrafficPath | null = null;
+    for (let attempt = 0; attempt < 4 && (!best || best.length < 45000); attempt++) {
+      const start = starts[Math.floor(random() * starts.length)]!;
+      const candidate = buildTrafficPath(network, start, random);
+      if (candidate && (!best || candidate.length > best.length)) best = candidate;
     }
-    if (route.length < 2) continue;
-    const returnRoute = shortestTrafficRoute(network, current, start);
-    if (!returnRoute.length) continue;
-    let complete = true;
-    for (const next of returnRoute.slice(1)) {
-      const previous = routeNodes[routeNodes.length - 1]!;
-      const edge = (network.adjacency[previous] ?? []).find(neighbor => neighbor.next === next)?.edge;
-      if (!edge) { complete = false; break; }
-      route.push(network.points[next]!); routeNodes.push(next);
-      width = Math.min(width, edge.width);
-    }
-    if (!complete || routeNodes[routeNodes.length - 1] !== start) continue;
-    const smoothed = smoothTrafficRoute(rotateTrafficLoop(route));
-    const cumulative = [0];
-    for (let i = 1; i < smoothed.length; i++) {
-      const previous = smoothed[i - 1]!, current = smoothed[i]!;
-      cumulative.push(cumulative[i - 1]! + Math.hypot(current[0] - previous[0], current[1] - previous[1]));
-    }
-    const routeLength = cumulative[cumulative.length - 1]!;
-    if (routeLength > 0) paths.push({ points: smoothed, cumulative, length: routeLength, width });
+    if (best) paths.push(best);
   }
   return paths;
 }
@@ -296,6 +304,7 @@ export class TorontoScene {
   private paused = false;
   private speed = 10;
   private seconds = 0;
+  private trafficSeconds = 0;
   private lastTime = 0;
   private lastTick = 0;
   private backgroundTimer = 0;
@@ -452,27 +461,27 @@ export class TorontoScene {
     this.paths.add(new THREE.LineSegments(pathGeometry, new THREE.LineBasicMaterial({ color: '#c3f2be', transparent: true, opacity: 0.65 })));
   }
 
-  /** Adds illustrative cars to mapped streets. They follow the playhead but do not affect the simulation. */
+  /** Adds decorative cars on long road circuits, animated independently of the simulation playhead. */
   private buildTraffic(): void {
     const random = trafficRandom(20261017);
-    const paths = trafficPaths(this.district, 72, random);
+    const paths = trafficPaths(this.district, 360, random);
     const count = paths.length;
     if (!count) return;
     this.trafficVehicles = paths.map(path => ({
         path,
-        offset: random() * path.length,
-        speed: 5.5 + random() * 3.5,
+        offset: random() * Math.min(2500, path.length * 0.08),
+        speed: 8 + random() * 4,
         lane: 0.9 + random() * 0.2,
         scale: random() < 0.1 ? 1.12 : 0.92 + random() * 0.12,
         color: vehicleColors[Math.floor(random() * vehicleColors.length)]!,
       }));
 
     this.trafficBodies = new THREE.InstancedMesh(
-      new THREE.BoxGeometry(1.9, 0.52, 4.7),
+      new THREE.BoxGeometry(1.9, 0.9, 4.7),
       new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.7, metalness: 0.03 }), count,
     );
     this.trafficCabins = new THREE.InstancedMesh(
-      new THREE.BoxGeometry(1.52, 0.78, 2.65),
+      new THREE.BoxGeometry(1.52, 1.9, 2.65),
       new THREE.MeshStandardMaterial({ color: '#283940', roughness: 0.38, metalness: 0.08 }), count,
     );
     const wheelGeometry = new THREE.CylinderGeometry(0.34, 0.34, 0.22, 10);
@@ -493,12 +502,12 @@ export class TorontoScene {
     if (!this.trafficBodies || !this.trafficCabins || !this.trafficWheels) return;
     for (let i = 0; i < this.trafficVehicles.length; i++) {
       const vehicle = this.trafficVehicles[i]!;
-      const pose = sampleTraffic(vehicle, this.seconds);
+      const pose = sampleTraffic(vehicle, this.trafficSeconds);
       this.dummy.rotation.set(0, pose.heading, 0);
       this.dummy.scale.set(vehicle.scale, vehicle.scale, vehicle.scale);
-      this.dummy.position.set(pose.x, 0.3 + 0.65 * vehicle.scale, pose.z);
+      this.dummy.position.set(pose.x, 0.3 + 0.75 * vehicle.scale, pose.z);
       this.dummy.updateMatrix(); this.trafficBodies.setMatrixAt(i, this.dummy.matrix);
-      this.dummy.position.y = 0.3 + 1.16 * vehicle.scale;
+      this.dummy.position.y = 0.3 + 2.15 * vehicle.scale;
       this.dummy.position.x += Math.sin(pose.heading) * -0.1 * vehicle.scale;
       this.dummy.position.z += Math.cos(pose.heading) * -0.1 * vehicle.scale;
       this.dummy.updateMatrix(); this.trafficCabins.setMatrixAt(i, this.dummy.matrix);
@@ -752,7 +761,9 @@ export class TorontoScene {
   }
   private animate = (now: number): void => {
     if (this.disposed) return;
-    const delta = this.lastTime ? Math.min((now - this.lastTime) / 1000, 0.1) : 0; this.lastTime = now;
+    const elapsed = this.lastTime ? Math.max(0, (now - this.lastTime) / 1000) : 0;
+    const delta = Math.min(elapsed, 0.1); this.lastTime = now;
+    this.trafficSeconds += Math.min(elapsed, 0.5);
     if (!this.paused && !document.hidden) this.seconds = Math.min(this.trace.horizon_seconds, this.seconds + delta * this.speed);
     let walking = 0;
     this.dummy.scale.setScalar(1);
