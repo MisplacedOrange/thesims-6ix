@@ -30,7 +30,7 @@ The initial demo proposals are city-operated affordable grocery stores, rescue a
 
 ## Technology
 
-TypeScript, React, Three.js, and Vite implement the browser. Python generates bounded deterministic food-access runs through the existing economic kernel; the browser samples routes and committed state at playback time. The target architecture adds proposal/chat and a Python-authoritative ongoing simulation service. See the [architecture decision](docs/architecture-decision.md).
+TypeScript, React, Three.js, and Vite implement the browser. Python generates bounded deterministic food-access runs through the existing economic kernel; the browser samples routes and committed state at playback time. The target architecture adds proposal/chat and a Python-authoritative ongoing simulation service. See the [system architecture](docs/architecture.md).
 
 Read [the product plan](PLAN.md) first. The [next steps](NEXT_STEPS.md) describe the staged path from the current visual foundation to proposal intake and ongoing simulation. The specifications cover world and state ownership in [architecture](docs/architecture.md), agent and outcome semantics in [simulation](docs/simulation.md), Toronto inputs in [the data plan](docs/data-plan.md), and study design in [experiments and validation](docs/experiments-and-validation.md).
 
@@ -55,8 +55,8 @@ The output directory must be new. Completed runs contain hashed inputs, economic
 | [Environment guide](apps/web/README.md) | Run and explore the current visual environment |
 | [Environment implementation](docs/environment-implementation.md) | Current scope, design choice, and acceptance criteria |
 | [Product plan](PLAN.md) | Council chat, open proposal intake, pedestrian and department agents, ongoing rollout, and outcomes |
-| [Next steps](NEXT_STEPS.md) | Staged path from the visual foundation to proposal intake and ongoing simulation |
-| [System architecture](docs/architecture.md) | Proposal intake, world ownership, agent decisions, rollout, and persistent state |
+| [Next steps and delivery plan](NEXT_STEPS.md) | Staged roadmap with implementation status, delivery gates, and acceptance criteria |
+| [System architecture](docs/architecture.md) | Browser client, Python authority, proposal intake, state ownership, rollout, replay, and open deployment choices |
 | [Economic and agent model](docs/simulation.md) | Pedestrians, households, interventions, and modeled response |
 | [Pedestrian food interactables](docs/pedestrian-interactables-plan.md) | Food flows, household spending, site economics, access, and outcome measures |
 | [Implemented food-access scenario](sim/interactables/README.md) | Six-hour runner, committed events, dashboard metrics, and evidence limits |
@@ -64,8 +64,6 @@ The output directory must be new. Completed runs contain hashed inputs, economic
 | [Policies and evidence](docs/policies-and-evidence.md) | Existing Toronto policy evidence and limitations |
 | [Data plan](docs/data-plan.md) | Toronto geometry, population, services, and provenance |
 | [Experiments and validation](docs/experiments-and-validation.md) | Agent, rollout, economic, and response evaluation |
-| [Delivery plan](docs/delivery.md) | Proposed milestones and acceptance gates |
-| [Architecture decision](docs/architecture-decision.md) | Browser client proposal, state ownership, and open deployment choices |
 | [Integration status](docs/integration.md) | What the current Python prototype implements |
 | [Scenario catalog](planning/scenarios.json) | Initial demonstration fixtures and legacy economic aliases; not a closed proposal catalog |
 | [Source register](planning/sources.json) | Primary sources and supported claims |

@@ -24,8 +24,9 @@ The initial `sim/data` schema and extraction path cover citywide locations only.
 | P0 | [Toronto supermarket layer](https://gis.toronto.ca/arcgis/rest/services/cot_geospatial26/MapServer/4), [TDSB school directory](https://www.tdsb.on.ca/find-your/school) | Place IDs, names, coordinates, type, update date, status | Anchor the first active area and test feature-to-scene alignment. Verify current status and add non-supermarket food services separately. |
 | P0 | Coordinate reference and map attribution | CRS, transform, local origin, licence, attribution, feature-ID mapping | Keep scene, route graph, services, and rollout sites spatially aligned and traceable to source records. |
 | P1 | [TTC schedules](https://open.toronto.ca/dataset/ttc-routes-and-schedules/) | Stops, trips, stop times, service dates, accessibility | Add transit access where supported. Schedules do not establish observed reliability. Freeze feed validity. |
-| P1 | [2021 Census income backgrounder](https://www.toronto.ca/wp-content/uploads/2022/07/9877-City-Planning-2021-Census-Backgrounder-Families-Hhlds-Marital-Status-Income.pdf) | Household size, age, tenure, income bands, geography | Aggregate controls for a synthetic population. Obtain underlying tables and disclosure metadata; income generally refers to 2020. |
-| P1 | [CPI table 18-10-0004-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000401), [retail prices 18-10-0245-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810024501), [Toronto cost of living](https://open.toronto.ca/dataset/cost-of-living-in-toronto-for-low-income-households/) | Geography, product, package size, month, price, household costs, vintage | Add economic attributes after the world is aligned. Confirm supported geographies and publication periods; supplement with dated local store audits. |
+| P1 | [Census household total-income groups, Table 98-10-0055-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=9810005501), [after-tax groups, Table 98-10-0056-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=9810005601), [Toronto Neighbourhood Profiles](https://open.toronto.ca/dataset/neighbourhood-profiles/), [Toronto 2021 Census backgrounder](https://www.toronto.ca/wp-content/uploads/2022/07/9877-City-Planning-2021-Census-Backgrounder-Families-Hhlds-Marital-Status-Income.pdf) | Annual household income groups, household type, size, number of earners, age composition, geography, reference year | Primary controls for synthetic household income. Prefer annual after-tax household income groups for the first simulation attribute. Census income generally refers to 2020; Table 98-10-0056's household-characteristic cross-tabs are available for Toronto CMA/CMA parts, not neighbourhoods. Use City and neighbourhood controls only at the geography and detail actually published. |
+| P1 | [Canadian Income Survey 2024, Table 11-10-0237-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1110023701) | Annual market, total, and after-tax income statistics by economic-family type and CMA | Freshness check for the Census household baseline. Its statistical units are economic families and persons not in economic families, so do not use it as a direct household distribution. |
+| P1 | [CPI table 18-10-0004-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000401), [retail prices 18-10-0245-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810024501), [Toronto cost of living](https://open.toronto.ca/dataset/cost-of-living-in-toronto-for-low-income-households/) | Geography, product, package size, month, price, household costs, vintage | Household-income controls can be acquired independently of map expansion. Price and cost inputs need matching geography, product definitions, and reference periods; supplement with dated local store audits. CPI rebasing changes dollar units, not the underlying income distribution or its economic context. |
 | P1 | [Second Harvest reports](https://www.secondharvest.ca/about/reports) and school or food-hub operators | Sites, eligible input, rescued versus purchased mass, shifts, yields, menus, uptake, costs | Model service and rollout constraints. Request local operating records; national reports do not establish local daily capacity. |
 | P1 | [Who's Hungry 2025](https://www.dailybread.ca/wp-content/uploads/2025/12/DB-WHR-2025-Final_Nov-3_reader.pdf) | Visits, survey methods, program geography | Demand context and hardship constraints; daily unmet requests and supply need partner records. |
 | P2 | Consented local behavior or sentiment study | Sampling, question wording, geography, date, consent, response rate | Optional validation stream. Keep observations separate from synthetic agent state and generated dialogue. |
@@ -65,9 +66,56 @@ External APIs and files are validation boundaries. Keep transforms deterministic
 
 Use checks for duplicate store or school IDs, implausible package mass, mixed dollars and cents, geometry outside the chosen area, prices outside their reference period, and missing input shares. A facility maximum is an upper bound, not an observed row repeated across every day.
 
+## Household income evidence and model contract
+
+The first income target is a household's **annual after-tax income group**, with its income reference year and dollar basis attached. This is a general household characteristic. It is not the household's cash balance at a point in the simulation. If a later model needs a numeric annual amount, generate a synthetic amount from the published group using a documented method and mark it as synthetic; do not represent it as observed household microdata.
+
+Statistics Canada's 2021 Census Table 98-10-0056-01 reports household after-tax income groups for private households and supports breakdowns by household type, household size, age composition, and number of earners. Table 98-10-0055-01 provides household total-income groups. The Census income reference period is generally calendar year 2020, with income categories expressed in 2020 constant dollars. These tables provide aggregate counts, not records for individual Toronto households.
+
+The 2021 Census Profile and Toronto Neighbourhood Profiles provide City/neighbourhood income and demographic controls. The City's 2021 backgrounder reports 1,160,890 households and a median total household income of $84,000 in 2020 dollars, as well as differences in household composition across Toronto. It also documents substantial pandemic benefit receipt in 2020. Treat the Census distribution as a dated baseline and label the pandemic-period reference year; CPI adjustment alone does not make it a measured current-year distribution. The City's profiles cover 158 neighbourhood geographies, but only publish certain measures at that level.
+
+Table 98-10-0056-01's joint household-characteristic distributions use Toronto CMA and CMA-part geographies. They must not be described as Toronto City or neighbourhood cross-tabs. For City-level synthesis, use City-level household income groups and compatible City-level household composition margins. For neighbourhood analysis, add neighbourhood controls only where published. If margins do not identify the income-by-household-type relationship at the target geography, mark it as an assumption and evaluate plausible alternatives instead of implying the joint distribution is observed.
+
+Statistics Canada's [2024 Canadian Income Survey Table 11-10-0237-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1110023701) is a more recent annual reference for Toronto CMA income, but its statistical units are economic families and persons not in economic families. Use it as a freshness or trend check; do not substitute it directly for private-household income records.
+
+Keep income fields and time-varying cash-ledger fields separate in the simulation schema. Do not convert annual income to trip-time cash without a separate, explicit model of income timing, taxes, housing costs, and other commitments. Any support-program eligibility rule must also be explicit; a published income bracket does not automatically define eligibility.
+
+## RAG-to-simulation pipeline
+
+### Current implementation boundary
+
+`sim/data` currently acquires civic location layers and builds a BM25-style lexical retrieval index over source notes and location records. It has no household-income dataset or configured LLM generation provider. Income retrieval and the income-to-simulation transformation below are planned additions, not implemented behavior. See [`sim/data/README.md`](../sim/data/README.md).
+
+### Target flow
+
+```mermaid
+flowchart LR
+  A[Official tables and source documentation] --> B[Acquire raw files and metadata]
+  B --> C[Immutable, hashed source snapshot]
+  C --> D[Normalize into typed statistical records]
+  D --> E[Quality checks and source totals]
+  D --> F[Structured numeric retrieval]
+  D --> G[Search index for definitions and source notes]
+  F --> H[Retrieved evidence with source and geography]
+  G --> H
+  H --> I[Agent response with citations]
+  E --> J[Deterministic population-input builder]
+  J --> K[Candidate simulation snapshot]
+  K --> L[Review and validation]
+  L --> M[Versioned snapshot selected by simulation run]
+```
+
+Use structured, dimension-filtered queries for numeric statistics (for example: geography, income concept, household type, household size, income group, and reference year). Use lexical or semantic retrieval for definitions, methodology, limitations, and source context. The agent can explain retrieved evidence and cite it; it must not invent aggregate values or silently write generated answers into the active simulation.
+
+The deterministic population-input builder converts validated aggregate records into a candidate distribution or synthetic population. Its output retains the source dataset ID, extraction time, income concept, income reference year, currency base year, geography, household universe, income-group labels/counts, transformation revision, random seed, weights, and fitting diagnostics. Preserve source counts and the normalized table separately from derived household records.
+
+Each candidate must pass checks before selection: source totals reconcile under the source's documented rounding rules; group labels, units, geography, and reference years are consistent; rounding, suppression, and missing cells are surfaced; derived proportions reproduce the selected controls within a documented tolerance; and seeded generation is reproducible. Publishing a new snapshot creates a new dataset/version and new simulation runs. Existing runs keep their original snapshot and provenance.
+
+This pipeline can be developed alongside the agent layer. Define the snapshot and retrieval contract first so the agent can query a stable candidate dataset while the deterministic population builder is implemented and validated.
+
 ## Synthetic population
 
-Create synthetic households and resident pedestrians that match available aggregate controls across household size, age bands, income, tenure, and area. Attach homes and initial positions to eligible residential areas or clearly synthetic buildings. Give each simulated person a synthetic ID and only the schedule and attributes needed for the modeled activity. Use a documented fitting method such as iterative proportional fitting once compatible controls and seed distributions are obtained. Retain the seed, convergence diagnostics, and residuals.
+Create synthetic households and resident pedestrians that match available aggregate controls across household size, age bands, annual household income groups, tenure, and area. Attach homes and initial positions to eligible residential areas or clearly synthetic buildings. Give each simulated person a synthetic ID and only the schedule and attributes needed for the modeled activity. Use a documented fitting method such as iterative proportional fitting once compatible controls and seed distributions are obtained. Retain the source snapshot ID, seed, weights, convergence diagnostics, and residuals.
 
 Aggregate controls do not identify the true joint distribution. Test several plausible household populations. If rent burden and income correlation are unknown, vary that correlation rather than inventing precise household budgets.
 

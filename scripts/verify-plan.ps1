@@ -15,8 +15,8 @@ function Test-Condition {
 $requiredFiles = @(
     'README.md', 'PLAN.md', 'NEXT_STEPS.md', 'docs/architecture.md', 'docs/simulation.md',
     'docs/policies-and-evidence.md', 'docs/data-plan.md',
-    'docs/experiments-and-validation.md', 'docs/delivery.md',
-    'docs/architecture-decision.md', 'docs/integration.md', 'planning/sources.json',
+    'docs/experiments-and-validation.md',
+    'docs/integration.md', 'planning/sources.json',
     'planning/context-snapshot.json', 'planning/scenarios.json',
     'planning/decisions.tsv', 'planning/review.md'
 )

@@ -4,7 +4,7 @@
 
 Status: planning recommendation. The planner interface, rollout scheduler, and infrastructure activation described here are not implemented or approved as calibrated Toronto parameters.
 
-This document specifies how a simulated planning team can propose changes to the city and how approved changes unfold over logical simulation time. It supplements the [system architecture](architecture.md), [economic and agent model](simulation.md), and [delivery plan](delivery.md).
+This document specifies how a simulated planning team can propose changes to the city and how approved changes unfold over logical simulation time. It supplements the [system architecture](architecture.md), [economic and agent model](simulation.md), and [roadmap and delivery gates](../NEXT_STEPS.md).
 
 The core rule is that a planner submits a versioned schedule of proposed work. Python validates and records the schedule. The simulation changes infrastructure state only when a due milestone passes its checks and commits. Council or plan approval does not make a service immediately operational.
 

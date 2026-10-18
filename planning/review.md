@@ -14,7 +14,7 @@ The school-day language comes from the existing `sim.integration` prototype. Its
 
 ## Architecture direction
 
-The earlier scope review favored a separate world/movement runtime with Python retaining economic authority. Browser delivery is now a product requirement, and the current proposed direction is a TypeScript/React/Three.js client with Python as the sole world and economic authority. The frontend prototype in apps/web uses a frozen Toronto map, seeded pedestrian itineraries, and bounded six-hour food-access trace playback; it is not connected to an ongoing simulation service. The updated recommendation and its tradeoffs are recorded in [the architecture decision](../docs/architecture-decision.md).
+The earlier scope review favored a separate world/movement runtime with Python retaining economic authority. Browser delivery is now a product requirement, and the current proposed direction is a TypeScript/React/Three.js client with Python as the sole world and economic authority. The frontend prototype in apps/web uses a frozen Toronto map, seeded pedestrian itineraries, and bounded six-hour food-access trace playback; it is not connected to an ongoing simulation service. The updated recommendation and its tradeoffs are recorded in [system architecture](../docs/architecture.md).
 
 The Python world clock, pedestrian movement, versioned API, durable run archive, and target-device performance are still unimplemented. The first vertical slice must prove authoritative replay and profile the browser projection on the lowest-supported device.
 

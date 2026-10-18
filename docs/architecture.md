@@ -2,9 +2,9 @@
 
 ## Status and product boundary
 
-The implemented foundation is apps/web: a standalone browser environment with sourced Toronto geometry, seeded outdoor pedestrian itineraries, and playback for a bounded six-hour food-access scenario. It has no proposal chat, department agents, or ongoing policy simulation. The target product adds those capabilities on a Python-authoritative service. See the [environment implementation](environment-implementation.md) for the visual foundation and [integration status](integration.md) for current simulation boundaries.
+The implemented foundation is apps/web: a standalone browser environment with sourced Toronto geometry, seeded outdoor pedestrian itineraries, and playback for a bounded six-hour food-access scenario. Python generates and settles those scenario traces, which the browser replays without a live service. This is separate from the older `sim.integration` fixture. Proposal chat, department agents, persistent world simulation, and ongoing policy rollout remain unimplemented. See the [environment implementation](environment-implementation.md) for the visual foundation and [integration status](integration.md) for current simulation boundaries.
 
-This document specifies a proposed architecture; its service, chat, and planning components are not implemented. The browser environment remains independent of the limited headless Python economic prototype described in [integration status](integration.md).
+This document specifies the proposed ongoing architecture. The current recommendation is a TypeScript/React/Three.js browser client backed by a Python-authoritative simulation service. This meets the browser-delivery requirement while reusing the Python economic code and keeping one authoritative event and replay path. It is an architecture judgment, not a performance benchmark. The main risks are rendering scale on lower-powered devices and keeping the client projection synchronized after dropped connections. API ownership, hosting, and the supported browser/device matrix remain open.
 
 The product opens on a recognizable Toronto 3D context, with a Council chat beside the evolving city. The user can upload a Markdown proposal, clarify its interpretation, and review a sourced record of requested changes, outcomes, constraints, assumptions, and unknowns. Simulated expert roles coordinate work packages, and a validated, approved rollout changes the simulated city over time. The initial grocery, food processing, and school-food proposals are examples for the common intake path, not a closed catalog.
 
@@ -111,4 +111,17 @@ Before choosing a supported browser/device matrix, measure scene load time, p50/
 | Runtime or service restart | Preserve committed state and resume from a compatible checkpoint |
 | Partial export or unsupported replay version | Reject downstream use with an actionable diagnostic |
 
-The first technical gate is one synthetic resident moving on a Toronto pedestrian graph in the Python service, with a browser client rendering timestamped positions and submitting one legal economic action. Verify the same recorded run headlessly and through the browser produces matching authoritative world and economic hashes. Establish device performance targets after the active-area scale and supported hardware are specified.
+## First end-to-end proof
+
+Build the smallest runnable slice before expanding the city:
+
+1. Reuse the frozen Toronto map and source-feature IDs in both the browser and Python world package; validate the shared coordinate transform and walking graph.
+2. Advance one synthetic resident on a valid pedestrian graph in the Python service, both with the browser connected and headlessly.
+3. Submit one legal trip or purchase command with a stable command ID and expected revision.
+4. Receive one committed Python economic receipt and show its effect only after acceptance.
+5. Replay the same recorded inputs and compare authoritative world and economic hashes; frame rate and camera state must not affect them.
+6. Measure frame time, memory, load time, and reconnect recovery on the selected lowest-supported device.
+
+If this proof cannot preserve ordering and replay, reconsider the API and run-coordinator boundaries before adding population or policy complexity. Do not increase scene detail or agent counts until the lowest-supported device passes the agreed performance gate.
+
+Three.js is distributed as browser JavaScript and its official guide recommends npm with a build tool such as Vite for most projects: [Three.js installation](https://threejs.org/manual/pages/installation.html).

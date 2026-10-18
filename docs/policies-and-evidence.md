@@ -74,4 +74,4 @@ The ranges below are design-team planning assumptions for scenario analysis. The
 | Procurement hub pilot | 6 to 12 months after governance, site, and participants are agreed | Contracts, ordering, storage, cost allocation, delivery. Test 18+ months or partial participation. |
 | Toronto drone pilot | No defensible committed opening date | For study only, test a conditional 12 to 24+ month readiness window after a viable route concept. Permission may not arrive. Include a no-approval branch. |
 
-Estimate actual durations through a dependency schedule and operator input. Do not turn the illustrative midpoint into a fact. Software delivery dates appear separately in [delivery](delivery.md).
+Estimate actual durations through a dependency schedule and operator input. Do not turn the illustrative midpoint into a fact. The software roadmap and acceptance gates are in [Next steps](../NEXT_STEPS.md); they do not establish municipal project durations.
