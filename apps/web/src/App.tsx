@@ -1,18 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { ArrowDownLeft, ArrowRight, Check, ChevronRight, Compass, Expand, Eye, Footprints, Info, Layers3,
-  MapPin, Moon, MousePointer2, Pause, Play, Plus, Minus, RotateCcw, Settings2, Sun, Sunrise, Trees,
-  UsersRound, VolumeX, X } from 'lucide-react';
-import { loadDistrict } from './district.ts';
+  MapPin, Moon, Pause, Play, Plus, Minus, RotateCcw, Settings2, Sun, Sunrise, Trees,
+  VolumeX, X } from 'lucide-react';
+import { loadDistrict, loadIslands } from './district.ts';
 import type { District } from './district.ts';
-import type { Layer, Lighting, Preset, SceneTick, TorontoScene } from './scene.ts';
+import type { Layer, Lighting, SceneTick, TorontoScene } from './scene.ts';
 
-const views: { id: Preset; title: string; subtitle: string; number: string }[] = [
-  { id: 'skyline', title: 'The skyline', subtitle: 'See the city come together', number: '01' },
-  { id: 'waterfront', title: 'By the water', subtitle: 'A little room to breathe', number: '02' },
-  { id: 'oldtown', title: 'Old Toronto', subtitle: 'Follow the historic streets', number: '03' },
-  { id: 'street', title: 'At street level', subtitle: 'Get closer to the everyday', number: '04' },
-];
 const emptyTick: SceneTick = { seconds: 0, walking: 0, resting: 0, selected: null };
 function clock(seconds: number): string {
   const time = Math.floor(seconds) + 8 * 3600 + 30 * 60;
@@ -27,16 +21,16 @@ export function App() {
   const [ready, setReady] = useState(false), [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(emptyTick), [selected, setSelected] = useState<number | null>(null);
   const [paused, setPaused] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches), [speed, setSpeed] = useState(10), [population, setPopulation] = useState(600);
-  const [preset, setPreset] = useState<Preset>('skyline'), [lighting, setLighting] = useState<Lighting>('golden');
+  const [lighting, setLighting] = useState<Lighting>('golden');
   const [uiVisible, setUiVisible] = useState(true), [settingsOpen, setSettingsOpen] = useState(false);
-  const [layers, setLayers] = useState<Record<Layer, boolean>>({ buildings: true, greenery: true, paths: false, labels: true });
+  const [layers, setLayers] = useState<Record<Layer, boolean>>({ buildings: true, greenery: true, paths: false });
   useEffect(() => {
     let active = true;
     async function start() {
       try {
-        const [map, module] = await Promise.all([loadDistrict(), import('./scene.ts')]);
+        const [map, islands, module] = await Promise.all([loadDistrict(), loadIslands(), import('./scene.ts')]);
         if (!active || !container.current) return;
-        const view = new module.TorontoScene(container.current, map, setTick, setSelected);
+        const view = new module.TorontoScene(container.current, map, islands, setTick, setSelected);
         engine.current = view; setDistrict(map); setReady(true);
       } catch (e) { if (active) setError(e instanceof Error ? e.message : 'The 3D environment could not start.'); }
     }
@@ -51,8 +45,6 @@ export function App() {
       if (event.code === 'Space' && !(event.target instanceof HTMLButtonElement)) { event.preventDefault(); setPaused(p => !p); }
       if (event.key.toLowerCase() === 'h') setUiVisible(v => !v);
       if (event.key.toLowerCase() === 'r') engine.current?.reset();
-      const view = views[Number(event.key) - 1];
-      if (view) { setPreset(view.id); engine.current?.setPreset(view.id); }
       if (event.key === 'Escape') engine.current?.select(null);
     }
     const element = container.current;
@@ -62,7 +54,6 @@ export function App() {
     window.addEventListener('keydown', keyboard); element?.addEventListener('scene-error', contextError);
     return () => { window.removeEventListener('keydown', keyboard); element?.removeEventListener('scene-error', contextError); };
   }, []);
-  function chooseView(id: Preset) { setPreset(id); engine.current?.setPreset(id); }
   function chooseLight(id: Lighting) { setLighting(id); engine.current?.setLighting(id); }
   function toggleLayer(layer: Layer) {
     const visible = !layers[layer]; setLayers(previous => ({ ...previous, [layer]: visible })); engine.current?.setLayer(layer, visible);
@@ -95,22 +86,12 @@ export function App() {
           <p>A familiar skyline.<br />Everyday journeys, quietly unfolding.</p>
           <span className="scope-chip"><Footprints size={12} /> A pedestrian world</span>
         </section>
-        <section className="explore-panel glass" aria-label="Camera views">
-          <div className="panel-heading"><span>FIND YOUR PERSPECTIVE</span><Compass size={14} /></div>
-          {views.map(view => <button key={view.id} className={'view-card ' + view.id + (preset === view.id ? ' active' : '')} aria-pressed={preset === view.id} onClick={() => chooseView(view.id)} disabled={!ready}>
-            <span className={'view-art art-' + view.id}><i /><i /><i /><i /><i /></span>
-            <span className="view-copy"><strong>{view.title}</strong><small>{view.subtitle}</small></span>
-            <span className="view-index">{preset === view.id ? <ArrowRight size={14} /> : view.number}</span>
-          </button>)}
-          <div className="explore-footer"><MousePointer2 size={12} /> Drag to orbit <span>·</span> Scroll to explore</div>
-        </section>
         <button className="meet-button glass" disabled={!ready} onClick={() => engine.current?.meetResident()}>
           <span className="resident-avatars"><i /><i /><i /></span><span>Every dot has somewhere to be.<b>Meet a resident <ArrowRight size={13} /></b></span>
         </button>
         <section className={'settings-panel glass' + (settingsOpen ? ' mobile-open' : '')} aria-label="City settings">
-          <div className="settings-title"><span><Layers3 size={15} /> Your city view</span><span className="live-indicator"><i /> {paused ? 'PAUSED' : 'LIVE'}</span></div>
-          <div className="population-summary"><strong>{population.toLocaleString()}</strong><span>synthetic pedestrians<small>{ready ? 'Moving through mapped streets' : 'Preparing the neighbourhood'}</small></span></div>
-          <label className="section-label">CITY LIFE <UsersRound size={13} /></label>
+          <div className="settings-title"><span><Layers3 size={15} /> City settings</span></div>
+          <label className="section-label">CITY LIFE <span>{population.toLocaleString()}</span></label>
           <div className="segmented population" aria-label="Pedestrian population">
             {[{ n: 200, label: 'Quiet' }, { n: 600, label: 'Everyday' }, { n: 1200, label: 'Lively' }].map(option => <button key={option.n} className={population === option.n ? 'selected' : ''} aria-pressed={population === option.n} disabled={!ready} onClick={() => { setPopulation(option.n); engine.current?.setPopulation(option.n); }}>{option.label}</button>)}
           </div>
@@ -121,8 +102,7 @@ export function App() {
           </div>
           <div className="setting-divider" />
           <label className="section-label">LAYERS <Eye size={13} /></label>
-          {([{ id: 'buildings', label: 'Building massing' }, { id: 'greenery', label: 'Trees & green spaces' }, { id: 'paths', label: 'Walking network' }, { id: 'labels', label: 'Place labels' }] satisfies { id: Layer; label: string }[]).map(layer => <label className="layer-row" key={layer.id}><span>{layer.label}</span><span className="toggle"><input type="checkbox" checked={layers[layer.id]} onChange={() => toggleLayer(layer.id)} /><i><Check size={10} /></i></span></label>)}
-          <div className="map-status"><span /><span>{(district?.buildings.length ?? 0).toLocaleString()} mapped building forms<small>Real geography. Illustrative city life.</small></span></div>
+          {([{ id: 'buildings', label: 'Buildings' }, { id: 'greenery', label: 'Greenery' }, { id: 'paths', label: 'Walking network' }] satisfies { id: Layer; label: string }[]).map(layer => <label className="layer-row" key={layer.id}><span>{layer.label}</span><span className="toggle"><input type="checkbox" checked={layers[layer.id]} onChange={() => toggleLayer(layer.id)} /><i><Check size={10} /></i></span></label>)}
         </section>
         {resident && <section className="resident-card glass" aria-label="Selected resident">
           <div className="resident-heading"><span className="eyebrow">ONE OF THE SIX</span><button className="small-icon" onClick={() => engine.current?.select(null)} aria-label="Close resident details"><X size={15} /></button></div>
@@ -134,7 +114,7 @@ export function App() {
           <button className="follow-button" onClick={() => engine.current?.followSelected()}><Footprints size={14} /> Follow this journey <ArrowRight size={14} /></button>
         </section>}
         <div className="map-controls" aria-label="Camera controls">
-          <button onClick={() => chooseView('skyline')} aria-label="Reset camera north" title="Return to the skyline"><Compass size={21} /><small>N</small></button>
+          <button onClick={() => engine.current?.resetCamera()} aria-label="Reset camera" title="Return to the city view"><Compass size={21} /><small>N</small></button>
           <div><button aria-label="Zoom in" onClick={() => engine.current?.zoom(1)}><Plus size={19} /></button><button aria-label="Zoom out" onClick={() => engine.current?.zoom(-1)}><Minus size={19} /></button></div>
         </div>
         <section className="playback glass" aria-label="Simulation playback">
@@ -159,7 +139,7 @@ export function App() {
         <div className="source-fact"><MapPin size={19} /><span><strong>The city comes from the map.</strong>Building footprints, streets, parks, railways, and shoreline are a frozen OpenStreetMap snapshot. {(mappedHeights).toLocaleString()} buildings have mapped height or floor-count tags. Other heights are estimates.</span></div>
         <div className="source-fact"><Trees size={19} /><span><strong>The details are stylized.</strong>CN Tower, Rogers Centre, facades, trees, and street details are illustrative interpretations. Derived sidewalk offsets and intersection links form the walking network.</span></div>
         <div className="source-fact"><Footprints size={19} /><span><strong>The residents are synthetic.</strong>Seeded itineraries follow the connected map. Their names, routines, and movement demonstrate city life. They are not observed Toronto travel data or live AI decisions.</span></div>
-        <div className="keyboard-guide"><span><kbd>1</kbd>–<kbd>4</kbd> Change view</span><span><kbd>Space</kbd> Pause</span><span><kbd>R</kbd> Restart</span><span><kbd>H</kbd> Hide interface</span></div>
+        <div className="keyboard-guide"><span><kbd>Space</kbd> Pause</span><span><kbd>R</kbd> Restart</span><span><kbd>H</kbd> Hide interface</span></div>
         <p className="source-links">Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a>, distributed under <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noreferrer">ODbL 1.0</a>. Visual reference: <a href="https://devpost.com/software/shift-t15x3m" target="_blank" rel="noreferrer">God’s Plan, Hack the North 2026</a>. All application and landmark artwork here is newly implemented.</p>
         <button className="primary-button" onClick={() => dialog.current?.close()}>Back to the city <ArrowDownLeft size={16} /></button>
       </dialog>

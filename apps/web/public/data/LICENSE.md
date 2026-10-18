@@ -15,5 +15,12 @@ latitude 43.65. Missing building heights, parallel sidewalk offsets, and
 intersection connectors are illustrative derived values. Ground-level building
 footprints exclude outdoor routes that would pass through the rendered massing.
 
+islands.json (Toronto Islands outlines and Billy Bishop airport runways) is also
+derived from OpenStreetMap, retrieved through the Overpass API, and is likewise
+licensed under ODbL 1.0. It is produced by scripts/prepare_islands.py, uses the
+same local metre projection, and simplifies island outlines with a 2.5 m
+tolerance (runway centrelines with 1 m). Its
+source block records the Overpass query, retrieval time, and SHA-256 hash.
+
 The application code and newly created procedural landmark artwork follow the
 repository's MIT license. The map database retains its separate ODbL license.

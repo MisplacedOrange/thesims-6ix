@@ -7,6 +7,8 @@ export type Road = {
   id: string; name: string; kind: string; width: number; points: Point[]; bridge: boolean;
 };
 export type Area = { id: string; name: string; polygon: Point[] };
+export type Runway = { id: string; width: number; points: Point[] };
+export type Islands = { islands: Area[]; runways: Runway[] };
 export type WalkEdge = readonly [from: number, to: number, kind: 'footpath' | 'sidewalk' | 'crossing'];
 export type Landmark = {
   id: string; name: string; short: string; point: Point; height: number; description: string;
@@ -105,4 +107,27 @@ export async function loadDistrict(): Promise<District> {
   if (!response.ok) throw new Error('The Toronto map could not be loaded. Please reload the page.');
   const value: unknown = await response.json();
   return parseDistrict(value);
+}
+export function parseIslands(v: unknown): Islands {
+  const d = record(v);
+  if (d.schema !== 1) throw new Error('Unsupported islands map version');
+  return {
+    islands: list(d.islands, v => {
+      const a = area(v);
+      if (a.polygon.length < 4) throw new Error('Incomplete island outline');
+      return a;
+    }),
+    runways: list(d.runways, v => {
+      const r = record(v);
+      const width = num(r.width), points = list(r.points, point);
+      if (width <= 0 || points.length < 2) throw new Error('Invalid runway');
+      return { id: text(r.id), width, points };
+    }),
+  };
+}
+export async function loadIslands(): Promise<Islands> {
+  const response = await fetch('/data/islands.json');
+  if (!response.ok) throw new Error('The Toronto Islands could not be loaded. Please reload the page.');
+  const value: unknown = await response.json();
+  return parseIslands(value);
 }
