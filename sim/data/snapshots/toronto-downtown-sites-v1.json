@@ -1,0 +1,245 @@
+{
+  "coordinate_transform": "x=(longitude-origin_lon)*111320*cos(origin_lat); z=(origin_lat-latitude)*111320",
+  "counts_in_map_bounds": {
+    "toronto_education_sites": 54,
+    "toronto_food_support_sites": 258,
+    "toronto_supermarkets": 42
+  },
+  "created_at": "2026-10-18T03:18:21Z",
+  "evidence_limits": [
+    "A source-listed point does not establish that the location is currently operating.",
+    "The source observation date is unavailable; retrieval time is not an observation date.",
+    "Prices, inventory, hours, capacity, eligibility, service quality, and behavior remain illustrative.",
+    "School locations do not establish school-meal participation or reach.",
+    "The selected sites are nearest matches to scenario anchors, not a representative sample of Toronto services.",
+    "The source registry flags the source-layer license terms for review before publication."
+  ],
+  "geography_id": "downtown-toronto-map-core",
+  "map_bounds_xz_m": [
+    -1611.0,
+    -1670.0,
+    1611.0,
+    1670.0
+  ],
+  "map_origin_lon_lat": [
+    -79.385,
+    43.65
+  ],
+  "map_path": "C:/Users/richa/Desktop/thesims-6ix/apps/web/public/data/toronto.json",
+  "map_sha256": "5d13f193c524fa8071a46e3826cc8fad219d54a6a20a15f2b444544a6346400b",
+  "schema_version": 1,
+  "selection_method": "Nearest source-listed record to each frozen illustrative role anchor in projected map metres, restricted to map bounds; source records are unique across roles.",
+  "sites": {
+    "retail-east": {
+      "address": "181 Bay St",
+      "attribution": "City of Toronto; confirm layer terms before publication.",
+      "display_name": "City-listed supermarket - LONGO'S",
+      "distance_to_illustrative_anchor_m": 287.2,
+      "licence_status": "Confirm the terms for each layer before publishing derived data.",
+      "licence_url": "https://open.toronto.ca/open-data-licence/",
+      "listing_current_status": "unknown",
+      "location_evidence_state": "observed",
+      "operations_evidence_state": "illustrative",
+      "publisher": "City of Toronto",
+      "quality_flags": [
+        "layer_licence_review_required",
+        "source_update_date_unavailable",
+        "source_vintage_unverified"
+      ],
+      "retrieval": {
+        "citation": {
+          "dataset_id": "toronto_supermarkets",
+          "doc_id": "record:toronto_supermarkets:308",
+          "evidence_state": "observed",
+          "rank": 1,
+          "record_id": "308",
+          "retrieved_at": "2026-10-18T03:08:43Z",
+          "source_url": "https://gis.toronto.ca/arcgis/rest/services/cot_geospatial26/FeatureServer/4"
+        },
+        "doc_id": "record:toronto_supermarkets:308",
+        "method": "BM25-style lexical ranking over registered source metadata and retrieved source records",
+        "query": "Supermarket LONGO'S full_service_grocery 181 Bay St",
+        "rank": 1,
+        "score": 18.393589,
+        "text": "LONGO'S supermarket full_service_grocery 181 Bay St M5J2T9 former TORONTO"
+      },
+      "role": "retail-east",
+      "scene_point": [
+        453.18,
+        309.13
+      ],
+      "service_type": "full_service_grocery",
+      "site_name": "LONGO'S",
+      "source_id": "toronto_supermarkets",
+      "source_published_at": null,
+      "source_record_id": "308",
+      "source_record_url": "https://gis.toronto.ca/arcgis/rest/services/cot_geospatial26/FeatureServer/4/query?where=OBJECTID%3D308&outFields=%2A&returnGeometry=true&f=pjson",
+      "source_retrieved_at": "2026-10-18T03:08:43Z",
+      "source_site_id": "toronto_supermarkets:308",
+      "source_snapshot_id": "candidate-rag-20261018T030842Z",
+      "source_updated_at": null,
+      "source_url": "https://gis.toronto.ca/arcgis/rest/services/cot_geospatial26/FeatureServer/4",
+      "source_vintage_status": "unknown"
+    },
+    "retail-west": {
+      "address": "40 Beverley St",
+      "attribution": "City of Toronto; confirm layer terms before publication.",
+      "display_name": "City-listed supermarket - KABUL FARMS",
+      "distance_to_illustrative_anchor_m": 151.7,
+      "licence_status": "Confirm the terms for each layer before publishing derived data.",
+      "licence_url": "https://open.toronto.ca/open-data-licence/",
+      "listing_current_status": "unknown",
+      "location_evidence_state": "observed",
+      "operations_evidence_state": "illustrative",
+      "publisher": "City of Toronto",
+      "quality_flags": [
+        "layer_licence_review_required",
+        "source_update_date_unavailable",
+        "source_vintage_unverified"
+      ],
+      "retrieval": {
+        "citation": {
+          "dataset_id": "toronto_supermarkets",
+          "doc_id": "record:toronto_supermarkets:62",
+          "evidence_state": "observed",
+          "rank": 1,
+          "record_id": "62",
+          "retrieved_at": "2026-10-18T03:08:43Z",
+          "source_url": "https://gis.toronto.ca/arcgis/rest/services/cot_geospatial26/FeatureServer/4"
+        },
+        "doc_id": "record:toronto_supermarkets:62",
+        "method": "BM25-style lexical ranking over registered source metadata and retrieved source records",
+        "query": "Supermarket KABUL FARMS full_service_grocery 40 Beverley St",
+        "rank": 1,
+        "score": 22.0803,
+        "text": "KABUL FARMS supermarket full_service_grocery 40 Beverley St M5T1X9 former TORONTO"
+      },
+      "role": "retail-west",
+      "scene_point": [
+        -636.01,
+        -100.13
+      ],
+      "service_type": "full_service_grocery",
+      "site_name": "KABUL FARMS",
+      "source_id": "toronto_supermarkets",
+      "source_published_at": null,
+      "source_record_id": "62",
+      "source_record_url": "https://gis.toronto.ca/arcgis/rest/services/cot_geospatial26/FeatureServer/4/query?where=OBJECTID%3D62&outFields=%2A&returnGeometry=true&f=pjson",
+      "source_retrieved_at": "2026-10-18T03:08:43Z",
+      "source_site_id": "toronto_supermarkets:62",
+      "source_snapshot_id": "candidate-rag-20261018T030842Z",
+      "source_updated_at": null,
+      "source_url": "https://gis.toronto.ca/arcgis/rest/services/cot_geospatial26/FeatureServer/4",
+      "source_vintage_status": "unknown"
+    },
+    "school": {
+      "address": "56 Bond St",
+      "attribution": "City of Toronto; confirm layer terms before publication.",
+      "display_name": "City-listed school - ST MICHAEL'S CHOIR SCHOOL - GYMNASIUM BLDG",
+      "distance_to_illustrative_anchor_m": 105.0,
+      "licence_status": "Confirm the terms for each layer before publishing derived data.",
+      "licence_url": "https://open.toronto.ca/open-data-licence/",
+      "listing_current_status": "unknown",
+      "location_evidence_state": "observed",
+      "operations_evidence_state": "illustrative",
+      "publisher": "City of Toronto",
+      "quality_flags": [
+        "layer_licence_review_required",
+        "source_update_date_unavailable",
+        "source_vintage_unverified"
+      ],
+      "retrieval": {
+        "citation": {
+          "dataset_id": "toronto_education_sites",
+          "doc_id": "record:toronto_education_sites:1046",
+          "evidence_state": "observed",
+          "rank": 1,
+          "record_id": "1046",
+          "retrieved_at": "2026-10-18T03:08:43Z",
+          "source_url": "https://gis.toronto.ca/arcgis/rest/services/cot_geospatial28/FeatureServer/17"
+        },
+        "doc_id": "record:toronto_education_sites:1046",
+        "method": "BM25-style lexical ranking over registered source metadata and retrieved source records",
+        "query": "School ST MICHAEL'S CHOIR SCHOOL - GYMNASIUM BLDG English Separate 56 Bond St",
+        "rank": 1,
+        "score": 36.162334,
+        "text": "ST MICHAEL'S CHOIR SCHOOL - GYMNASIUM BLDG education_location English Separate Toronto Catholic District School Board 56 Bond St M5B 1X2 TO"
+      },
+      "role": "school",
+      "scene_point": [
+        553.88,
+        -534.65
+      ],
+      "school_type_label": "English Separate",
+      "service_type": "English Separate",
+      "site_name": "ST MICHAEL'S CHOIR SCHOOL - GYMNASIUM BLDG",
+      "source_id": "toronto_education_sites",
+      "source_published_at": null,
+      "source_record_id": "1046",
+      "source_record_url": "https://gis.toronto.ca/arcgis/rest/services/cot_geospatial28/FeatureServer/17/query?where=OBJECTID%3D1046&outFields=%2A&returnGeometry=true&f=pjson",
+      "source_retrieved_at": "2026-10-18T03:08:43Z",
+      "source_site_id": "toronto_education_sites:1046",
+      "source_snapshot_id": "candidate-rag-20261018T030842Z",
+      "source_updated_at": null,
+      "source_url": "https://gis.toronto.ca/arcgis/rest/services/cot_geospatial28/FeatureServer/17",
+      "source_vintage_status": "unknown"
+    },
+    "support": {
+      "address": "130 Queen St W",
+      "attribution": "City of Toronto; confirm layer terms before publication.",
+      "display_name": "City-listed food support - Law Society Foundation (Foodshare Meal Program)",
+      "distance_to_illustrative_anchor_m": 166.4,
+      "licence_status": "Confirm the terms for each layer before publishing derived data.",
+      "licence_url": "https://open.toronto.ca/open-data-licence/",
+      "listing_current_status": "unknown",
+      "location_evidence_state": "observed",
+      "operations_evidence_state": "illustrative",
+      "publisher": "City of Toronto",
+      "quality_flags": [
+        "layer_licence_review_required",
+        "source_update_date_unavailable",
+        "source_vintage_unverified"
+      ],
+      "retrieval": {
+        "citation": {
+          "dataset_id": "toronto_food_support_sites",
+          "doc_id": "record:toronto_food_support_sites:304",
+          "evidence_state": "observed",
+          "rank": 1,
+          "record_id": "304",
+          "retrieved_at": "2026-10-18T03:08:43Z",
+          "source_url": "https://gis.toronto.ca/arcgis/rest/services/cot_geospatial26/FeatureServer/50"
+        },
+        "doc_id": "record:toronto_food_support_sites:304",
+        "method": "BM25-style lexical ranking over registered source metadata and retrieved source records",
+        "query": "Food Bank Law Society Foundation Foodshare Meal Program 130 Queen St W",
+        "rank": 1,
+        "score": 32.857337,
+        "text": "Law Society Foundation food_support_program Foodshare Meal Program 130 Queen St W M5H 2N6 former TORONTO"
+      },
+      "role": "support",
+      "scene_point": [
+        3.94,
+        -186.78
+      ],
+      "service_type": "Foodshare Meal Program",
+      "site_name": "Law Society Foundation",
+      "source_id": "toronto_food_support_sites",
+      "source_published_at": null,
+      "source_record_id": "304",
+      "source_record_url": "https://gis.toronto.ca/arcgis/rest/services/cot_geospatial26/FeatureServer/50/query?where=OBJECTID%3D304&outFields=%2A&returnGeometry=true&f=pjson",
+      "source_retrieved_at": "2026-10-18T03:08:43Z",
+      "source_site_id": "toronto_food_support_sites:304",
+      "source_snapshot_id": "candidate-rag-20261018T030842Z",
+      "source_updated_at": null,
+      "source_url": "https://gis.toronto.ca/arcgis/rest/services/cot_geospatial26/FeatureServer/50",
+      "source_vintage_status": "unknown"
+    }
+  },
+  "snapshot_id": "toronto-downtown-sites-v1",
+  "source_snapshot_id": "candidate-rag-20261018T030842Z",
+  "source_snapshot_manifest_sha256": "806ebf31cdc961155bb94ace31608dc1f2a4fbf1558837d78d7655fd56756fb1",
+  "source_snapshot_retrieved_at": "2026-10-18T03:08:43Z",
+  "source_snapshot_spatial_scope": "Citywide City of Toronto point layers; no simulation-district clipping has been applied.",
+  "spatial_scope": "City-listed points filtered to the bounds of the frozen downtown Toronto OSM map and walking graph."
+}

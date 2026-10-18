@@ -14,24 +14,26 @@ import { GroundBuilder, groundLayer } from './ground.ts';
 import { noiseTexture, sleeperTexture, waterNormalTexture } from './textures.ts';
 import { Sky } from './atmosphere.ts';
 
-type Lighting = 'day' | 'golden' | 'blue';
+export type Lighting = 'day' | 'golden' | 'blue';
+export type Layer = 'buildings' | 'greenery' | 'paths' | 'traffic';
 export type SceneTick = { seconds: number; walking: number; resting: number; selected: Inspection | null };
 type CameraFlight = { from: THREE.Vector3; to: THREE.Vector3; targetFrom: THREE.Vector3; targetTo: THREE.Vector3; start: number };
+type TrafficPath = { points: Point[]; cumulative: number[]; length: number; width: number };
+type TrafficVehicle = { path: TrafficPath; offset: number; speed: number; lane: number; scale: number; color: string };
+type TrafficRoadEdge = { id: number; a: number; b: number; length: number; width: number };
+type TrafficNeighbor = { edge: TrafficRoadEdge; next: number };
+type TrafficNetwork = { points: Point[]; adjacency: TrafficNeighbor[][] };
 const initialCamera = { position: new THREE.Vector3(1900, 1720, 2850), target: new THREE.Vector3(-100, 100, 340) };
 const pathKinds = new Set(['footway', 'path', 'pedestrian', 'steps', 'cycleway']);
+const vehicleRoadKinds = new Set(['motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary', 'primary_link',
+  'secondary', 'secondary_link', 'tertiary', 'tertiary_link', 'unclassified', 'residential', 'living_street', 'road', 'service']);
+const vehicleColors = ['#e2dfd2', '#748b91', '#b8775c', '#d2ad61', '#405965', '#87927e', '#c9c8bd', '#596e61'];
 type Recipe = { top: string; horizon: string; sun: string; sunPower: number; ambient: number; exposure: number; water: string; azimuth: number; elevation: number };
 const lightRecipes: Record<Lighting, Recipe> = {
   day: { top: '#5b8fcc', horizon: '#c9d7e0', sun: '#fff3df', sunPower: 3.1, ambient: 0.7, exposure: 0.95, water: '#2c5a68', azimuth: -0.55, elevation: 0.95 },
   golden: { top: '#6683ad', horizon: '#d8c6b0', sun: '#ffc685', sunPower: 3.4, ambient: 0.55, exposure: 0.95, water: '#2a4c58', azimuth: -1.75, elevation: 0.3 },
   blue: { top: '#13213a', horizon: '#4b5b78', sun: '#a9bde6', sunPower: 0.5, ambient: 0.8, exposure: 1.1, water: '#122233', azimuth: -2.0, elevation: 0.1 },
 };
-const LIGHTING_CYCLE_SECONDS = 180;
-function lightingAt(seconds: number): Lighting {
-  const phase = seconds / LIGHTING_CYCLE_SECONDS;
-  if (phase < 0.25 || phase >= 0.85) return 'blue';
-  if (phase >= 0.75) return 'golden';
-  return 'day';
-}
 const WATER_Y = -1.6;
 
 /** Colours the base land: lot paving inside the mapped core, streets between procedural blocks outside it. */
@@ -70,6 +72,189 @@ function distanceToSegment(p: Point, a: Point, b: Point): number {
   const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / l));
   return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dz);
 }
+function trafficRandom(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state += 0x6d2b79f5;
+    let value = Math.imul(state ^ state >>> 15, 1 | state);
+    value ^= value + Math.imul(value ^ value >>> 7, 61 | value);
+    return ((value ^ value >>> 14) >>> 0) / 4294967296;
+  };
+}
+function trafficNetwork(district: District): TrafficNetwork {
+  const points: Point[] = [];
+  const adjacency: TrafficNeighbor[][] = [];
+  const nodeIds = new Map<string, number>();
+  const edgeKeys = new Set<string>();
+  const nodeId = (point: Point): number => {
+    const key = `${Math.round(point[0] * 10)}:${Math.round(point[1] * 10)}`;
+    const existing = nodeIds.get(key);
+    if (existing !== undefined) return existing;
+    const id = points.length;
+    nodeIds.set(key, id); points.push(point); adjacency.push([]);
+    return id;
+  };
+  for (const road of district.roads) {
+    if (!vehicleRoadKinds.has(road.kind) || pathKinds.has(road.kind) || road.width < 8) continue;
+    for (const roadPoints of clipToCore(road.points)) {
+      for (let i = 1; i < roadPoints.length; i++) {
+        const previous = roadPoints[i - 1]!, current = roadPoints[i]!;
+        const length = Math.hypot(current[0] - previous[0], current[1] - previous[1]);
+        if (length < 0.5) continue;
+        const a = nodeId(previous), b = nodeId(current);
+        if (a === b) continue;
+        const key = `${Math.min(a, b)}:${Math.max(a, b)}`;
+        if (edgeKeys.has(key)) continue;
+        edgeKeys.add(key);
+        const edge = { id: edgeKeys.size - 1, a, b, length, width: road.width };
+        adjacency[a]?.push({ edge, next: b }); adjacency[b]?.push({ edge, next: a });
+      }
+    }
+  }
+  return { points, adjacency };
+}
+function smoothTrafficRoute(points: Point[]): Point[] {
+  if (points.length < 3) return points;
+  const smooth: Point[] = [points[0]!];
+  for (let i = 1; i < points.length - 1; i++) {
+    const previous = points[i - 1]!, corner = points[i]!, next = points[i + 1]!;
+    const incomingLength = Math.hypot(corner[0] - previous[0], corner[1] - previous[1]);
+    const outgoingLength = Math.hypot(next[0] - corner[0], next[1] - corner[1]);
+    if (incomingLength < 0.5 || outgoingLength < 0.5) { smooth.push(corner); continue; }
+    const incoming: Point = [(corner[0] - previous[0]) / incomingLength, (corner[1] - previous[1]) / incomingLength];
+    const outgoing: Point = [(next[0] - corner[0]) / outgoingLength, (next[1] - corner[1]) / outgoingLength];
+    const turn = Math.acos(Math.max(-1, Math.min(1, incoming[0] * outgoing[0] + incoming[1] * outgoing[1])));
+    const radius = Math.min(4, incomingLength * 0.35, outgoingLength * 0.35);
+    if (turn < 0.28 || turn > 2.75 || radius < 1) { smooth.push(corner); continue; }
+    const before: Point = [corner[0] - incoming[0] * radius, corner[1] - incoming[1] * radius];
+    const after: Point = [corner[0] + outgoing[0] * radius, corner[1] + outgoing[1] * radius];
+    smooth.push(before);
+    for (let step = 1; step <= 4; step++) {
+      const t = step / 4, inverse = 1 - t;
+      smooth.push([
+        inverse * inverse * before[0] + 2 * inverse * t * corner[0] + t * t * after[0],
+        inverse * inverse * before[1] + 2 * inverse * t * corner[1] + t * t * after[1],
+      ]);
+    }
+  }
+  smooth.push(points[points.length - 1]!);
+  return smooth;
+}
+function shortestTrafficRoute(network: TrafficNetwork, start: number, destination: number): number[] {
+  const previous = new Int32Array(network.points.length).fill(-1);
+  const queue = [start];
+  previous[start] = start;
+  for (let head = 0; head < queue.length && previous[destination] === -1; head++) {
+    const current = queue[head]!;
+    for (const neighbor of network.adjacency[current] ?? []) {
+      if (previous[neighbor.next] !== -1) continue;
+      previous[neighbor.next] = current;
+      queue.push(neighbor.next);
+      if (neighbor.next === destination) break;
+    }
+  }
+  if (previous[destination] === -1) return [];
+  const route = [destination];
+  while (route[route.length - 1] !== start) route.push(previous[route[route.length - 1]!]!);
+  return route.reverse();
+}
+function rotateTrafficLoop(points: Point[]): Point[] {
+  if (points.length < 4) return points;
+  const loop = points.slice(0, -1);
+  let start = 0, bestStraightness = -Infinity;
+  for (let i = 0; i < loop.length; i++) {
+    const previous = loop[(i + loop.length - 1) % loop.length]!, current = loop[i]!, next = loop[(i + 1) % loop.length]!;
+    const beforeLength = Math.hypot(current[0] - previous[0], current[1] - previous[1]) || 1;
+    const afterLength = Math.hypot(next[0] - current[0], next[1] - current[1]) || 1;
+    const straightness = ((current[0] - previous[0]) * (next[0] - current[0]) +
+      (current[1] - previous[1]) * (next[1] - current[1])) / (beforeLength * afterLength);
+    if (straightness > bestStraightness) { bestStraightness = straightness; start = i; }
+  }
+  const rotated = [...loop.slice(start), ...loop.slice(0, start)];
+  rotated.push(rotated[0]!);
+  return rotated;
+}
+function trafficPaths(district: District, count: number, random: () => number): TrafficPath[] {
+  const network = trafficNetwork(district);
+  const starts = network.adjacency.flatMap((edges, id) => edges.length > 0 ? [id] : []);
+  if (!starts.length) return [];
+  const paths: TrafficPath[] = [];
+  for (let vehicle = 0; vehicle < count; vehicle++) {
+    const start = starts[Math.floor(random() * starts.length)]!;
+    let current = start, previousNode = -1, previousEdge = -1, width = Infinity, length = 0;
+    const route: Point[] = [network.points[start]!];
+    const routeNodes = [start];
+    const targetLength = 250 + random() * 450;
+    for (let step = 0; step < 90 && length < targetLength; step++) {
+      const neighbors = network.adjacency[current] ?? [];
+      const forward = neighbors.filter(neighbor => neighbor.edge.id !== previousEdge);
+      const choices = forward.length ? forward : neighbors;
+      if (!choices.length) break;
+      const here = network.points[current]!;
+      const previous = previousNode < 0 ? null : network.points[previousNode]!;
+      const weighted = choices.map(neighbor => {
+        let weight = neighbor.edge.length;
+        if (previous) {
+          const before = Math.hypot(here[0] - previous[0], here[1] - previous[1]) || 1;
+          const next = network.points[neighbor.next]!;
+          const after = Math.hypot(next[0] - here[0], next[1] - here[1]) || 1;
+          const straightness = ((here[0] - previous[0]) * (next[0] - here[0]) +
+            (here[1] - previous[1]) * (next[1] - here[1])) / (before * after);
+          weight *= straightness > 0.8 ? 1.8 : straightness < -0.4 ? 0.45 : 1;
+        }
+        return { neighbor, weight };
+      });
+      let selection = random() * weighted.reduce((sum, choice) => sum + choice.weight, 0);
+      let chosen = weighted[weighted.length - 1]!.neighbor;
+      for (const choice of weighted) {
+        selection -= choice.weight;
+        if (selection <= 0) { chosen = choice.neighbor; break; }
+      }
+      route.push(network.points[chosen.next]!);
+      routeNodes.push(chosen.next);
+      previousNode = current; current = chosen.next; previousEdge = chosen.edge.id;
+      width = Math.min(width, chosen.edge.width); length += chosen.edge.length;
+    }
+    if (route.length < 2) continue;
+    const returnRoute = shortestTrafficRoute(network, current, start);
+    if (!returnRoute.length) continue;
+    let complete = true;
+    for (const next of returnRoute.slice(1)) {
+      const previous = routeNodes[routeNodes.length - 1]!;
+      const edge = (network.adjacency[previous] ?? []).find(neighbor => neighbor.next === next)?.edge;
+      if (!edge) { complete = false; break; }
+      route.push(network.points[next]!); routeNodes.push(next);
+      width = Math.min(width, edge.width);
+    }
+    if (!complete || routeNodes[routeNodes.length - 1] !== start) continue;
+    const smoothed = smoothTrafficRoute(rotateTrafficLoop(route));
+    const cumulative = [0];
+    for (let i = 1; i < smoothed.length; i++) {
+      const previous = smoothed[i - 1]!, current = smoothed[i]!;
+      cumulative.push(cumulative[i - 1]! + Math.hypot(current[0] - previous[0], current[1] - previous[1]));
+    }
+    const routeLength = cumulative[cumulative.length - 1]!;
+    if (routeLength > 0) paths.push({ points: smoothed, cumulative, length: routeLength, width });
+  }
+  return paths;
+}
+function sampleTraffic(vehicle: TrafficVehicle, seconds: number): { x: number; z: number; heading: number } {
+  const { path } = vehicle;
+  const distance = (vehicle.offset + seconds * vehicle.speed) % path.length;
+  let low = 0, high = path.cumulative.length - 1;
+  while (low < high - 1) {
+    const middle = (low + high) >> 1;
+    if (path.cumulative[middle]! <= distance) low = middle; else high = middle;
+  }
+  const a = path.points[low]!, b = path.points[Math.min(low + 1, path.points.length - 1)]!;
+  const segment = Math.max(0.001, path.cumulative[Math.min(low + 1, path.cumulative.length - 1)]! - path.cumulative[low]!);
+  const fraction = Math.max(0, Math.min(1, (distance - path.cumulative[low]!) / segment));
+  const dx = (b[0] - a[0]) / segment, dz = (b[1] - a[1]) / segment;
+  const lane = Math.min(2.2, Math.max(1.25, path.width * 0.22)) * vehicle.lane;
+  const x = a[0] + (b[0] - a[0]) * fraction - dz * lane;
+  const z = a[1] + (b[1] - a[1]) * fraction + dx * lane;
+  return { x, z, heading: Math.atan2(dx, dz) };
+}
 
 export class TorontoScene {
   readonly renderer: THREE.WebGLRenderer;
@@ -79,11 +264,11 @@ export class TorontoScene {
   readonly buildings = new THREE.Group();
   readonly greenery = new THREE.Group();
   readonly paths = new THREE.Group();
+  readonly traffic = new THREE.Group();
   private readonly city = new THREE.Group();
   private readonly people = new THREE.Group();
-  private readonly foodSites = new THREE.Group();
-  private readonly light = new THREE.DirectionalLight('#fff3df', 3.1);
-  private readonly ambient = new THREE.HemisphereLight('#5b8fcc', '#8a8274', 0.7);
+  private readonly light = new THREE.DirectionalLight('#ffd9a0', 3.4);
+  private readonly ambient = new THREE.HemisphereLight('#dfe8ef', '#8a8274', 0.55);
   private readonly sky: Sky;
   private readonly waterNormals = waterNormalTexture();
   private readonly noise = noiseTexture();
@@ -101,6 +286,10 @@ export class TorontoScene {
   private bodies: THREE.InstancedMesh | null = null;
   private heads: THREE.InstancedMesh | null = null;
   private legs: THREE.InstancedMesh | null = null;
+  private trafficBodies: THREE.InstancedMesh | null = null;
+  private trafficCabins: THREE.InstancedMesh | null = null;
+  private trafficWheels: THREE.InstancedMesh | null = null;
+  private trafficVehicles: TrafficVehicle[] = [];
   private crowd: Crowd;
   private selected: number | null = null;
   private following = false;
@@ -109,13 +298,18 @@ export class TorontoScene {
   private seconds = 0;
   private lastTime = 0;
   private lastTick = 0;
+  private backgroundTimer = 0;
+  private backgroundLastTime = 0;
   private flight: CameraFlight | null = null;
-  private lighting: Lighting = 'day';
-  private dayCycleSeconds = LIGHTING_CYCLE_SECONDS * 0.4;
+  private lighting: Lighting = 'golden';
   private environmentFrames = 0;
   private disposed = false;
   private pointerStart = new THREE.Vector2();
   private reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  private readonly visibilityChanged = () => {
+    if (document.hidden) this.startBackgroundClock();
+    else this.stopBackgroundClock();
+  };
 
   constructor(private readonly container: HTMLDivElement, private readonly district: District, private readonly islands: Islands,
     private readonly onTick: (tick: SceneTick) => void, private readonly onSelect: (id: number | null) => void,
@@ -128,7 +322,7 @@ export class TorontoScene {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = lightRecipes.day.exposure;
+    this.renderer.toneMappingExposure = lightRecipes.golden.exposure;
     this.renderer.domElement.setAttribute('aria-label', 'Interactive 3D view of downtown Toronto. Drag to orbit, right drag to pan, scroll to zoom.');
     this.renderer.domElement.setAttribute('role', 'img');
     container.appendChild(this.renderer.domElement);
@@ -141,7 +335,7 @@ export class TorontoScene {
     this.controls.minPolarAngle = 0.15; this.controls.maxPolarAngle = Math.PI / 2.08;
     this.controls.addEventListener('start', this.cancelFlight);
 
-    const recipe = lightRecipes.day;
+    const recipe = lightRecipes.golden;
     Object.assign(this.atmosphere, { azimuth: recipe.azimuth, elevation: recipe.elevation });
     this.atmosphere.top.set(recipe.top); this.atmosphere.horizon.set(recipe.horizon); this.atmosphere.sun.set(recipe.sun);
     this.sky = new Sky(this.renderer);
@@ -155,18 +349,18 @@ export class TorontoScene {
     this.light.castShadow = true; this.light.shadow.mapSize.set(2048, 2048);
     Object.assign(this.light.shadow.camera, { near: 50, far: 9000 });
     this.light.shadow.normalBias = 0.8; this.light.shadow.bias = -0.0002;
-    this.scene.add(this.sky.mesh, this.light, this.light.target, this.ambient, this.city, this.people, this.route, this.foodSites);
-    this.city.add(this.buildings, this.greenery, this.paths);
-    this.buildings.visible = true; this.greenery.visible = true; this.paths.visible = false;
-    this.buildLandscape(); this.buildArchitecture(); this.buildSurroundings(); this.buildTrees(); this.buildLandmarks(); this.buildPeople();
-    this.buildFoodSites();
-    this.ring = new THREE.Mesh(new THREE.RingGeometry(7, 10, 48), new THREE.MeshBasicMaterial({ color: '#e5f5b7', side: THREE.DoubleSide }));
+    this.scene.add(this.sky.mesh, this.light, this.light.target, this.ambient, this.city, this.people, this.route);
+    this.city.add(this.buildings, this.greenery, this.paths, this.traffic); this.paths.visible = false;
+    this.buildLandscape(); this.buildTraffic(); this.buildArchitecture(); this.buildSurroundings(); this.buildTrees(); this.buildLandmarks(); this.buildPeople();
+    this.ring = new THREE.Mesh(new THREE.RingGeometry(0.7, 0.9, 48), new THREE.MeshBasicMaterial({ color: '#e5f5b7', side: THREE.DoubleSide }));
     this.ring.rotation.x = -Math.PI / 2; this.ring.visible = false; this.ring.renderOrder = 10; this.scene.add(this.ring);
     this.resizeObserver = new ResizeObserver(this.resize); this.resizeObserver.observe(container); this.resize();
     this.renderer.domElement.addEventListener('pointerdown', this.pointerDown);
     this.renderer.domElement.addEventListener('pointerup', this.pointerUp);
     this.renderer.domElement.addEventListener('webglcontextlost', this.contextLost);
     this.renderer.setAnimationLoop(this.animate);
+    document.addEventListener('visibilitychange', this.visibilityChanged);
+    if (document.hidden) this.startBackgroundClock();
     if (import.meta.env.DEV) Object.assign(window, { toronto: this, THREE });
   }
 
@@ -252,10 +446,74 @@ export class TorontoScene {
     for (const [a, b, kind] of this.district.walkEdges) {
       if (kind === 'crossing') continue;
       const p = this.district.walkNodes[a]!, q = this.district.walkNodes[b]!;
-      points.push(p[0], 3, p[1], q[0], 3, q[1]);
+      points.push(p[0], 0.4, p[1], q[0], 0.4, q[1]);
     }
     const pathGeometry = new THREE.BufferGeometry(); pathGeometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
     this.paths.add(new THREE.LineSegments(pathGeometry, new THREE.LineBasicMaterial({ color: '#c3f2be', transparent: true, opacity: 0.65 })));
+  }
+
+  /** Adds illustrative cars to mapped streets. They follow the playhead but do not affect the simulation. */
+  private buildTraffic(): void {
+    const random = trafficRandom(20261017);
+    const paths = trafficPaths(this.district, 72, random);
+    const count = paths.length;
+    if (!count) return;
+    this.trafficVehicles = paths.map(path => ({
+        path,
+        offset: random() * path.length,
+        speed: 5.5 + random() * 3.5,
+        lane: 0.9 + random() * 0.2,
+        scale: random() < 0.1 ? 1.12 : 0.92 + random() * 0.12,
+        color: vehicleColors[Math.floor(random() * vehicleColors.length)]!,
+      }));
+
+    this.trafficBodies = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1.9, 0.52, 4.7),
+      new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.7, metalness: 0.03 }), count,
+    );
+    this.trafficCabins = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1.52, 0.78, 2.65),
+      new THREE.MeshStandardMaterial({ color: '#283940', roughness: 0.38, metalness: 0.08 }), count,
+    );
+    const wheelGeometry = new THREE.CylinderGeometry(0.34, 0.34, 0.22, 10);
+    wheelGeometry.rotateZ(Math.PI / 2);
+    this.trafficWheels = new THREE.InstancedMesh(
+      wheelGeometry,
+      new THREE.MeshStandardMaterial({ color: '#25282a', roughness: 0.95 }), count * 4,
+    );
+    for (let i = 0; i < count; i++) this.trafficBodies.setColorAt(i, new THREE.Color(this.trafficVehicles[i]!.color));
+    for (const mesh of [this.trafficBodies, this.trafficCabins, this.trafficWheels]) {
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      mesh.frustumCulled = false;
+      this.traffic.add(mesh);
+    }
+  }
+
+  private updateTraffic(): void {
+    if (!this.trafficBodies || !this.trafficCabins || !this.trafficWheels) return;
+    for (let i = 0; i < this.trafficVehicles.length; i++) {
+      const vehicle = this.trafficVehicles[i]!;
+      const pose = sampleTraffic(vehicle, this.seconds);
+      this.dummy.rotation.set(0, pose.heading, 0);
+      this.dummy.scale.set(vehicle.scale, vehicle.scale, vehicle.scale);
+      this.dummy.position.set(pose.x, 0.3 + 0.65 * vehicle.scale, pose.z);
+      this.dummy.updateMatrix(); this.trafficBodies.setMatrixAt(i, this.dummy.matrix);
+      this.dummy.position.y = 0.3 + 1.16 * vehicle.scale;
+      this.dummy.position.x += Math.sin(pose.heading) * -0.1 * vehicle.scale;
+      this.dummy.position.z += Math.cos(pose.heading) * -0.1 * vehicle.scale;
+      this.dummy.updateMatrix(); this.trafficCabins.setMatrixAt(i, this.dummy.matrix);
+      let wheel = i * 4;
+      for (const x of [-0.82, 0.82]) for (const z of [-1.35, 1.35]) {
+        const wheelX = x * vehicle.scale, wheelZ = z * vehicle.scale;
+        const wx = pose.x + Math.cos(pose.heading) * wheelX + Math.sin(pose.heading) * wheelZ;
+        const wz = pose.z - Math.sin(pose.heading) * wheelX + Math.cos(pose.heading) * wheelZ;
+        this.dummy.position.set(wx, 0.3 + 0.34 * vehicle.scale, wz);
+        this.dummy.updateMatrix(); this.trafficWheels.setMatrixAt(wheel++, this.dummy.matrix);
+      }
+    }
+    this.trafficBodies.instanceMatrix.needsUpdate = true;
+    this.trafficCabins.instanceMatrix.needsUpdate = true;
+    this.trafficWheels.instanceMatrix.needsUpdate = true;
   }
 
   private buildArchitecture(): void {
@@ -386,6 +644,8 @@ export class TorontoScene {
       }
       stadium.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 32, 0.65, 4, false), concrete));
     }
+    const waterName = document.createElement('div');
+    waterName.className = 'lake-name'; waterName.textContent = 'L A K E  O N T A R I O'; this.container.appendChild(waterName);
   }
 
   private buildPeople(): void {
@@ -394,31 +654,13 @@ export class TorontoScene {
       this.people.remove(child);
     }
     const count = this.crowd.residents.length;
-    this.bodies = new THREE.InstancedMesh(new THREE.CapsuleGeometry(1.3, 2.4, 3, 5), new THREE.MeshStandardMaterial({ roughness: 0.85 }), count);
-    this.heads = new THREE.InstancedMesh(new THREE.SphereGeometry(1.25, 7, 5), new THREE.MeshStandardMaterial({ color: '#eed2ae', roughness: 1 }), count);
-    this.legs = new THREE.InstancedMesh(new THREE.BoxGeometry(0.9, 2.7, 1), new THREE.MeshStandardMaterial({ color: '#465f5a', roughness: 1 }), count * 2);
+    this.bodies = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.22, 0.58, 3, 5), new THREE.MeshStandardMaterial({ roughness: 0.85 }), count);
+    this.heads = new THREE.InstancedMesh(new THREE.SphereGeometry(0.12, 7, 5), new THREE.MeshStandardMaterial({ color: '#eed2ae', roughness: 1 }), count);
+    this.legs = new THREE.InstancedMesh(new THREE.BoxGeometry(0.17, 0.74, 0.18), new THREE.MeshStandardMaterial({ color: '#465f5a', roughness: 1 }), count * 2);
     for (const resident of this.crowd.residents) this.bodies.setColorAt(resident.id, new THREE.Color(resident.color));
     this.bodies.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.heads.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.legs.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.bodies.frustumCulled = false; this.heads.frustumCulled = false; this.legs.frustumCulled = false;
     this.people.add(this.bodies, this.heads, this.legs);
-  }
-
-  private buildFoodSites(): void {
-    this.foodSites.traverse(child => {
-      if (child instanceof THREE.Sprite) { child.material.map?.dispose(); child.material.dispose(); }
-    });
-    this.foodSites.clear();
-    for (const site of this.trace.sites) {
-      const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 112;
-      const ctx = canvas.getContext('2d')!;
-      ctx.fillStyle = site.type === 'retailer' ? '#244b3c' : site.type === 'school' ? '#34567a' : '#794f35';
-      ctx.beginPath(); ctx.roundRect(0, 0, 640, 100, 18); ctx.fill();
-      ctx.fillStyle = '#fff9df'; ctx.font = 'bold 25px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText(site.name, 320, 43); ctx.font = '19px sans-serif'; ctx.fillText('ILLUSTRATIVE FOOD SITE', 320, 76);
-      const marker = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), depthTest: false }));
-      marker.position.set(site.point[0], 65, site.point[1]); marker.scale.set(190, 33, 1);
-      marker.userData.siteId = site.id; marker.renderOrder = 30; this.foodSites.add(marker);
-    }
   }
 
   private pose(resident: Resident) { return foodPose(this.trace, resident, this.seconds); }
@@ -461,14 +703,12 @@ export class TorontoScene {
     const rect = this.renderer.domElement.getBoundingClientRect(), point = new THREE.Vector3();
     const normalized = new THREE.Vector2((event.clientX - rect.left) / rect.width * 2 - 1, -(event.clientY - rect.top) / rect.height * 2 + 1);
     const raycaster = new THREE.Raycaster(); raycaster.setFromCamera(normalized, this.camera);
-    const siteHit = raycaster.intersectObjects(this.foodSites.children).find(hit => hit.object.visible);
-    if (siteHit) { this.select(null); this.onSelectSite(String(siteHit.object.userData.siteId)); return; }
     const obstruction = raycaster.intersectObjects(this.buildings.children, true)[0]?.distance ?? Infinity;
     let picked: number | null = null, nearest = 18;
     for (const resident of this.crowd.residents) {
       const p = this.pose(resident);
-      if (this.camera.position.distanceTo(new THREE.Vector3(p.x, 8, p.z)) > obstruction + 8) continue;
-      point.set(p.x, 8, p.z).project(this.camera);
+      if (this.camera.position.distanceTo(new THREE.Vector3(p.x, 1.6, p.z)) > obstruction + 3) continue;
+      point.set(p.x, 1.6, p.z).project(this.camera);
       if (point.z > 1) continue;
       const distance = Math.hypot((point.x + 1) / 2 * rect.width - event.clientX + rect.left, (1 - point.y) / 2 * rect.height - event.clientY + rect.top);
       if (distance < nearest) { nearest = distance; picked = resident.id; }
@@ -479,40 +719,64 @@ export class TorontoScene {
     event.preventDefault(); this.setPaused(true);
     this.container.dispatchEvent(new CustomEvent('scene-error', { detail: 'The 3D graphics connection was lost. Reload to restore the environment.' }));
   };
+  private publishTick(now: number, walking?: number): void {
+    if (now - this.lastTick <= 350) return;
+    let walkingCount = walking;
+    if (walkingCount === undefined) {
+      walkingCount = 0;
+      for (const resident of this.crowd.residents) if (this.pose(resident).walking) walkingCount++;
+    }
+    const resident = this.selected === null ? undefined : this.crowd.residents[this.selected];
+    this.onTick({ seconds: this.seconds, walking: walkingCount, resting: this.crowd.residents.length - walkingCount,
+      selected: resident ? foodInspection(this.trace, resident, this.seconds) : null });
+    this.lastTick = now;
+  }
+  private startBackgroundClock(): void {
+    if (this.backgroundTimer || this.disposed) return;
+    this.backgroundLastTime = performance.now();
+    this.lastTime = 0;
+    this.backgroundTimer = window.setInterval(() => {
+      const now = performance.now();
+      const elapsed = Math.max(0, (now - this.backgroundLastTime) / 1000);
+      this.backgroundLastTime = now;
+      if (!this.paused) this.seconds = Math.min(this.trace.horizon_seconds, this.seconds + elapsed * this.speed);
+      this.publishTick(now);
+    }, 250);
+  }
+  private stopBackgroundClock(): void {
+    if (this.backgroundTimer) window.clearInterval(this.backgroundTimer);
+    this.backgroundTimer = 0;
+    this.backgroundLastTime = 0;
+    this.lastTime = 0;
+    this.lastTick = 0;
+  }
   private animate = (now: number): void => {
     if (this.disposed) return;
     const delta = this.lastTime ? Math.min((now - this.lastTime) / 1000, 0.1) : 0; this.lastTime = now;
-    this.dayCycleSeconds = (this.dayCycleSeconds + delta) % LIGHTING_CYCLE_SECONDS;
-    const nextLighting = lightingAt(this.dayCycleSeconds);
-    if (nextLighting !== this.lighting) { this.lighting = nextLighting; this.environmentFrames = 150; }
     if (!this.paused && !document.hidden) this.seconds = Math.min(this.trace.horizon_seconds, this.seconds + delta * this.speed);
-    for (const marker of this.foodSites.children) {
-      const site = this.trace.sites.find(s => s.id === marker.userData.siteId)!;
-      marker.visible = this.seconds >= site.active_from;
-      if (marker instanceof THREE.Sprite) marker.material.opacity = this.seconds >= site.opens && this.seconds < site.closes ? 1 : 0.5;
-    }
     let walking = 0;
     this.dummy.scale.setScalar(1);
     for (const resident of this.crowd.residents) {
       const p = this.pose(resident);
       if (p.walking) walking++;
-      const gait = p.walking ? Math.sin(this.seconds * resident.speed * 3.8 + resident.id) : 0;
+      const gait = p.walking ? Math.sin(this.seconds * resident.speed * 3.8 + resident.id) * 0.12 : 0;
       this.dummy.rotation.set(0, p.heading, 0);
-      this.dummy.position.set(p.x, 5.2 + Math.abs(gait) * 0.2, p.z); this.dummy.updateMatrix(); this.bodies?.setMatrixAt(resident.id, this.dummy.matrix);
-      this.dummy.position.y = 8.8; this.dummy.updateMatrix(); this.heads?.setMatrixAt(resident.id, this.dummy.matrix);
+      this.dummy.position.set(p.x, 1.33 + Math.abs(gait) * 0.025, p.z); this.dummy.updateMatrix(); this.bodies?.setMatrixAt(resident.id, this.dummy.matrix);
+      this.dummy.position.y = 1.83; this.dummy.updateMatrix(); this.heads?.setMatrixAt(resident.id, this.dummy.matrix);
       for (let side = 0; side < 2; side++) {
-        const off = side === 0 ? -0.75 : 0.75, swing = gait * (side === 0 ? -1 : 1);
-        this.dummy.position.set(p.x + Math.cos(p.heading) * off + Math.sin(p.heading) * swing, 2.8, p.z - Math.sin(p.heading) * off + Math.cos(p.heading) * swing);
+        const off = side === 0 ? -0.15 : 0.15, swing = gait * (side === 0 ? -1 : 1);
+        this.dummy.position.set(p.x + Math.cos(p.heading) * off + Math.sin(p.heading) * swing, 0.62, p.z - Math.sin(p.heading) * off + Math.cos(p.heading) * swing);
         this.dummy.rotation.set(swing * 0.4, p.heading, 0); this.dummy.updateMatrix(); this.legs?.setMatrixAt(resident.id * 2 + side, this.dummy.matrix);
       }
       if (this.selected === resident.id) {
-        this.ring.position.set(p.x, 2, p.z); this.ring.scale.setScalar(1 + Math.sin(now / 600) * 0.08);
+        this.ring.position.set(p.x, 0.34, p.z); this.ring.scale.setScalar(1 + Math.sin(now / 600) * 0.08);
         if (this.following && !this.flight) {
-          const difference = new THREE.Vector3(p.x, 8, p.z).sub(this.controls.target);
+          const difference = new THREE.Vector3(p.x, 1.6, p.z).sub(this.controls.target);
           this.camera.position.addScaledVector(difference, 0.05); this.controls.target.addScaledVector(difference, 0.05);
         }
       }
     }
+    this.updateTraffic();
     if (this.bodies) this.bodies.instanceMatrix.needsUpdate = true;
     if (this.heads) this.heads.instanceMatrix.needsUpdate = true;
     if (this.legs) this.legs.instanceMatrix.needsUpdate = true;
@@ -543,21 +807,21 @@ export class TorontoScene {
     this.updateShadows();
     this.sky.follow(this.camera);
     this.renderer.render(this.scene, this.camera);
-    if (now - this.lastTick > 350) {
-      const resident = this.selected === null ? undefined : this.crowd.residents[this.selected];
-      this.onTick({ seconds: this.seconds, walking, resting: this.crowd.residents.length - walking,
-        selected: resident ? foodInspection(this.trace, resident, this.seconds) : null }); this.lastTick = now;
-    }
+    this.publishTick(now, walking);
   };
 
   setPaused(paused: boolean): void { this.paused = paused; }
   setSpeed(speed: number): void { this.speed = speed; }
+  setLighting(value: Lighting): void { this.lighting = value; this.environmentFrames = 150; }
+  setLayer(layer: Layer, visible: boolean): void {
+    this[layer].visible = visible;
+  }
   setFoodTrace(trace: FoodTrace): void {
     this.trace = trace; this.crowd = foodCrowd(trace, this.district);
-    this.reset(); this.buildPeople(); this.buildFoodSites(); this.onSelectSite(null);
+    this.reset(); this.buildPeople(); this.onSelectSite(null);
   }
-  reset(): void { this.seconds = 0; this.lastTick = 0; this.select(null); }
-  seek(seconds: number): void { this.seconds = Math.max(0, Math.min(this.trace.horizon_seconds, seconds)); this.lastTick = 0; }
+  reset(): void { this.seconds = 0; this.lastTime = 0; this.backgroundLastTime = performance.now(); this.lastTick = 0; this.select(null); }
+  seek(seconds: number): void { this.seconds = Math.max(0, Math.min(this.trace.horizon_seconds, seconds)); this.lastTime = 0; this.backgroundLastTime = performance.now(); this.lastTick = 0; }
   focusSite(id: string): void {
     const site = this.trace.sites.find(s => s.id === id);
     if (!site || this.seconds < site.active_from) return;
@@ -577,7 +841,7 @@ export class TorontoScene {
     }
     const resident = id === null ? undefined : this.crowd.residents[id];
     if (resident) {
-      const route = new GroundBuilder(); route.ribbon(resident.route, 3, 2.8);
+      const route = new GroundBuilder(); route.ribbon(resident.route, 3, 0.45);
       this.route.add(new THREE.Mesh(route.geometry(), new THREE.MeshBasicMaterial({ color: '#d6f3a3', transparent: true, opacity: 0.9 })));
     }
     this.lastTick = 0;
@@ -595,7 +859,7 @@ export class TorontoScene {
     const resident = this.selected === null ? undefined : this.crowd.residents[this.selected];
     if (!resident) return;
     const p = this.pose(resident);
-    this.fly(new THREE.Vector3(p.x + 130, 190, p.z + 190), new THREE.Vector3(p.x, 8, p.z));
+    this.fly(new THREE.Vector3(p.x + 35, 30, p.z + 35), new THREE.Vector3(p.x, 1.6, p.z));
     this.following = true;
   }
   private fly(position: THREE.Vector3, target: THREE.Vector3): void {
@@ -603,6 +867,7 @@ export class TorontoScene {
   }
   dispose(): void {
     this.disposed = true; this.renderer.setAnimationLoop(null);
+    this.stopBackgroundClock(); document.removeEventListener('visibilitychange', this.visibilityChanged);
     this.resizeObserver.disconnect(); this.controls.dispose();
     this.renderer.domElement.removeEventListener('pointerdown', this.pointerDown);
     this.renderer.domElement.removeEventListener('pointerup', this.pointerUp);
@@ -618,9 +883,6 @@ export class TorontoScene {
       }
     });
     geometries.forEach(g => g.dispose()); materials.forEach(m => m.dispose()); textures.forEach(t => t.dispose());
-    this.foodSites.traverse(child => {
-      if (child instanceof THREE.Sprite) { child.material.map?.dispose(); child.material.dispose(); }
-    });
     this.sky.dispose(); this.renderer.dispose(); this.container.replaceChildren();
   }
 }

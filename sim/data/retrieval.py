@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import math
 import re
 from collections import Counter
@@ -38,13 +39,49 @@ def _documents(snapshot_dir: Path) -> list[dict]:
     return documents
 
 
-def retrieve(query: str, snapshot_dir: Path, top_k: int = 5) -> dict:
+def _snapshot_manifest(snapshot_dir: Path) -> dict:
+    path = snapshot_dir / "manifest.json"
+    if not path.is_file():
+        raise FileNotFoundError(f"snapshot manifest not found: {path}")
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    if manifest.get("complete") is not True:
+        raise ValueError(f"snapshot is incomplete and cannot ground retrieval: {manifest.get('snapshot_id')}")
+    documents_path = snapshot_dir / "documents.jsonl"
+    expected = manifest.get("documents_sha256")
+    if not isinstance(expected, str):
+        raise ValueError("snapshot manifest does not pin documents.jsonl")
+    actual = hashlib.sha256(documents_path.read_bytes()).hexdigest()
+    if actual != expected:
+        raise ValueError("snapshot documents hash mismatch")
+    return manifest
+
+
+def retrieve(
+    query: str,
+    snapshot_dir: Path,
+    top_k: int = 5,
+    dataset_id: str | None = None,
+    record_id: str | None = None,
+) -> dict:
     """Return cited source/record chunks; generation is deliberately external."""
     if not query.strip():
         raise ValueError("query must not be empty")
     if top_k < 1:
         raise ValueError("top_k must be positive")
-    documents = _documents(Path(snapshot_dir))
+    snapshot_dir = Path(snapshot_dir)
+    manifest = _snapshot_manifest(snapshot_dir)
+    documents = _documents(snapshot_dir)
+    if dataset_id is not None:
+        available = {row["dataset_id"] for row in manifest.get("datasets", [])}
+        if dataset_id not in available:
+            raise ValueError(f"dataset is not part of snapshot: {dataset_id}")
+        documents = [document for document in documents if document.get("dataset_id") == dataset_id]
+    if record_id is not None:
+        if dataset_id is None:
+            raise ValueError("record_id retrieval requires a dataset_id")
+        documents = [document for document in documents if document.get("record_id") == str(record_id)]
+        if not documents:
+            raise ValueError(f"source record is not present in snapshot: {dataset_id}:{record_id}")
     query_terms = list(dict.fromkeys(_tokens(query)))
     if not query_terms:
         raise ValueError("query has no searchable terms")
@@ -78,9 +115,24 @@ def retrieve(query: str, snapshot_dir: Path, top_k: int = 5) -> dict:
         results.append({"rank": rank, "score": round(score, 6), **document})
     return {
         "query": query,
+        "snapshot_id": manifest["snapshot_id"],
+        "dataset_filter": dataset_id,
+        "record_filter": record_id,
         "retrieval_method": "BM25-style lexical ranking over registered source metadata and retrieved source records",
         "generation": "not_configured",
         "results": results,
+        "citations": [
+            {
+                "rank": row["rank"],
+                "doc_id": row["doc_id"],
+                "dataset_id": row["dataset_id"],
+                "record_id": row.get("record_id"),
+                "source_url": row["source_url"],
+                "retrieved_at": row.get("retrieved_at"),
+                "evidence_state": row.get("evidence_state"),
+            }
+            for row in results
+        ],
         "context": "\n\n".join(
             f"[{row['rank']}] {row['dataset_id']} ({row['source_url']}): {row['text']}"
             for row in results

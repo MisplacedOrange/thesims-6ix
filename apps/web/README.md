@@ -21,7 +21,9 @@ For a production build:
 
 Drag to orbit, right drag to pan, and scroll to zoom. Choose a camera composition from the view panel. Click a visible pedestrian or choose **Meet a resident** to inspect and follow a journey.
 
-Pause, change speed, restart, or seek through the six-hour food-access day. The run always uses 1,200 synthetic households, with buildings and greenery visible. Lighting cycles automatically through day, golden hour, and night. Select no policy or an emergency food site to compare scenarios. Click a food-site marker or choose it in the Sites tab to inspect stock, prices, capacity, and visits. Resident inspection includes household cash, pantry, carried food, legal choices, and event history. The food dashboard has outcomes, sites, distribution groups, and event records. On small screens, expand the food dashboard using its + button.
+Pause, change speed, restart, or seek through the six-hour food-access day. Select a food scenario and quiet (200), everyday (600), or lively (1200) household population in city settings; changing either resets the day. Click a food-site marker to select it, then open its record in the dedicated dashboard. Resident inspection includes household cash, pantry, carried food, legal choices, and event history. Switch lighting and building, greenery, and walking-network layers through city settings.
+
+Open the full-page analytics workspace from **Run dashboard** in the simulation header or at /dashboard. Choose a scenario and population, scrub the run timeline, review summary metrics and recent events, search and filter the interaction log, inspect service sites, and drill into household outcomes. Export the selected run as JSON. The dashboard reads cached Python-generated traces; it is not connected to a live simulation service.
 
 Keys 1 through 4 choose views. Space pauses movement. R restarts the pedestrian timeline. H hides the interface.
 
@@ -34,6 +36,8 @@ Mapped heights and floor-count tags take precedence over estimates. CN Tower and
 Mapped outdoor footpaths and derived parallel sidewalks form a connected walking graph. The preparation script removes paths inside ground-level building massing. These paths are a visual approximation, not a surveyed accessibility network.
 
 Residents follow Python-generated food trips sampled at playback time. Crossing waits, queues, service, and trips home constrain food access. Household cash and food are committed by `sim.core`; browser seeking never settles transactions. Food is carried home before pantry use, and school portions are consumed at school. The day ends at 14:30 and does not loop. Names, homes, eligibility and all site operations are synthetic. See [scenario assumptions and boundaries](../../sim/interactables/README.md). No live LLM or observed mobility data controls them.
+
+Decorative cars move along mapped road centerlines as a toggleable visual layer. Their routes and density are illustrative; they do not represent observed traffic or affect pedestrian travel, congestion, or economic outcomes.
 
 The visual direction takes inspiration from [God's Plan at Hack the North 2026](https://devpost.com/software/shift-t15x3m). No application code or creative models were copied from that project.
 

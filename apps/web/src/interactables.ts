@@ -14,6 +14,11 @@ export type Site = {
   id: string; name: string; type: 'retailer' | 'support' | 'school' | 'emergency'; node: number; point: Point;
   opens: number; closes: number; price_cents_per_100g: number; capacity: number; service_seconds: number;
   active_from: number; eligible: string;
+  source_id?: string; source_record_id?: string; source_site_id?: string; source_url?: string; source_record_url?: string;
+  source_snapshot_id?: string; source_retrieved_at?: string; source_published_at?: string | null;
+  source_updated_at?: string | null; source_address?: string; source_quality_flags?: string[];
+  location_evidence_state?: string; operations_evidence_state?: string; listing_current_status?: string;
+  map_snap_distance_m?: number; network_point?: Point;
 };
 export type SiteState = {
   stock_grams: number; served: number; visits: number; denials: number; sold_grams: number;
@@ -43,11 +48,23 @@ export type FoodTrace = {
   initial_sites: Record<string, SiteState>; journeys: Record<string, Journey>; events: InteractionEvent[];
   assumptions: { parameter_id: string; food_use: string; crossing_delay_seconds: number; scope: string; unknown_inputs: string[] };
   accounting: { invariant_problems: string[]; total_cash_cents: number; imported_grams: number; consumed_grams: number; remaining_grams: number };
+  data_snapshot?: { content: { snapshot_id: string; source_snapshot_id: string; evidence_limits: string[] }; content_sha256: string };
 };
 export type FoodView = {
   households: Record<string, HouseholdState>; sites: Record<string, SiteState>; events: InteractionEvent[];
   publicSpending: number; seconds: number;
 };
+export type FoodTimelinePoint = {
+  seconds: number;
+  purchased_grams: number;
+  received_grams: number;
+  consumed_grams: number;
+  unmet_grams: number;
+  completed_services: number;
+  denied_services: number;
+  no_purchase: number;
+};
+export type SiteStockPoint = { seconds: number; stock_grams: Record<string, number> };
 
 export async function loadFoodTrace(population: number, policy: 'baseline' | 'emergency'): Promise<FoodTrace> {
   const response = await fetch(`/data/interactables/${population}-${policy}.json`);
@@ -145,11 +162,79 @@ export function foodMetrics(trace: FoodTrace, view: FoodView) {
   return { purchased: sum('purchased_grams'), received: sum('received_grams'), spending: sum('expenditure_cents'),
     pantry: sum('pantry_grams'), consumed: sum('consumed_grams'), unmet: sum('unmet_grams'),
     portions: states.reduce((n, h) => n + Math.floor(h.consumed_grams / 300), 0), completed: view.events.filter(e => e.action === 'return_home').length,
-    successful: successful.length, failures: failures.length, failureReasons,
+    attempts: attempts.length, successful: successful.length, failures: failures.length, failureReasons,
     travel: view.events.filter(e => e.action === 'return_home').reduce((n, e) => n + e.travel_seconds, 0),
     queue: attempts.reduce((n, e) => n + e.queue_seconds, 0),
     service: attempts.reduce((n, e) => n + e.service_seconds, 0),
     shortfall: view.events.reduce((n, e) => n + (e.shortfall_grams ?? 0), 0),
     legalSites: view.events.filter(e => e.action === 'offered').at(-1)?.options?.filter(o => o.quantity_grams).length ?? 0,
     strata };
+}
+
+/** Summarize the committed trace at 30-minute boundaries up to the live playhead. */
+export function foodTimeline(trace: FoodTrace, seconds: number, interval = 1800): FoodTimelinePoint[] {
+  const through = Math.max(0, Math.min(seconds, trace.horizon_seconds));
+  const households = { ...trace.initial_households };
+  const totals = { purchased_grams: 0, received_grams: 0, consumed_grams: 0, unmet_grams: 0 };
+  for (const state of Object.values(households)) {
+    totals.purchased_grams += state.purchased_grams;
+    totals.received_grams += state.received_grams;
+    totals.consumed_grams += state.consumed_grams;
+    totals.unmet_grams += state.unmet_grams;
+  }
+
+  const points: FoodTimelinePoint[] = [];
+  let eventIndex = 0, completedServices = 0, deniedServices = 0, noPurchase = 0;
+  const applyThrough = (cutoff: number) => {
+    while (eventIndex < trace.events.length && trace.events[eventIndex]!.simulation_time <= cutoff) {
+      const event = trace.events[eventIndex]!;
+      if (event.household_id && event.household_state) {
+        const previous = households[event.household_id];
+        if (previous) {
+          totals.purchased_grams += event.household_state.purchased_grams - previous.purchased_grams;
+          totals.received_grams += event.household_state.received_grams - previous.received_grams;
+          totals.consumed_grams += event.household_state.consumed_grams - previous.consumed_grams;
+          totals.unmet_grams += event.household_state.unmet_grams - previous.unmet_grams;
+        }
+        households[event.household_id] = event.household_state;
+      }
+      if (event.result === 'completed' && ['purchase', 'receive_service', 'school_meal', 'delivery'].includes(event.action)) completedServices++;
+      if (event.action === 'service' && event.result === 'denied') deniedServices++;
+      if (event.action === 'no_purchase') noPurchase++;
+      eventIndex++;
+    }
+  };
+  const snapshot = (atSeconds: number): FoodTimelinePoint => ({
+    seconds: atSeconds,
+    ...totals,
+    completed_services: completedServices,
+    denied_services: deniedServices,
+    no_purchase: noPurchase,
+  });
+
+  applyThrough(0);
+  points.push(snapshot(0));
+  for (let boundary = interval; boundary < through; boundary += interval) {
+    applyThrough(boundary);
+    points.push(snapshot(boundary));
+  }
+  applyThrough(through);
+  if (points.at(-1)!.seconds < through) points.push(snapshot(through));
+  else points[points.length - 1] = snapshot(through);
+  return points;
+}
+
+/** Preserve discrete site stock changes from committed event projections. */
+export function siteStockHistory(trace: FoodTrace, seconds: number): SiteStockPoint[] {
+  const through = Math.max(0, Math.min(seconds, trace.horizon_seconds));
+  const stock = Object.fromEntries(trace.sites.map(site => [site.id, trace.initial_sites[site.id]!.stock_grams]));
+  const points: SiteStockPoint[] = [{ seconds: 0, stock_grams: { ...stock } }];
+  for (const event of trace.events) {
+    if (event.simulation_time > through) break;
+    if (!event.site_id || !event.site_state || stock[event.site_id] === event.site_state.stock_grams) continue;
+    stock[event.site_id] = event.site_state.stock_grams;
+    points.push({ seconds: event.simulation_time, stock_grams: { ...stock } });
+  }
+  if (points[points.length - 1]!.seconds < through) points.push({ seconds: through, stock_grams: { ...stock } });
+  return points;
 }

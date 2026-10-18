@@ -17,9 +17,13 @@ python -m unittest sim.interactables.test_simulation -v
 The exporter writes baseline and emergency-site traces for 200, 600, and 1200
 households to `apps/web/public/data/interactables/`. These generated files are
 ignored by Git. `npm run dev`, `npm run build`, and `npm test` in `apps/web`
-automatically regenerate them when the map, kernel, catalog, or generator changes.
+automatically regenerate them when the map, kernel, catalog, generator, or pinned site snapshot changes.
 The `PYTHON` environment variable can select a Python executable. Production
 hosting serves the generated traces as static data and needs no Python service.
+
+By default, generated traces use the pinned City-listed location snapshot at
+`sim/data/snapshots/toronto-downtown-sites-v3.json`. Pass
+`--illustrative-sites-only` to retain the original generic site anchors.
 
 For a different seed, population, or explicitly closed walking edge, export to a
 separate directory:
@@ -89,13 +93,19 @@ are unweighted; income bands and mobility groups are synthetic categories.
 
 ## Evidence boundary
 
-The network comes from the frozen attributed OpenStreetMap input. Site anchors,
-prices, opening stock, capacities, hours, household endowments, eligibility,
-preferences, delivery rules, grants, and the 300 g produce-use rule are
-**illustrative scenario assumptions** under `pedestrian-food-day-v1`.
-Observed operating costs, eligibility, inventories, prices and capacity remain
-unknown and are listed as unknown in the trace. These sites are not asserted to
-be actual Toronto operators. Produce portions do not measure complete meals,
+The network comes from the frozen attributed OpenStreetMap input. In the default
+trace, the locations and names for the two supermarket anchors, food-support
+anchor, and school anchor come from the pinned City GIS snapshot. Their current
+operating status and source observation date are unknown. The emergency
+intervention location remains synthetic. Prices, opening stock, capacities,
+hours, household endowments, eligibility, preferences, delivery rules, grants,
+and the 300 g produce-use rule are **illustrative scenario assumptions** under
+`pedestrian-food-day-v1-toronto-downtown-sites-v3`. The selected source-listed
+points are the nearest records to the old illustrative anchors, not a
+representative sample of services. The trace records the source row, source
+URL, retrieval time, selection method, and map snap distance. Observed operating
+costs, eligibility, inventories, prices and capacity remain unknown. Produce
+portions do not measure complete meals,
 diet adequacy, clinical hunger, or observed food insecurity. No business margin,
 income timing, non-food spending, LLM choice, or continuous multi-day economy is
 implemented here.

@@ -9,6 +9,7 @@ from pathlib import Path
 from sim.data.catalog import load_registry
 from sim.data.pipeline import ingest
 from sim.data.retrieval import retrieve
+from sim.data.simulation_sites import prepare_simulation_site_snapshot
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -28,7 +29,23 @@ def _parser() -> argparse.ArgumentParser:
     retrieve_parser.add_argument("query", help="question or search terms")
     retrieve_parser.add_argument("--snapshot", type=Path, required=True, help="candidate snapshot directory")
     retrieve_parser.add_argument("--top-k", type=int, default=5)
+    retrieve_parser.add_argument("--dataset-id", help="restrict retrieval to a registered source in the snapshot")
+    retrieve_parser.add_argument("--record-id", help="retrieve one exact source record (requires --dataset-id)")
     retrieve_parser.set_defaults(action="retrieve")
+
+    prepare_parser = subparsers.add_parser(
+        "prepare-sites",
+        help="select cited City-listed locations for the downtown pedestrian simulation",
+    )
+    prepare_parser.add_argument("--snapshot", type=Path, required=True, help="complete candidate snapshot directory")
+    prepare_parser.add_argument("--map", type=Path, default=Path("apps/web/public/data/toronto.json"))
+    prepare_parser.add_argument(
+        "--out",
+        type=Path,
+        default=Path("sim/data/snapshots/toronto-downtown-sites-v3.json"),
+        help="new immutable derived location snapshot",
+    )
+    prepare_parser.set_defaults(action="prepare_sites")
     return parser
 
 
@@ -45,8 +62,15 @@ def main() -> None:
         if not manifest["complete"]:
             raise SystemExit(1)
     elif args.action == "retrieve":
-        result = retrieve(args.query, args.snapshot, args.top_k)
+        result = retrieve(args.query, args.snapshot, args.top_k, args.dataset_id, args.record_id)
         print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.action == "prepare_sites":
+        path = prepare_simulation_site_snapshot(args.snapshot, args.map, args.out)
+        print(f"Simulation site snapshot: {path}")
+        snapshot = json.loads(path.read_text(encoding="utf-8"))
+        print(f"Source snapshot: {snapshot['source_snapshot_id']}")
+        for role, site in snapshot["sites"].items():
+            print(f"  {role}: {site['display_name']} ({site['source_id']}:{site['source_record_id']})")
 
 
 if __name__ == "__main__":

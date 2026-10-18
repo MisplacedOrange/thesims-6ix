@@ -2,11 +2,11 @@
 
 ## Status and purpose
 
-Status: proposed implementation plan for broader run statistics and a reusable metric pipeline. The browser already provides an event-driven dashboard for the bounded six-hour food-access scenario; this plan covers reporting beyond that scenario.
+Status: the dedicated /dashboard page is implemented for the current bounded food-access traces. Its charts synchronize across tabs with the simulation page's committed trace playback and display the ingested input and retrieved source snapshot IDs. A Python-authoritative live service, reusable metric registry and reducer for verified completed-run exports, and reporting over broader runs remain planned. The 3D simulation page no longer hosts the statistics dashboard.
 
-The dashboard will track how food-shortage scenarios affect household food access, retail and supply operations, school meals, food-support services, and public costs. It will provide a read-only view of simulation results and their evidence. It will not advance simulation time, settle purchases, or activate policies.
+The dashboard tracks how the current food-access runs affect household access, retail and service operations, school meals, food support, and public costs. It is a full-page analytics workspace at /dashboard, reached from the simulation page. Selecting a site in the city can open the corresponding site record in the dashboard. The dashboard can select a trace and seek its playhead; it does not settle purchases or activate policies.
 
-The first release should report completed runs. Live updates can use the same metric definitions after the Python-authoritative simulation service and its versioned event interface are available.
+The broader reporting release should read completed runs. Current live synchronization follows the browser's playback position through committed events in a cached Python-generated trace. Live results from an ongoing Python-authoritative simulation still require a versioned event service.
 
 ## Current implementation boundary
 
@@ -24,7 +24,7 @@ flowchart LR
     D --> E[Events, results, decisions, manifest]
     E --> F[Metric registry and reducer]
     F --> G[Run summaries and time series]
-    G --> H[React dashboard and map]
+    G --> H[Dedicated React analytics page]
     A --> I[RAG source lookup]
     I --> H
 ```
@@ -33,17 +33,16 @@ RAG provides source context and provenance. Numeric measures come from structure
 
 ## Dashboard experience
 
-The dashboard should sit beside the existing 3D environment as a distinct statistics view. Selecting a site or area can link the map to its metrics; the map and dashboard should use the same run ID, simulation time, and geography.
+The dashboard is a separate page, not a side panel beside the 3D environment. The city view links to /dashboard; selecting a food site can open its record there. The page loads one cached run at a time and keeps its run, population, and time playhead together. A BroadcastChannel synchronizes run selection and seeking with the simulation tab, which continues cached trace playback when it is in the background. This is live playback synchronization, not a live Python backend.
 
 ### Views
 
-1. **Overview:** run and policy selection; key outcomes over time; baseline-versus-policy comparison.
-2. **Household access:** completed and failed food trips, total access time, travel and queue time, and household outcome distributions.
-3. **Retail and supply:** stock, prices, deliveries, sales, and stockouts by site and modeled food category.
-4. **Programs and schools:** service schedules and capacity, requests or eligible attendance, meals or baskets served, wait times, and unserved demand.
-5. **Equity and evidence:** outcomes by area, income band, household size, and mobility; data freshness, missingness, evidence state, and source links.
+1. **Overview:** selected run and snapshot provenance, graph-first household food flow, service and purchase activity, modeled site inventory, recent interactions, and site activity.
+2. **Interaction log:** searchable event records filtered by action, result, or site, with event-level timing and result details.
+3. **Sites and services:** site inventory, operating status, throughput, denials, and recent activity, including retail, support, school, and emergency sites.
+4. **Households:** searchable household records, modeled food outcomes, a single-run roll-up by selected group, and household event history.
 
-The minimum controls are run/scenario, simulation period, geography, food category or service type, and household subgroup. Avoid displaying more metrics than the current model can support.
+The page controls scenario, population, and simulation time, synchronizing those controls with the open simulation tab. Event and site filters and household search support drill-down. The current page shows one run at a time; side-by-side run comparisons and uncertainty views are deferred. Avoid displaying measures the current trace cannot support. Charts describe modeled produce and service events; ingested source locations do not make modeled stock, hours, prices, or operations observed facts.
 
 ## Metric registry
 
@@ -97,12 +96,12 @@ These are interface sketches, not implemented endpoints.
 
 ## Implementation sequence
 
-1. **Freeze the first metric set.** Agree on formulas, units, denominators, food categories, grouping variables, and explicit unavailable values.
-2. **Build a Python reporting reducer.** Derive summaries and time series from verified completed-run exports. Keep calculation code independent of rendering.
-3. **Create the React statistics view.** Add Overview, Access, Supply, Programs, and Evidence views; use accessible tables for exact values and charts for trends and comparisons.
-4. **Add paired run comparison.** Compare baseline and policy runs with matched seeds; show individual seed results and summary differences. Label variation across seeds as simulation variation, not real-world or parameter uncertainty.
-5. **Connect shared map selections.** Filter the map and dashboard to the same site, area, and simulation period without changing the run.
-6. **Integrate live events after the API exists.** Subscribe to committed Python snapshots/events while preserving offline report and replay behavior.
+1. **Create the dedicated dashboard page and navigation.** Implemented at /dashboard for the bounded browser traces; the simulation page links to it and no longer embeds the statistics panel.
+2. **Build the current-run workflow.** Implemented scenario and population selection, a simulation-time playhead, summary measures, event search and filters, site/service inspection, household search, grouped roll-ups, and JSON export using the existing trace projection.
+3. **Freeze the expanded metric set.** Agree on formulas, units, denominators, food categories, grouping variables, and explicit unavailable values before adding metrics beyond the current trace.
+4. **Build the Python reporting reducer.** Derive summaries and time series from verified completed-run exports. Keep calculation code independent of rendering.
+5. **Connect completed-run reports and evidence.** Validate COMPLETE markers and hashes, then expose provenance and limitations through the dedicated page.
+6. **Extend live reporting after the API exists.** Browser trace playback and cross-tab synchronization are implemented. Subscribe to committed Python snapshots/events when the versioned service is available while preserving offline report and replay behavior. Run comparisons and uncertainty displays remain deferred.
 
 The initial report may use the existing terminal fixture, but must identify its synthetic one-day scope and produce-only food coverage. The source-data candidate under `outputs/toronto-data/` is not a completed operational dataset and should not be presented as live Toronto business or service statistics.
 
@@ -110,10 +109,10 @@ The initial report may use the existing terminal fixture, but must identify its 
 
 - Completed runs with missing markers or hash mismatches are rejected with a clear explanation.
 - Reported totals reconcile with settled transactions and service events in the source run.
-- Baseline and treatment comparisons use compatible metric versions, periods, populations, and denominators.
+- The dedicated dashboard remains a single-run view until paired-run comparison is explicitly brought back into scope.
 - Every displayed measure can be traced to its run, input snapshot, formula version, and source or scenario assumption.
 - Unknown, estimated, announced, and illustrative values are distinguishable in the UI.
-- Subgroup views show sample counts and suppress interpretation when groups are too small for a meaningful comparison.
+- Household roll-ups show group counts and per-household units and remain descriptive outputs from a single synthetic run.
 - Charts have labeled units and accessible table equivalents; the dashboard remains usable on narrow screens.
 
 ## Related planning

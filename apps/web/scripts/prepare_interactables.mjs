@@ -7,8 +7,12 @@ import { spawnSync } from 'node:child_process';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const out = resolve(root, 'apps/web/public/data/interactables');
-const inputs = ['apps/web/public/data/toronto.json', 'sim/core/data/catalog.json'];
-for (const directory of ['sim/interactables', 'sim/core']) {
+const inputs = [
+  'apps/web/public/data/toronto.json',
+  'sim/core/data/catalog.json',
+  'sim/data/snapshots/toronto-downtown-sites-v3.json',
+];
+for (const directory of ['sim/interactables', 'sim/core', 'sim/data']) {
   for (const file of readdirSync(resolve(root, directory)).sort()) {
     if (file.endsWith('.py')) inputs.push(`${directory}/${file}`);
   }

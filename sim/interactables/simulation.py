@@ -43,6 +43,23 @@ class Site:
     received_grams: int = 0
     revenue_cents: int = 0
     spending_cents: int = 0
+    source_id: str | None = None
+    source_record_id: str | None = None
+    source_site_id: str | None = None
+    source_url: str | None = None
+    source_record_url: str | None = None
+    source_snapshot_id: str | None = None
+    source_retrieved_at: str | None = None
+    source_published_at: str | None = None
+    source_updated_at: str | None = None
+    source_address: str | None = None
+    source_quality_flags: list[str] | None = None
+    location_evidence_state: str | None = None
+    operations_evidence_state: str | None = None
+    listing_current_status: str | None = None
+    map_snap_distance_m: float | None = None
+    point: list[float] | None = None
+    network_point: list[float] | None = None
 
 
 class WalkingNetwork:
@@ -122,16 +139,24 @@ class WalkingNetwork:
 
 
 def run(district: dict, population: int = 600, seed: int = 2026,
-        emergency: bool = False, closed_edges: tuple[tuple[int, int], ...] = ()) -> dict:
+        emergency: bool = False, closed_edges: tuple[tuple[int, int], ...] = (),
+        site_snapshot: dict | None = None, site_snapshot_sha256: str | None = None) -> dict:
     """Return a deterministic event trace and scene projection with a no-policy default."""
     core.require_int(population, "population")
     core.require_int(seed, "seed")
     if not 1 <= population <= 1200:
         raise ValueError("population must be between 1 and 1200")
+    if site_snapshot is not None and not site_snapshot_sha256:
+        raise ValueError("a pinned site snapshot requires its content hash")
+    if site_snapshot is None and site_snapshot_sha256 is not None:
+        raise ValueError("site snapshot hash provided without a site snapshot")
     network = WalkingNetwork(district, closed_edges)
+    scenario_id = (
+        f"{PARAMETER}-{site_snapshot['snapshot_id']}" if site_snapshot is not None else PARAMETER
+    )
     catalog = core.load_catalog()
     state = core.empty_state(run_id=f"walk-{seed}-{population}-{'aid' if emergency else 'base'}",
-                            scenario_id=PARAMETER, catalog_id=catalog.catalog_id,
+                            scenario_id=scenario_id, catalog_id=catalog.catalog_id,
                             catalog_sha256=catalog.sha256,
                             known_product_ids=tuple(p.product_id for p in catalog.products))
     kernel_events = []
@@ -182,11 +207,55 @@ def run(district: dict, population: int = 600, seed: int = 2026,
         ("school", "Scenario school nutrition", "school", [450, -550], 1800, 12600, 0, max(1, population // 4), 30, population * 100),
         ("emergency", "Temporary emergency food site", "emergency", [-500, 400], 3600, 18000, 0, max(1, population // 4), 60, 0),
     ]
-    sites = [Site(i, n, t, network.nearest(p), op, cl, pr, cap, serv, grams,
-                  "school" if t == "school" else "low-income" if t == "support" else "all",
-                  3600 if t == "emergency" else 0)
-             for i, n, t, p, op, cl, pr, cap, serv, grams in site_specs
-             if t != "emergency" or emergency]
+    source_sites = site_snapshot.get("sites", {}) if site_snapshot else {}
+    sites = []
+    for site_id, name, site_type, anchor, opens, closes, price, capacity, service, opening_grams in site_specs:
+        if site_type == "emergency" and not emergency:
+            continue
+        source = source_sites.get(site_id)
+        point = source["scene_point"] if source else anchor
+        node = network.nearest(point)
+        network_point = list(network.nodes[node])
+        snap_distance = math.dist(point, network_point)
+        if source and snap_distance > 100:
+            raise ValueError(
+                f"source-listed site {source['source_site_id']} is {snap_distance:.1f} m from the walking graph; "
+                "refusing to route across an unvalidated gap"
+            )
+        if source:
+            name = source["display_name"]
+        site = Site(
+            site_id,
+            name,
+            site_type,
+            node,
+            opens,
+            closes,
+            price,
+            capacity,
+            service,
+            opening_grams,
+            "school" if site_type == "school" else "low-income" if site_type == "support" else "all",
+            3600 if site_type == "emergency" else 0,
+            source_id=source.get("source_id") if source else None,
+            source_record_id=source.get("source_record_id") if source else None,
+            source_site_id=source.get("source_site_id") if source else None,
+            source_url=source.get("source_url") if source else None,
+            source_record_url=source.get("source_record_url") if source else None,
+            source_snapshot_id=source.get("source_snapshot_id") if source else None,
+            source_retrieved_at=source.get("source_retrieved_at") if source else None,
+            source_published_at=source.get("source_published_at") if source else None,
+            source_updated_at=source.get("source_updated_at") if source else None,
+            source_address=source.get("address") if source else None,
+            source_quality_flags=source.get("quality_flags") if source else None,
+            location_evidence_state=source.get("location_evidence_state") if source else None,
+            operations_evidence_state=source.get("operations_evidence_state") if source else None,
+            listing_current_status=source.get("listing_current_status") if source else None,
+            map_snap_distance_m=round(snap_distance, 1) if source else None,
+            point=list(source["scene_point"]) if source else network_point,
+            network_point=network_point if source else None,
+        )
+        sites.append(site)
     by_site = {s.id: s for s in sites}
     households = []
     rng = random.Random(seed)
@@ -263,7 +332,10 @@ def run(district: dict, population: int = 600, seed: int = 2026,
                      travel_seconds=0, queue_seconds=0, service_seconds=0,
                      product_or_service_id=PRODUCT, quantity_grams=quantity, payment_cents=payment,
                      result=result, denial_or_failure_reason=reason, evidence_state="illustrative",
-                     source_id=None, scenario_parameter_id=PARAMETER)
+                     source_id=s.source_id if s else None, scenario_parameter_id=scenario_id)
+        if s and s.source_id:
+            event["source_record_id"] = s.source_record_id
+            event["source_snapshot_id"] = s.source_snapshot_id
         event.update(extra)
         if h:
             event["household_state"] = household_view(h)
@@ -465,15 +537,17 @@ def run(district: dict, population: int = 600, seed: int = 2026,
     if problems:
         raise core.ConservationError(problems)
     terminal = {h["id"]: household_view(h) for h in households}
-    return dict(schema=1, scenario_id=PARAMETER, policy="emergency" if emergency else "baseline", seed=seed,
-                horizon_seconds=HORIZON, start_time="2026-10-17T08:30:00", evidence_state="illustrative",
+    result = dict(schema=1, scenario_id=scenario_id, policy="emergency" if emergency else "baseline", seed=seed,
+                horizon_seconds=HORIZON, start_time="2026-10-17T08:30:00",
+                evidence_state="mixed" if site_snapshot else "illustrative",
                 geography="downtown Toronto walking graph", population=population,
                 map_sha256=hashlib.sha256(json.dumps(district, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
                 assumptions=dict(parameter_id=PARAMETER, food_use="300 g produce component per resident at school or day end",
                                  crossing_delay_seconds=12, closed_edges=closed_edges, rule="grams - cents - trip_seconds / 20",
                                  scope="one six-hour day; one shopping or service trip; no earnings or non-food essentials",
-                                 unknown_inputs=["observed prices", "operator inventory", "real eligibility", "observed capacities", "operating costs"]),
-                sites=[asdict(s) | {"point": network.nodes[s.node]} for s in sites], households=households,
+                                 unknown_inputs=["observed prices", "operator inventory", "real eligibility", "observed capacities", "operating costs"]
+                                 + (["source observation date", "current operating status"] if site_snapshot else [])),
+                sites=[{key: value for key, value in asdict(s).items() if value is not None} for s in sites], households=households,
                 initial_households=initial_households, initial_sites=initial_sites,
                 journeys=journeys, events=events, terminal_households=terminal,
                 accounting=dict(state_hash=core.state_hash(state), kernel_event_count=len(kernel_events),
@@ -481,3 +555,9 @@ def run(district: dict, population: int = 600, seed: int = 2026,
                                 remaining_grams=sum(l.grams for l in state.lots),
                                 total_cash_cents=sum(a.settled_cents for a in state.accounts),
                                 invariant_problems=list(problems)))
+    if site_snapshot is not None:
+        result["data_snapshot"] = {
+            "content": site_snapshot,
+            "content_sha256": site_snapshot_sha256,
+        }
+    return result

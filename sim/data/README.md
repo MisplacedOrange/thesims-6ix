@@ -32,6 +32,26 @@ python -m sim.data retrieve "food assistance program locations" --snapshot outpu
 
 The retriever ranks source notes and retrieved location records using a dependency-free BM25-style lexical score. It returns the source URL and the record or dataset metadata as context. This is the retrieval half of RAG; no LLM generation provider is configured, and returned context must not directly mutate simulation state.
 
+Retrieval requires a complete snapshot and verifies the `documents.jsonl` hash before ranking. To restrict results to one layer:
+
+```powershell
+python -m sim.data retrieve "full-service grocery downtown" --snapshot outputs/toronto-data/candidate-<UTC timestamp> --dataset-id toronto_supermarkets --top-k 8
+```
+
+For a known row, add `--record-id <source row id>` to restrict the context to that source record.
+
+## Use listed locations in the pedestrian simulation
+
+The current browser simulation has a downtown Toronto map and walking graph. Prepare a separate, immutable location snapshot from a complete City GIS candidate:
+
+```powershell
+python -m sim.data prepare-sites --snapshot outputs/toronto-data/candidate-<UTC timestamp>
+```
+
+This clips source-listed supermarket, food-support, and school records to the map bounds, then selects the nearest unique record to each frozen illustrative site anchor. It runs the RAG retriever for each selected record and pins its cited result, source row, retrieval time, source manifest hash, map hash, and coordinate transform. The current derived snapshot is `sim/data/snapshots/toronto-downtown-sites-v3.json`.
+
+`python -m sim.interactables` and the web app's trace generator use this pinned location snapshot by default. The source records provide location and labels only. Current operating status, prices, inventory, hours, capacity, eligibility, and behavior remain illustrative. To create a separate trace set with the original synthetic site anchors, use `python -m sim.interactables --illustrative-sites-only --out outputs/illustrative-only`.
+
 ## Scope and evidence limits
 
 - The first extract is citywide; it is not clipped or assigned to the downtown visual area or any chosen neighbourhood.

@@ -54,6 +54,18 @@ Pedestrians should interact with a site's offered state rather than directly con
 
 Do not infer individual eligibility, daily capacity, inventory, or demand from a site's presence in a directory. Keep personal food-assistance records out of the synthetic household model.
 
+### Organization actors and bounded decisions
+
+Organizations can be represented as economic actors when their decisions change modeled resources or services. Give each actor only the state and actions supported by its role and by the evidence available for the scenario. For example, a retailer may set prices, hours, staffing, and replenishment; a supplier may accept or constrain orders and set delivery quantities or lead times; a processor may limit throughput; and a school or food-support operator may define service hours and capacity. These decisions should use explicit rules and parameter ranges. A model can recommend or rank legal options, but it cannot create stock, funding, staff, authority, or capacity by assertion.
+
+When a proposal may affect incumbent businesses or partner organizations, include their relevant response mechanisms only when data support them or when the study declares them as sensitivity assumptions. Possible outcomes include changes in sales, prices, service, procurement, staffing, or operating viability. Keep revenue, operating cost, transfers, and profit distinct; sales revenue alone is not a measure of business viability. A directory location does not establish an organization's current operation or willingness to participate.
+
+City departments and funders can be modeled as actors that propose or execute actions only within a recorded mandate, approved scope, budget, and schedule. Department-agent recommendations remain distinct from accepted commands and committed economic events. Partner-run organizations are not controlled by the simulated City unless the scenario records an applicable agreement, contract, or other authority.
+
+### Stakeholder input and representation
+
+For each proposal, identify affected population groups, organizations that control relevant resources or services, responsible public authorities, and stakeholder input needed to assess impacts. Synthetic households, and workers if represented, can support distributional analysis, but their generated choices or dialogue do not count as consultation or as the views of real people. Keep actual consultation, survey, and partner-submission records in a separate, source-linked evidence stream. Record the date, geography, method, population reached, consent or publication limits, and groups not reached where known. Preserve conflicting views and evidence gaps; simulated stakeholder or department roles must not claim to speak for real residents, businesses, or organizations.
+
 ## Interaction and event record
 
 Record each attempted interaction, including unsuccessful attempts. A common event record should contain:
