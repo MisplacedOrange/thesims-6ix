@@ -14,8 +14,7 @@ import { GroundBuilder, groundLayer } from './ground.ts';
 import { noiseTexture, sleeperTexture, waterNormalTexture } from './textures.ts';
 import { Sky } from './atmosphere.ts';
 
-export type Lighting = 'day' | 'golden' | 'blue';
-export type Layer = 'buildings' | 'greenery' | 'paths';
+type Lighting = 'day' | 'golden' | 'blue';
 export type SceneTick = { seconds: number; walking: number; resting: number; selected: Inspection | null };
 type CameraFlight = { from: THREE.Vector3; to: THREE.Vector3; targetFrom: THREE.Vector3; targetTo: THREE.Vector3; start: number };
 const initialCamera = { position: new THREE.Vector3(1900, 1720, 2850), target: new THREE.Vector3(-100, 100, 340) };
@@ -26,6 +25,13 @@ const lightRecipes: Record<Lighting, Recipe> = {
   golden: { top: '#6683ad', horizon: '#d8c6b0', sun: '#ffc685', sunPower: 3.4, ambient: 0.55, exposure: 0.95, water: '#2a4c58', azimuth: -1.75, elevation: 0.3 },
   blue: { top: '#13213a', horizon: '#4b5b78', sun: '#a9bde6', sunPower: 0.5, ambient: 0.8, exposure: 1.1, water: '#122233', azimuth: -2.0, elevation: 0.1 },
 };
+const LIGHTING_CYCLE_SECONDS = 180;
+function lightingAt(seconds: number): Lighting {
+  const phase = seconds / LIGHTING_CYCLE_SECONDS;
+  if (phase < 0.25 || phase >= 0.85) return 'blue';
+  if (phase >= 0.75) return 'golden';
+  return 'day';
+}
 const WATER_Y = -1.6;
 
 /** Colours the base land: lot paving inside the mapped core, streets between procedural blocks outside it. */
@@ -76,8 +82,8 @@ export class TorontoScene {
   private readonly city = new THREE.Group();
   private readonly people = new THREE.Group();
   private readonly foodSites = new THREE.Group();
-  private readonly light = new THREE.DirectionalLight('#ffd9a0', 3.4);
-  private readonly ambient = new THREE.HemisphereLight('#dfe8ef', '#8a8274', 0.55);
+  private readonly light = new THREE.DirectionalLight('#fff3df', 3.1);
+  private readonly ambient = new THREE.HemisphereLight('#5b8fcc', '#8a8274', 0.7);
   private readonly sky: Sky;
   private readonly waterNormals = waterNormalTexture();
   private readonly noise = noiseTexture();
@@ -104,7 +110,8 @@ export class TorontoScene {
   private lastTime = 0;
   private lastTick = 0;
   private flight: CameraFlight | null = null;
-  private lighting: Lighting = 'golden';
+  private lighting: Lighting = 'day';
+  private dayCycleSeconds = LIGHTING_CYCLE_SECONDS * 0.4;
   private environmentFrames = 0;
   private disposed = false;
   private pointerStart = new THREE.Vector2();
@@ -121,7 +128,7 @@ export class TorontoScene {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = lightRecipes.golden.exposure;
+    this.renderer.toneMappingExposure = lightRecipes.day.exposure;
     this.renderer.domElement.setAttribute('aria-label', 'Interactive 3D view of downtown Toronto. Drag to orbit, right drag to pan, scroll to zoom.');
     this.renderer.domElement.setAttribute('role', 'img');
     container.appendChild(this.renderer.domElement);
@@ -134,7 +141,7 @@ export class TorontoScene {
     this.controls.minPolarAngle = 0.15; this.controls.maxPolarAngle = Math.PI / 2.08;
     this.controls.addEventListener('start', this.cancelFlight);
 
-    const recipe = lightRecipes.golden;
+    const recipe = lightRecipes.day;
     Object.assign(this.atmosphere, { azimuth: recipe.azimuth, elevation: recipe.elevation });
     this.atmosphere.top.set(recipe.top); this.atmosphere.horizon.set(recipe.horizon); this.atmosphere.sun.set(recipe.sun);
     this.sky = new Sky(this.renderer);
@@ -149,7 +156,8 @@ export class TorontoScene {
     Object.assign(this.light.shadow.camera, { near: 50, far: 9000 });
     this.light.shadow.normalBias = 0.8; this.light.shadow.bias = -0.0002;
     this.scene.add(this.sky.mesh, this.light, this.light.target, this.ambient, this.city, this.people, this.route, this.foodSites);
-    this.city.add(this.buildings, this.greenery, this.paths); this.paths.visible = false;
+    this.city.add(this.buildings, this.greenery, this.paths);
+    this.buildings.visible = true; this.greenery.visible = true; this.paths.visible = false;
     this.buildLandscape(); this.buildArchitecture(); this.buildSurroundings(); this.buildTrees(); this.buildLandmarks(); this.buildPeople();
     this.buildFoodSites();
     this.ring = new THREE.Mesh(new THREE.RingGeometry(7, 10, 48), new THREE.MeshBasicMaterial({ color: '#e5f5b7', side: THREE.DoubleSide }));
@@ -378,8 +386,6 @@ export class TorontoScene {
       }
       stadium.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 32, 0.65, 4, false), concrete));
     }
-    const waterName = document.createElement('div');
-    waterName.className = 'lake-name'; waterName.textContent = 'L A K E  O N T A R I O'; this.container.appendChild(waterName);
   }
 
   private buildPeople(): void {
@@ -476,6 +482,9 @@ export class TorontoScene {
   private animate = (now: number): void => {
     if (this.disposed) return;
     const delta = this.lastTime ? Math.min((now - this.lastTime) / 1000, 0.1) : 0; this.lastTime = now;
+    this.dayCycleSeconds = (this.dayCycleSeconds + delta) % LIGHTING_CYCLE_SECONDS;
+    const nextLighting = lightingAt(this.dayCycleSeconds);
+    if (nextLighting !== this.lighting) { this.lighting = nextLighting; this.environmentFrames = 150; }
     if (!this.paused && !document.hidden) this.seconds = Math.min(this.trace.horizon_seconds, this.seconds + delta * this.speed);
     for (const marker of this.foodSites.children) {
       const site = this.trace.sites.find(s => s.id === marker.userData.siteId)!;
@@ -543,10 +552,6 @@ export class TorontoScene {
 
   setPaused(paused: boolean): void { this.paused = paused; }
   setSpeed(speed: number): void { this.speed = speed; }
-  setLighting(value: Lighting): void { this.lighting = value; this.environmentFrames = 150; }
-  setLayer(layer: Layer, visible: boolean): void {
-    this[layer].visible = visible;
-  }
   setFoodTrace(trace: FoodTrace): void {
     this.trace = trace; this.crowd = foodCrowd(trace, this.district);
     this.reset(); this.buildPeople(); this.buildFoodSites(); this.onSelectSite(null);

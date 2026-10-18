@@ -21,7 +21,7 @@ For a production build:
 
 Drag to orbit, right drag to pan, and scroll to zoom. Choose a camera composition from the view panel. Click a visible pedestrian or choose **Meet a resident** to inspect and follow a journey.
 
-Pause, change speed, restart, or seek through the six-hour food-access day. Select no policy or an emergency food site, and quiet (200), everyday (600), or lively (1200) household populations; changing either resets the day. Click a food-site marker or choose it in the Sites tab to inspect stock, prices, capacity, and visits. Resident inspection includes household cash, pantry, carried food, legal choices, and event history. The food dashboard has outcomes, sites, distribution groups, and event records. On small screens, expand the food dashboard using its + button. Switch lighting and building, greenery, and walking-network layers through city settings.
+Pause, change speed, restart, or seek through the six-hour food-access day. The run always uses 1,200 synthetic households, with buildings and greenery visible. Lighting cycles automatically through day, golden hour, and night. Select no policy or an emergency food site to compare scenarios. Click a food-site marker or choose it in the Sites tab to inspect stock, prices, capacity, and visits. Resident inspection includes household cash, pantry, carried food, legal choices, and event history. The food dashboard has outcomes, sites, distribution groups, and event records. On small screens, expand the food dashboard using its + button.
 
 Keys 1 through 4 choose views. Space pauses movement. R restarts the pedestrian timeline. H hides the interface.
 
