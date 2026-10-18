@@ -2,13 +2,13 @@
 
 ## Status and first proof
 
-Status: one bounded Council proof is implemented in `sim/council.py` and the browser. It preserves exact Markdown revisions, marks only explicit section headings and citations, keeps unclassified text, saves a reviewed scope and typed site plan, records approve/request-revision/reject decisions, and generates a matched baseline/intervention pair. Deterministic department-role notes are advice; they are not model calls or authority. One supported action adds a hypothetical municipal food site to one six-hour run. Scenario values are not calibrated Toronto parameters.
+Status: the Python Council service implements exact Markdown revisions, proposal-linked immutable organization records, append-only stakeholder-input records, saved scopes and typed plans, approve/request-revision/reject decisions, and a matched baseline/intervention pair for one hypothetical municipal food site. The browser supports proposal, organization, and stakeholder-input records and shows organization references on stored rollout events; scope, plan, decision, and run controls are not exposed. The records do not yet drive organization decisions or conduct consultation. Deterministic department-role notes are advice, not model calls or authority. Scenario values are not calibrated Toronto parameters.
 
 The local API stores immutable proposal, scope, plan, decision, run, and trace records in SQLite, with revision checks, idempotency receipts, schema version 1, and a simulator source hash. Each run pins its population, seed, map, catalog, location snapshot, and Python simulator inputs. Funding and supplier payments use `sim.core`; runtime shortages produce a recorded no-launch and leave service capacity at zero. The city still has no persistent multi-day world.
 
-The proposal parser does not infer semantics from prose or refresh evidence. The pinned location snapshot can be stale or incomplete; operating status, current inventory, capacity, authority, freshness, and measured outcomes remain unknown unless explicitly modeled as assumptions. General proposal matching, source refresh, separate model agents, a reusable action catalog, mandate-based delegation, broad infrastructure actions, and ongoing-world persistence remain future work.
+The proposal parser does not infer semantics from prose or refresh evidence. The pinned location snapshot can be stale or incomplete; operating status, current inventory, capacity, authority, freshness, and measured outcomes remain unknown unless explicitly modeled as assumptions. The active scope is the complete Council flow, proposal-specific organization behavior, actual stakeholder evidence, and persistent multi-day state. General autonomous department agents, mandate-based delegation, a broad action catalog, and unrelated infrastructure actions are deferred. See the [canonical roadmap](../NEXT_STEPS.md).
 
-The first proof is a rule-based planner that can open one hypothetical municipal food site under a finite scenario grant. It covers site selection, staged readiness, supplier stock and procurement, pedestrian use, and modeled access outcomes. Staffing, capital investment, recurring operations costs, and operating-cost measures are not modeled yet. Add mechanisms only after their accounting and evidence requirements are explicit.
+The implemented bounded proof is a rule-based plan for one hypothetical municipal food site under a finite scenario grant. It covers site selection, staged readiness, supplier stock and procurement, pedestrian use, and modeled access outcomes. The active extension completes the human-reviewed Council UI, adds proposal-specific organization and stakeholder evidence records, and carries the selected scenario across repeated operating days. Staffing, capital investment, recurring operations costs, and operating-cost measures remain unmodeled until the pilot requires them and their evidence/accounting requirements are explicit.
 
 The repository has a bounded Python food-access simulation, a browser that replays generated traces, and City GIS location retrieval. It has no persistent Python world service or general infrastructure planner. Location records are planning candidates. They do not establish a provider's current operation, hours, eligibility, stock, capacity, or authority to intervene.
 
@@ -19,6 +19,8 @@ The [interactables runner](../sim/interactables/simulation.py) generates a deter
 The [City data pipeline](../sim/data/README.md) retrieves and cites candidate locations. The pedestrian trace generator uses the pinned [downtown location snapshot](../sim/data/snapshots/toronto-downtown-sites-v3.json). The snapshot does not establish operating status, hours, inventory, capacity, eligibility, or operator authority. Per-proposal evidence refresh and matching remain unimplemented.
 
 This plan extends the [system architecture](architecture.md), [economic and agent model](simulation.md), [pedestrian food interactables](pedestrian-interactables-plan.md), [dashboard plan](dashboard-implementation-plan.md), and [roadmap](../NEXT_STEPS.md). Python remains the sole authority for world state, schedules, resources, and economic transactions. The browser displays committed snapshots and events.
+
+The detailed mandate, role-agent, and broad action-catalog designs below are reference material. They are not active delivery commitments unless the selected proposal requires them and the roadmap is revised.
 
 ## Planning boundaries
 
@@ -260,20 +262,16 @@ Checkpoints preserve active stage state, pending milestones, realized duration d
 
 | Gate | Deliverable | Acceptance evidence |
 | --- | --- | --- |
-| 0. Proposal evidence | Versioned intent and outcome schema, freshness registry, proposal-time retrieval, immutable evidence bundle | Labeled fixtures cover relevant, irrelevant, missing, stale, unavailable, and conflicting evidence. Coverage labels, citations, snapshot IDs, and hashes are checked. Unknown or stale records cannot be labeled observed. |
-| 1. Action contract | One site action, facility and operator schema, units, coverage record, and exact-plan or mandate authorization rules | Fixtures cover supported, missing-input, unsupported, and outside-mandate requests. Food-support actions require a reviewed crosswalk and explicit agreement scope. |
-| 2. Transaction boundary | Resource reservations, deterministic event queue, and durable milestone commits | No partial money or capacity changes occur. Duplicate commands do not duplicate effects. Competing plans cannot overcommit resources. |
-| 3. One site | Rule-based planner selects an eligible location, funds readiness, arranges supply, commissions, and opens service | No service is available before operation. Commissioning alone grants no capacity. The operational milestone creates a reachable legal option. |
-| 4. Operations | Actual visits, service or purchases, replenishment, and recurring costs | Household, operator, stock, and public accounts reconcile. Unavailable staff or supply limits service. An existing partner program changes only under an explicit scenario agreement. |
-| 5. Recovery and revisions | Delay, revision, cancellation, reduction, closure, checkpoint, resume, and replay | Obsolete milestones never activate. Sunk costs remain. Resumed and replayed state matches the recorded run. Failed transitions leave no partial effects. |
-| 6. Review and evaluation | Map and timeline projections, matched baseline and rollout, fixed planning comparator | Displayed changes follow committed events and retain source and plan versions. Results cover the full horizon, delayed or no-launch cases, costs, access, shortfall, distribution, and adverse cases. |
-| 7. Model planner | Model policy uses the same observations, mandate, action schema, and validator as the rule-based planner | Measure feasibility, unsupported-action attempts, outcomes, decision cost, and fallback frequency against the rule-based baseline. |
+| 1. Council flow | Browser path for exact proposal revision, impact and actor map, scope, typed plan, explicit decision, paired run, and trace replay | A reviewer can inspect evidence limits, identify affected groups and resource owners, decide on the exact plan revision, and reload the exact stored traces. Stale or duplicate commands do not create duplicate effects. |
+| 2. Organization and stakeholder behavior | Proposal-relevant organization decision rules with committed resource effects; a separate process for collecting and reviewing actual stakeholder evidence | Every modeled organization action has an actor, authority, resource limit, evidence state, and committed event. Input records preserve date, geography, method, groups reached, consent limits, disagreements, and missing groups. Synthetic agents are never presented as consultation. |
+| 3. Persistent operational scenario | Authoritative state across the chosen rollout horizon and repeated operating days; versioned checkpoint, resume, branch, and replay | Cash, inventory, commitments, capacity, schedules, and pending milestones remain consistent across day boundaries. Replayed and resumed runs reproduce the recorded state and event hashes. |
+| 4. Matched evaluation | Same-start-state baseline and intervention with proposal-relevant household, organization, public-cost, and service outcomes | Measures link to events, source snapshots, or labeled assumptions; reports show group denominators, uncertainty ranges, adverse/no-launch cases, and evidence gaps. Calibration claims require compatible independent observations and held-out validation. |
 
-Do not add multiple departments, a broad action catalog, or reinforcement learning before the one-site proof passes. These gates are future acceptance criteria. They do not claim completed validation.
+These gates precede autonomous model planners. Deterministic organization rules and explicit human review remain the baseline; these acceptance criteria do not claim completed validation.
 
 ## Evaluation and open decisions
 
-Define success measures and cost limits before comparing planners. Report the full rollout horizon, including pre-opening costs and delay or no-launch cases. Service effects begin at operational activation. Construction or funding may have earlier modeled effects. Report modeled food need, access failures, distribution, and public spending rather than one unqualified score.
+Define success measures and cost limits before running the selected proposal. Report the full rollout horizon, including pre-opening costs, delays, and no-launch cases. Service effects begin at operational activation. Report modeled food need, access failures, organization activity, distribution, and public spending rather than one unqualified score.
 
 The scenario catalog at `planning/scenarios.json` is a study registry, not an executable scenario file. Its grocery, food rescue/processing, and school-food entries are examples for open proposal intake, not an exhaustive action catalog. Confirm each proposal's intervention boundary and outcome measures before a study treats them as defined.
 
@@ -290,12 +288,12 @@ Pin the map, inputs, code, action semantics, mandates, and planner configuration
 
 For adaptive planners, separate fixed-rollout evaluation from feedback-policy evaluation. Use development and held-out scenario conditions. Preserve planner versions and decision histories. These comparisons remain within-model until calibration and external validation support stronger claims.
 
-Resolve these choices before Gate 1:
+Resolve these choices before implementing the active gates:
 
-1. Which facility type and eligible locations form the first proof?
-2. Which decisions require exact-plan review, and which may use a bounded mandate?
-3. Which capital and operating assumptions, workforce and supply pools, and funding horizon are represented?
-4. Which outcomes and tradeoffs define success, including subgroup constraints?
-5. Which priority, retry, cancellation, and shutdown rules apply?
+1. Does the current municipal food-site action remain the first pilot, and what proposal outcome does it evaluate?
+2. Which incumbent organizations and affected groups are in scope, and what evidence is required from each?
+3. Which organization decisions are directly supported by records, and which need labeled sensitivity ranges?
+4. What rollout and daily operating horizon is long enough to answer the pilot question?
+5. Which outcomes, group denominators, cost categories, and stop conditions define a useful comparison?
 
 Implement the smallest supported action chain that answers these questions. Add packages, dependencies, and experiment infrastructure only when implementation shows a concrete need.

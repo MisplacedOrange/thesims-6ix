@@ -1,9 +1,11 @@
 # Pedestrian food interactions
 
-This is a deterministic six-hour food-access scenario connected to the browser
-walking graph. It uses `sim.core` commands to settle every cash transfer, purchase,
-food distribution, supplier delivery, movement home, and consumption. The legacy
-district integration fixture remains a separate executor.
+The browser's preset traces model one explicit Toronto calendar day, with the
+existing six-hour food-access activity window inside a full-day clock. The day
+runner uses `sim.core` commands to settle every cash transfer, purchase, food
+distribution, supplier delivery, movement home, and consumption. It does not
+carry state into another day. The bounded Council action and legacy district
+integration fixture remain separate executors.
 
 ## Run and view
 
@@ -14,24 +16,39 @@ python -m sim.interactables
 python -m unittest sim.interactables.test_simulation -v
 ```
 
-The exporter writes baseline and emergency-site traces for 200, 600, and 1200
-households to `apps/web/public/data/interactables/`. These generated files are
-ignored by Git. `npm run dev`, `npm run build`, and `npm test` in `apps/web`
+The exporter reads its start date, timezone, horizon, seed, population presets,
+budget provenance, and pinned input hashes from
+`planning/scenarios/toronto-long-horizon-v1.json`. It writes baseline and
+emergency-site traces for 200, 600, 1,200, and 2,400 household agents to
+`apps/web/public/data/interactables/`. The primary sample is 2,400; 1,200 is
+retained for matched comparisons.
+These are unweighted sample sizes, not measured downtown pedestrian totals or
+estimates of the number of people represented. Generated
+files are ignored by Git. `npm run dev`, `npm run build`, and `npm test` in `apps/web`
 automatically regenerate them when the map, kernel, catalog, generator, or pinned site snapshot changes.
 The `PYTHON` environment variable can select a Python executable. Production
 hosting serves the generated traces as static data and needs no Python service.
+To change the scenario start date or another pinned input, create a new manifest
+version instead of relying on the machine clock.
 
 ## Local Council scenario service
 
 `python -m sim.council` starts the separate loopback-only Council service on
-`127.0.0.1:8765`. It stores exact proposal revisions, reviewed scopes and plans,
-decisions, idempotency receipts, and immutable baseline/intervention traces in
-SQLite. The browser's Council panel uses that service for one explicit
-`establish_service_site` action in a matched six-hour scenario. The deterministic
-department-style advice is explanatory only. It is not a model call or a source
-refresh. The service pins the current population, seed, map, location snapshot,
-catalog, simulator input code hash, and Python implementation/version; the map location is not evidence of present-day
-operation or authority.
+`127.0.0.1:8765`. It stores exact proposal revisions, immutable proposal-linked
+organization revisions, append-only stakeholder-input records, reviewed scopes
+and plans, decisions, idempotency receipts, and immutable baseline/intervention
+traces in SQLite. The browser Council panel can create and inspect organization
+and stakeholder-input records. Plans freeze their record IDs and hashes, and
+rollout events identify the organization records linked to each stage. Those
+links are review context only: they do not cause proposal-responsive
+organization decisions, verify that input is representative, or conduct
+consultation. The API supports one explicit `establish_service_site` action in a
+matched six-hour scenario. Scope, plan, decision, and run controls remain
+unfinished in the UI. The deterministic department-style advice is explanatory
+only. It is not a model call or a source refresh. The service pins the current
+population, seed, map, location snapshot, catalog, simulator input code hash,
+and Python implementation/version; the map location is not evidence of
+present-day operation or authority.
 
 This local Council service does not replace cached trace playback, create a
 persistent city account, or advance the world across days. Static production
@@ -79,8 +96,9 @@ and scenarios; custom exports are research inputs, not automatically loaded by i
 - Purchases and support baskets stay at the collection place under household
   ownership until the resident reaches home. They are shown as carried food and
   cannot be consumed from the home pantry before return. School portions are
-  consumed at school. At 14:30 the household consumes available home produce up
-  to its remaining daily component need; the residual is modeled unmet need.
+  consumed at school. At the end of the local calendar day the household consumes
+  available home produce up to its remaining daily component need; the residual
+  is modeled unmet need.
 - A crossing adds a visible 12 s wait. Explicitly closed edges are removed from
   routing. The route generator records inaccessible destinations separately from
   closed sites, unaffordable baskets, stockouts, capacity denials, and time limits.

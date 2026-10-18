@@ -12,11 +12,17 @@ import heapq
 import json
 import math
 import random
+from datetime import date, datetime, time, timedelta, timezone
 from dataclasses import asdict, dataclass
+from zoneinfo import ZoneInfo
 
 from sim import core
 
 HORIZON = 21600
+DAY_SECONDS = 86400
+ACTIVITY_START_LOCAL = time(8, 30)
+ACTIVITY_WINDOW_SECONDS = HORIZON
+MAX_POPULATION = 2400
 PRODUCT = "produce.fresh"
 PARAMETER = "pedestrian-food-day-v1"
 
@@ -60,6 +66,7 @@ class Site:
     map_snap_distance_m: float | None = None
     point: list[float] | None = None
     network_point: list[float] | None = None
+    organization_refs: list[dict[str, str]] | None = None
 
 
 @dataclass(frozen=True)
@@ -76,6 +83,20 @@ class MunicipalSiteSchedule:
     open_second: int
     close_second: int
     blocker_reasons: tuple[str, ...] = ()
+    organization_refs: tuple[tuple[str, str, str, str], ...] = ()
+
+
+def _organization_refs_for(schedule: MunicipalSiteSchedule | None,
+                           roles: tuple[str, ...]) -> list[dict[str, str]]:
+    if schedule is None:
+        return []
+    wanted = set(roles)
+    return [
+        {"role": role, "organization_id": organization_id,
+         "record_id": record_id, "sha256": digest}
+        for role, organization_id, record_id, digest in schedule.organization_refs
+        if role in wanted
+    ]
 
 
 class WalkingNetwork:
@@ -154,16 +175,46 @@ class WalkingNetwork:
         return {"nodes": nodes, "times": times, "seconds": times[-1], "meters": round(meters)}
 
 
-def run(district: dict, population: int = 600, seed: int = 2026,
+def _local_time_at(start_time: str, timezone_name: str, second: int) -> str:
+    start = datetime.fromisoformat(start_time)
+    if start.tzinfo is None:
+        return (start + timedelta(seconds=second)).isoformat(timespec="seconds")
+    zone = ZoneInfo(timezone_name)
+    absolute = start.astimezone(timezone.utc) + timedelta(seconds=second)
+    return absolute.astimezone(zone).isoformat(timespec="seconds")
+
+
+def run(district: dict, population: int = 2400, seed: int = 2026,
         emergency: bool = False, closed_edges: tuple[tuple[int, int], ...] = (),
         site_snapshot: dict | None = None, site_snapshot_sha256: str | None = None,
         municipal_site: MunicipalSiteSchedule | None = None,
-        council_run_ref: dict | None = None) -> dict:
+        council_run_ref: dict | None = None, *, horizon_seconds: int = HORIZON,
+        activity_start_second: int = 0,
+        start_time: str = "2026-10-17T08:30:00",
+        timezone_name: str = "America/Toronto",
+        local_date: str | None = None,
+        end_time: str | None = None) -> dict:
     """Return a deterministic event trace and scene projection with a no-policy default."""
     core.require_int(population, "population")
     core.require_int(seed, "seed")
-    if not 1 <= population <= 1200:
-        raise ValueError("population must be between 1 and 1200")
+    core.require_int(horizon_seconds, "horizon_seconds")
+    core.require_int(activity_start_second, "activity_start_second")
+    if not 1 <= population <= MAX_POPULATION:
+        raise ValueError(f"population must be between 1 and {MAX_POPULATION}")
+    if horizon_seconds <= 0 or activity_start_second < 0:
+        raise ValueError("horizon_seconds must be positive and activity_start_second cannot be negative")
+    if activity_start_second + ACTIVITY_WINDOW_SECONDS > horizon_seconds:
+        raise ValueError("the six-hour activity window must fit inside the run horizon")
+    if not isinstance(start_time, str) or not start_time:
+        raise ValueError("start_time must be an explicit ISO timestamp")
+    try:
+        zone = ZoneInfo(timezone_name)
+        parsed_start = datetime.fromisoformat(start_time)
+    except (ValueError, TypeError, KeyError) as exc:
+        raise ValueError(f"unknown timezone: {timezone_name}") from exc
+    if parsed_start.tzinfo is None:
+        parsed_start = parsed_start.replace(tzinfo=zone)
+    start_time = parsed_start.isoformat(timespec="seconds")
     if site_snapshot is not None and not site_snapshot_sha256:
         raise ValueError("a pinned site snapshot requires its content hash")
     if site_snapshot is None and site_snapshot_sha256 is not None:
@@ -253,14 +304,14 @@ def run(district: dict, population: int = 600, seed: int = 2026,
             name,
             site_type,
             node,
-            opens,
-            closes,
+            opens + activity_start_second,
+            closes + activity_start_second,
             price,
             capacity,
             service,
             opening_grams,
             "school" if site_type == "school" else "low-income" if site_type == "support" else "all",
-            3600 if site_type == "emergency" else 0,
+            activity_start_second + 3600 if site_type == "emergency" else 0,
             source_id=source.get("source_id") if source else None,
             source_record_id=source.get("source_record_id") if source else None,
             source_site_id=source.get("source_site_id") if source else None,
@@ -297,13 +348,13 @@ def run(district: dict, population: int = 600, seed: int = 2026,
             "Hypothetical municipal food site",
             "council",
             node,
-            municipal_site.open_second,
-            municipal_site.close_second,
+            activity_start_second + municipal_site.open_second,
+            activity_start_second + municipal_site.close_second,
             0,
             0,
             60,
             0,
-            active_from=municipal_site.open_second,
+            active_from=activity_start_second + municipal_site.open_second,
             source_id=source.get("source_id"),
             source_record_id=source.get("source_record_id"),
             source_site_id=source.get("source_site_id"),
@@ -321,6 +372,7 @@ def run(district: dict, population: int = 600, seed: int = 2026,
             map_snap_distance_m=round(snap_distance, 1),
             point=list(point),
             network_point=network_point,
+            organization_refs=_organization_refs_for(municipal_site, ("site_operator",)),
         ))
     by_site = {s.id: s for s in sites}
     households = []
@@ -339,7 +391,7 @@ def run(district: dict, population: int = 600, seed: int = 2026,
                                opening_grams=rng.randrange(0, size * 3) * 100,
                                need_grams=size * 300, speed=0.9 if mobility == "limited" else 1.4,
                                time_budget_seconds=5400 if mobility == "limited" else 7200,
-                               departure=rng.randint(60, 7200)))
+                               departure=activity_start_second + rng.randint(60, 7200)))
 
     # Opening endowments enter through a credit-enabled external funding account.
     owners = [("external", "external", True), ("city", "municipality", False),
@@ -392,6 +444,7 @@ def run(district: dict, population: int = 600, seed: int = 2026,
     initial_sites = {s.id: site_view(s) for s in sites}
 
     def emit(second, action, result="completed", h=None, s=None, quantity=0, payment=0, reason=None, **extra):
+        organization_refs = extra.pop("organization_refs", None)
         event = dict(event_id=f"evt-{len(events)}", simulation_time=second,
                      resident_id=h["resident_id"] if h else None, household_id=h["id"] if h else None,
                      site_id=s.id if s else f"home-{h['id']}" if h else None,
@@ -405,6 +458,10 @@ def run(district: dict, population: int = 600, seed: int = 2026,
         if s and s.source_id:
             event["source_record_id"] = s.source_record_id
             event["source_snapshot_id"] = s.source_snapshot_id
+        if organization_refs is not None:
+            event["organization_refs"] = [dict(item) for item in organization_refs]
+        elif s and s.type == "council":
+            event["organization_refs"] = [dict(item) for item in (s.organization_refs or [])]
         event.update(extra)
         if h:
             event["household_state"] = household_view(h)
@@ -415,18 +472,33 @@ def run(district: dict, population: int = 600, seed: int = 2026,
 
     def emit_rollout(stage, second, status, reason=None, s=None, amount_cents=0,
                      stock_grams=0):
+        stage_roles = {
+            "readiness": ("site_host", "site_operator"),
+            "funding": ("city_funder",),
+            "delivery": ("supplier_distributor", "site_operator"),
+            "commissioning": ("site_operator",),
+            "opening": ("site_operator",),
+            "closure": ("site_operator",),
+            "blocked": ("city_funder", "site_host", "site_operator", "supplier_distributor"),
+            "no_launch": ("city_funder", "site_host", "site_operator", "supplier_distributor"),
+        }
+        organization_refs = _organization_refs_for(municipal_site, stage_roles.get(stage, ()))
         record = dict(event_id=f"rollout-{len(rollout_events)}", stage=stage,
                       simulation_time=second, status=status, reason=reason,
                       amount_cents=amount_cents, stock_grams=stock_grams,
-                      capacity=s.capacity if s else 0)
+                      capacity=s.capacity if s else 0,
+                      organization_refs=organization_refs)
         rollout_events.append(record)
         if s is not None:
             emit(second, f"rollout_{stage}", status, s=s,
                  reason=reason, stage=stage, amount_cents=amount_cents,
-                 stock_grams=stock_grams, capacity=s.capacity)
+                 stock_grams=stock_grams, capacity=s.capacity,
+                 organization_refs=organization_refs)
 
     def schedule(second, phase, kind, h=None, payload=None):
         nonlocal schedule_index
+        if second < 0 or second > horizon_seconds:
+            raise ValueError(f"scheduled event second {second} is outside the run horizon")
         schedule_index += 1
         # Seeded ties avoid resident-id priority at contested service opportunities.
         rank = hashlib.sha256(f"{seed}|{second}|{h['id'] if h else kind}|admission".encode()).hexdigest()
@@ -446,43 +518,43 @@ def run(district: dict, population: int = 600, seed: int = 2026,
 
     for h in households:
         schedule(h["departure"], core.PHASE_CHOICE, "decide", h, False)
-        schedule(HORIZON, core.PHASE_CONSUME, "consume", h)
-    schedule(6000, core.PHASE_SETTLE, "delivery", payload=("retail-west", population * 60 // 100 * 100))
-    schedule(9000, core.PHASE_POLICY, "price", payload=("retail-west", 65))
+        schedule(horizon_seconds, core.PHASE_CONSUME, "consume", h)
+    schedule(activity_start_second + 6000, core.PHASE_SETTLE, "delivery", payload=("retail-west", population * 60 // 100 * 100))
+    schedule(activity_start_second + 9000, core.PHASE_POLICY, "price", payload=("retail-west", 65))
     if emergency:
-        schedule(3600, core.PHASE_POLICY, "activate")
-        schedule(3660, core.PHASE_SETTLE, "delivery", payload=("emergency", population * 100))
-        schedule(18000, core.PHASE_POLICY, "shutdown")
+        schedule(activity_start_second + 3600, core.PHASE_POLICY, "activate")
+        schedule(activity_start_second + 3660, core.PHASE_SETTLE, "delivery", payload=("emergency", population * 100))
+        schedule(activity_start_second + 18000, core.PHASE_POLICY, "shutdown")
     if municipal_site is not None:
         if municipal_site.blocker_reasons:
             for stage, second in (
-                ("readiness", municipal_site.readiness_second),
-                ("funding", municipal_site.funding_second),
-                ("delivery", municipal_site.delivery_second),
-                ("commissioning", municipal_site.commissioning_second),
-                ("opening", municipal_site.open_second),
-                ("closure", municipal_site.close_second),
+                ("readiness", activity_start_second + municipal_site.readiness_second),
+                ("funding", activity_start_second + municipal_site.funding_second),
+                ("delivery", activity_start_second + municipal_site.delivery_second),
+                ("commissioning", activity_start_second + municipal_site.commissioning_second),
+                ("opening", activity_start_second + municipal_site.open_second),
+                ("closure", activity_start_second + municipal_site.close_second),
             ):
                 schedule(second, core.PHASE_POLICY, "council_no_launch",
                          payload=(municipal_site.site_id, stage, second))
         else:
-            schedule(municipal_site.readiness_second, core.PHASE_POLICY, "council_readiness")
-            schedule(municipal_site.funding_second, core.PHASE_POLICY, "council_funding")
-            schedule(municipal_site.delivery_second, core.PHASE_SETTLE, "council_delivery")
-            schedule(municipal_site.commissioning_second, core.PHASE_POLICY, "council_commissioning")
-            schedule(municipal_site.open_second, core.PHASE_POLICY, "council_open")
-            schedule(municipal_site.close_second, core.PHASE_POLICY, "council_close")
+            schedule(activity_start_second + municipal_site.readiness_second, core.PHASE_POLICY, "council_readiness")
+            schedule(activity_start_second + municipal_site.funding_second, core.PHASE_POLICY, "council_funding")
+            schedule(activity_start_second + municipal_site.delivery_second, core.PHASE_SETTLE, "council_delivery")
+            schedule(activity_start_second + municipal_site.commissioning_second, core.PHASE_POLICY, "council_commissioning")
+            schedule(activity_start_second + municipal_site.open_second, core.PHASE_POLICY, "council_open")
+            schedule(activity_start_second + municipal_site.close_second, core.PHASE_POLICY, "council_close")
 
     while queue:
         second, phase, _, _, kind, h, payload = heapq.heappop(queue)
-        if second > HORIZON:
+        if second > horizon_seconds:
             raise RuntimeError("scheduled interaction exceeds run horizon")
         if kind == "activate":
             city_spending = 30000
             commit(core.TransferCash, second, phase, from_account_id="city", to_account_id="emergency",
                    cents=city_spending, memo="illustrative emergency site grant")
             emit(second, "policy_activation", s=by_site["emergency"], budget_cents=30000,
-                 funding_source="city", activation_date="2026-10-17T09:30:00",
+                 funding_source="city", activation_date=_local_time_at(start_time, timezone_name, second),
                  shutdown_condition="13:30 simulation time", capacity_effect=by_site["emergency"].capacity)
         elif kind == "shutdown":
             emit(second, "policy_shutdown", s=by_site["emergency"])
@@ -608,7 +680,7 @@ def run(district: dict, population: int = 600, seed: int = 2026,
                 else:
                     arrival = second + route["seconds"]
                     total = route["seconds"] * 2 + max(0, s.next_free - arrival) + s.service_seconds
-                    if total > h["time_budget_seconds"] or second + total >= HORIZON:
+                    if total > h["time_budget_seconds"] or second + total >= horizon_seconds:
                         reason = "time_budget"
                     elif arrival < s.opens or arrival + s.service_seconds > s.closes:
                         reason = "closure"
@@ -637,8 +709,9 @@ def run(district: dict, population: int = 600, seed: int = 2026,
                  options=[{k: v for k, v in o.items() if k not in {"route", "score"}} for o in offers] +
                          [dict(option_id="no_purchase"), dict(option_id="delay")], excluded=excluded)
             if not offers:
-                later = max(second + 600, min([s.opens for s in sites if s.opens > second] + [6000]))
-                if not payload and later < 10000:
+                later = max(second + 600, min([s.opens for s in sites if s.opens > second] +
+                                               [activity_start_second + 6000]))
+                if not payload and later < activity_start_second + 10000:
                     emit(second, "chosen", h=h, option_id="delay")
                     schedule(later, core.PHASE_CHOICE, "decide", h, True)
                 else:
@@ -650,7 +723,7 @@ def run(district: dict, population: int = 600, seed: int = 2026,
             route = choice["route"]
             trip = dict(route_id=f"route-{h['id']}", site_id=s.id, nodes=route["nodes"], times=route["times"],
                         meters=route["meters"], depart=second, arrival=second + route["seconds"],
-                        travel_seconds=route["seconds"], return_start=HORIZON, home_at=HORIZON, result="pending")
+                        travel_seconds=route["seconds"], return_start=horizon_seconds, home_at=horizon_seconds, result="pending")
             journeys[h["id"]] = trip
             emit(second, "chosen", "chosen", h, s, quantity=choice["quantity_grams"],
                  option_id=s.id, substitution=s.id == "retail-east", reduced_basket=choice["quantity_grams"] < need)
@@ -663,7 +736,7 @@ def run(district: dict, population: int = 600, seed: int = 2026,
             finish = start + s.service_seconds
             if second < s.opens or finish > s.closes:
                 deny(h, s, second, "closure", travel_seconds=trip["travel_seconds"])
-            elif finish - trip["depart"] + trip["travel_seconds"] > h["time_budget_seconds"] or finish + trip["travel_seconds"] >= HORIZON:
+            elif finish - trip["depart"] + trip["travel_seconds"] > h["time_budget_seconds"] or finish + trip["travel_seconds"] >= horizon_seconds:
                 deny(h, s, second, "time_budget", travel_seconds=trip["travel_seconds"])
             else:
                 s.next_free = finish
@@ -728,13 +801,20 @@ def run(district: dict, population: int = 600, seed: int = 2026,
     terminal = {h["id"]: household_view(h) for h in households}
     result = dict(schema=1, scenario_id=scenario_id,
                 policy="council" if council_run_ref is not None else "emergency" if emergency else "baseline", seed=seed,
-                horizon_seconds=HORIZON, start_time="2026-10-17T08:30:00",
+                horizon_seconds=horizon_seconds, start_time=start_time, timezone=timezone_name,
+                local_date=local_date, end_time_exclusive=end_time,
+                activity_window=dict(start_second=activity_start_second,
+                                     end_second=activity_start_second + ACTIVITY_WINDOW_SECONDS,
+                                     start_local=ACTIVITY_START_LOCAL.isoformat(),
+                                     duration_seconds=ACTIVITY_WINDOW_SECONDS),
                 evidence_state="mixed" if site_snapshot else "illustrative",
                 geography="downtown Toronto walking graph", population=population,
                 map_sha256=hashlib.sha256(json.dumps(district, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
                 assumptions=dict(parameter_id=PARAMETER, food_use="300 g produce component per resident at school or day end",
                                  crossing_delay_seconds=12, closed_edges=closed_edges, rule="grams - cents - trip_seconds / 20",
-                                 scope="one six-hour day; one shopping or service trip; no earnings or non-food essentials",
+                                 scope=("one local calendar day with a six-hour activity window; one shopping or service trip; "
+                                        "no earnings or non-food essentials" if local_date else
+                                        "one six-hour activity window; one shopping or service trip; no earnings or non-food essentials"),
                                  unknown_inputs=["observed prices", "operator inventory", "real eligibility", "observed capacities", "operating costs"]
                                  + (["source observation date", "current operating status"] if site_snapshot else [])),
                 sites=[{key: value for key, value in asdict(s).items() if value is not None} for s in sites], households=households,
@@ -747,7 +827,12 @@ def run(district: dict, population: int = 600, seed: int = 2026,
                                 invariant_problems=list(problems)))
     if council_run_ref is not None:
         result["run_id"] = council_run_ref["run_id"]
-        result["run_ref"] = council_run_ref
+        result["run_ref"] = {key: value for key, value in council_run_ref.items()
+                              if key in {"kind", "run_id", "arm"}}
+        result["council_context"] = {
+            "organization_refs": council_run_ref.get("organization_refs", []),
+            "stakeholder_input_refs": council_run_ref.get("stakeholder_input_refs", []),
+        }
         result["rollout_events"] = rollout_events
     if site_snapshot is not None:
         result["data_snapshot"] = {
@@ -755,3 +840,39 @@ def run(district: dict, population: int = 600, seed: int = 2026,
             "content_sha256": site_snapshot_sha256,
         }
     return result
+
+
+def run_day(district: dict, start_date: str, population: int = 2400, seed: int = 2026,
+            emergency: bool = False, closed_edges: tuple[tuple[int, int], ...] = (),
+            site_snapshot: dict | None = None, site_snapshot_sha256: str | None = None,
+            municipal_site: MunicipalSiteSchedule | None = None,
+            council_run_ref: dict | None = None,
+            timezone_name: str = "America/Toronto") -> dict:
+    """Execute one explicit local calendar day with the six-hour activity window intact."""
+    try:
+        calendar_date = date.fromisoformat(start_date)
+        zone = ZoneInfo(timezone_name)
+    except (TypeError, ValueError, KeyError) as exc:
+        raise ValueError("run_day requires an ISO date and installed IANA timezone") from exc
+    start = datetime.combine(calendar_date, time.min, tzinfo=zone)
+    following_midnight = datetime.combine(calendar_date + timedelta(days=1), time.min, tzinfo=zone)
+    activity_start = datetime.combine(calendar_date, ACTIVITY_START_LOCAL, tzinfo=zone)
+    horizon_seconds = int((following_midnight.astimezone(timezone.utc) - start.astimezone(timezone.utc)).total_seconds())
+    activity_start_second = int((activity_start.astimezone(timezone.utc) - start.astimezone(timezone.utc)).total_seconds())
+    return run(
+        district,
+        population,
+        seed,
+        emergency,
+        closed_edges,
+        site_snapshot,
+        site_snapshot_sha256,
+        municipal_site,
+        council_run_ref,
+        horizon_seconds=horizon_seconds,
+        activity_start_second=activity_start_second,
+        start_time=start.isoformat(timespec="seconds"),
+        timezone_name=timezone_name,
+        local_date=calendar_date.isoformat(),
+        end_time=following_midnight.isoformat(timespec="seconds"),
+    )

@@ -2,37 +2,37 @@
 
 ## Study sequence
 
-Each study declares its world snapshot, active area, synthetic population, time horizon, baseline, intervention, agent policy, outcomes, and assumptions before it runs. Results estimate behavior within this model; they do not establish causal effects on Toronto residents.
+Each study declares its source snapshot, active area, synthetic population, time horizon, baseline, intervention, deterministic organization rules, outcomes, and assumptions before it runs. Results describe behavior within this model; they do not establish causal effects on Toronto residents.
+
+The active study scope follows the [focused roadmap](../NEXT_STEPS.md): complete the Council flow, bound the relevant organization decisions, preserve actual stakeholder evidence separately, and validate a persistent scenario. Pedestrian or LLM policy comparisons, rendering benchmarks, and unrelated interventions are deferred unless the selected proposal requires them.
 
 The validation order follows the product scope:
 
 | Stage | Question | Evidence required |
 | --- | --- | --- |
-| Toronto world | Does the 3D scene align with source geography and licenses? | Stable feature IDs, CRS checks, visual alignment samples, source manifest |
-| Proposal intake | Does the system preserve a Markdown proposal faithfully and expose its measures and unknowns? | Immutable source/version, traceable claims, extracted outcome definitions, explicit unknowns, clarification and review record |
-| Pedestrians | Can agents traverse valid routes and make replayable choices? | Route feasibility, movement replay, access and mobility diagnostics |
-| Ongoing simulation | Can the world continue across stages and recover from interruptions? | Checkpoint/resume, event continuity, branch provenance, deterministic replay |
-| Outcomes | What changes in the model as validated stages activate and operate? | Proposal-defined measures plus matched baseline/treatment, economic ledger, reach, travel, and modeled response over declared intervals |
+| Council flow | Can a reviewer trace the proposal through impact mapping, scope, typed plan, decision, run, and replay? | Exact revision identity, source and unknown labels, affected groups and resource owners, human decision record, stored paired traces |
+| Organization decisions | Are relevant business, supplier, and public-operator responses bounded and resource-consistent? | Actor authority, evidence state, explicit limits, committed stock/cash/capacity events, sensitivity cases for unsupported parameters |
+| Stakeholder evidence | Are actual consultation and partner records represented independently from synthetic behavior? | Source, date, geography, method, reach, consent limits, disagreements, and missing groups remain visible |
+| Persistent simulation | Can the selected proposal's rollout and repeated daily operation continue and recover? | Checkpoint/resume, event continuity, branch provenance, deterministic replay across the declared horizon |
+| Proposal outcomes | What changes for households, organizations, and public accounts under the matched scenario? | Proposal-defined measures, reconciled ledgers, group denominators, implementation delays, uncertainty and evidence limits |
 
 Do not begin with an arbitrary run count. Set a minimum practically meaningful difference in each outcome with the analyst, then choose replication counts using measured runtime and variance.
 
 Planner rollout study design, scenario matching, and sensitivity factors are in the [agent planner plan](agent-planner-plan.md).
 
-## Pedestrian and model-policy comparison
+## Organization and stakeholder response
 
-Start with deterministic movement and transparent rules. Compare those policies with small-model and bounded LLM choices only on the same frozen observations and legal option sets. Fix the resident panel before each study; camera view and model response speed must not select participants. Replays use recorded choices and make no model calls.
+Start with explicit deterministic rules for organization operations and keep household movement as the bounded existing baseline. Do not add a model-policy comparison to the active work. For each selected proposal, compare a fixed baseline with only the supported organization decisions and record all choices as events. Use scenario ranges when evidence cannot determine a response.
 
 Keep separate metrics for:
 
-- route completion, time, distance, waiting, and accessibility constraints;
-- pedestrian activity and destination choice;
-- household purchases and food/service access;
-- public and operator costs, capacity, and rollout delay;
-- model-call selection, fallback, refusal, latency, token use, and cost.
+- organization actions and constraints: orders accepted, delivery timing, stock, operating hours, capacity, and reasons for limits;
+- business activity: units sold, receipts, procurement, stockouts, and separately supported operating costs;
+- household outcomes: purchases, service access, travel and waiting, and modeled unmet food need;
+- public outcomes: authorized funding, transfers, outlays, implementation milestones, and delay;
+- stakeholder evidence: groups reached, views or issues recorded, missing groups, and evidence provenance.
 
-Set a new model-call panel, concurrency, deadline, and budget after active-area population and decision frequency are measured. The earlier household prototype's 40-person panel, 30-day horizon, four-request barrier, and CAD 30 ceiling are legacy planning assumptions, not approved pedestrian-agent settings.
-
-Matched seeds reduce simulation noise but do not remove uncertainty about prices, route quality, participation, or model structure. Vary those parameters separately. Report paired differences, parameter sensitivity, model-policy variation, and failures as distinct results.
+Matched seeds reduce simulation noise but do not remove uncertainty about prices, supply, capacity, participation, or model structure. Vary those parameters separately. Report paired differences, sensitivity ranges, evidence gaps, and failures as distinct results.
 
 ## Outcomes and response labels
 
@@ -41,6 +41,8 @@ Keep economic quantities in their stated units: household spending in cents, pub
 Behavior, modeled response, and explanation are separate records. A proxy such as perceived access, trust, or satisfaction must identify its equation, version, inputs, and causal event IDs. It is not measured sentiment, clinical stress, or actual Toronto opinion. Generated dialogue is not survey data. If real sentiment is needed, define a consented and separately governed collection plan and keep it in a separate evidence stream.
 
 ## Sensitivity and calibration
+
+For the active pilot, include only parameter families that affect its proposal and outcomes. The remaining rows below are a reference inventory; they do not require expanding the current model to cover every service type.
 
 | Parameter family | Required sensitivity |
 | --- | --- |
@@ -63,19 +65,16 @@ These are future acceptance gates. The planning-package checker does not execute
 
 | Gate | Evidence required |
 | --- | --- |
-| Toronto alignment | Scene features, pedestrian links, destinations, and candidate rollout sites share verified transforms and traceable source IDs |
-| Replay | The same world package and recorded inputs reproduce resident positions, intents, economic events, and hashes in visible and headless modes |
-| Economic conservation | Every transition balances money and food; invalid and concurrent transactions cannot spend the same resources twice |
-| Pedestrian feasibility | Agents do not traverse blocked or unsupported paths; infeasible destinations are surfaced and handled deterministically |
-| Agent grounding | Invalid intents, invented facts, refusals, late replies, and exhausted budgets produce recorded fallbacks |
-| 3D traceability | A selected purchase, service, route, or infrastructure stage opens its causal events and source data |
-| Data quality | Mixed units, invalid geography, stale resources, missing vintages, and duplicate IDs cannot enter a validated scenario silently |
-| Modeled response | Every proxy is labeled modeled and can be inspected separately from behavior and observed survey evidence |
-| Operational recovery | Disconnect, process failure, duplicate command, partial export, and unsupported replay version behave as specified |
+| Council review | Proposal, impact map, scope, typed plan, decision, run, and replay preserve exact revision identity and evidence limits |
+| Organization behavior | Every decision respects the actor's authority and resource limits; cash, food, capacity, and schedules reconcile through committed events |
+| Stakeholder evidence | Actual submissions preserve source, time, geography, method, reach, consent, disagreements, and known representation gaps; synthetic behavior remains separate |
+| Persistence and replay | Checkpoint, restart, resume, branch, and replay reproduce the recorded world and economic event hashes |
+| Outcome reporting | Matched scenarios report proposal-relevant household, organization, and public measures with group denominators, assumptions, and adverse cases |
+| Data quality | Mixed units, invalid geography, stale resources, missing vintages, and duplicate IDs cannot enter a selected scenario silently |
 
 Planner-specific acceptance gates are in the [agent planner plan](agent-planner-plan.md).
 
-Measure movement, rendering, API/event-stream transport, Python economics, model-provider latency, and archive performance separately on declared hardware. Set numeric limits after the first world slice and the active-area scale are known. Do not treat a planning target as a measured result.
+Rendering benchmarks, model-provider latency, and broad transport performance are deferred from the active scope. For the current pilot, measure only operational reliability needed for authoritative persistence, command idempotency, economic settlement, and replay. Do not treat a planning target as a measured result.
 
 ## Learning from real implementation
 

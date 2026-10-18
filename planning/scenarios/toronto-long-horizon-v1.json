@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "scenario_id": "toronto-food-access-long-horizon-v1",
+  "created_at_utc": "2026-10-18T07:27:22Z",
+  "start_date": "2026-10-18",
+  "timezone": "America/Toronto",
+  "horizon_months": 60,
+  "end_date_exclusive": "2031-10-18",
+  "planning": {
+    "frequency": "monthly",
+    "decision_rule": "first day of each local calendar month",
+    "first_decision_date": "2026-11-01",
+    "last_decision_date": "2031-10-01",
+    "decision_count": 60,
+    "reporting_cycles": ["quarterly", "fiscal-year"],
+    "fiscal_year": {
+      "appropriation_period": "FY2026",
+      "start_date": null,
+      "end_date": null,
+      "status": "boundary requires source-backed appropriation terms"
+    }
+  },
+  "seed": 2026,
+  "population": {
+    "primary_sample_size": 2400,
+    "paired_comparison_sample_size": 1200,
+    "trace_presets": [200, 600, 1200, 2400],
+    "weighting": "none",
+    "interpretation": "synthetic unweighted activity sample; not a measured Toronto pedestrian count"
+  },
+  "day_clock": {
+    "time_representation": "integer elapsed seconds from local calendar midnight",
+    "local_day_length": "derive from consecutive local midnights; may be 23, 24, or 25 elapsed hours",
+    "activity_window_start_local": "08:30",
+    "activity_window_duration_seconds": 21600,
+    "other_daily_schedules": "not yet modeled",
+    "browser_playback": "presentation only; cannot change event ordering"
+  },
+  "inputs": {
+    "map": {
+      "path": "apps/web/public/data/toronto.json",
+      "sha256": "5d13f193c524fa8071a46e3826cc8fad219d54a6a20a15f2b444544a6346400b"
+    },
+    "site_snapshot": {
+      "path": "sim/data/snapshots/toronto-downtown-sites-v3.json",
+      "sha256": "ae7ea17c37f4666c14e5f2538f330ff63bb37eb746fd578c039f8e85799be578"
+    },
+    "food_catalog": {
+      "path": "sim/core/data/catalog.json",
+      "sha256": "12dc7e0038a750c30b1f03c865f0f60013b5ffee07393ea1baeed1ddfdcb56b5"
+    }
+  },
+  "funding": {
+    "currency": "CAD",
+    "planner_balance_cents": 3170000000,
+    "scenario_balance_status": "user-selected FY2026 planning input; not yet executable by the day runner",
+    "source_allocation_cents": 3117000000,
+    "source_program": "Student Nutrition",
+    "source_url": "https://secure.toronto.ca/council/agenda-item.do?item=2026.HL33.2",
+    "source_restriction": "program restrictions and reserve apply; not general-purpose infrastructure funding",
+    "scenario_adjustment_cents": 53000000,
+    "future_year_appropriations": "unspecified; do not repeat or roll forward automatically",
+    "annual_ledger_gate": "must be implemented before the planner can commit against this balance"
+  },
+  "model": {
+    "parameter_id": "pedestrian-food-day-v1",
+    "random_generator": "Python random.Random with the manifest seed",
+    "event_order": "integer simulation second, core phase, seeded stable tie rank, insertion index",
+    "money_unit": "integer Canadian cents",
+    "food_mass_unit": "integer grams",
+    "time_unit": "integer elapsed seconds"
+  },
+  "known_unknowns": [
+    "verified pedestrian expansion weights and target population",
+    "Toronto statutory holiday, school, and seasonal operating calendars",
+    "household income and benefit dates, non-food obligations, and recurring activity schedules",
+    "site staffing, capacity, inventory replenishment, costs, and eligibility",
+    "future fiscal-year appropriations, eligible uses, reserves, and rollover authority",
+    "source-backed municipal fiscal-year boundary"
+  ]
+}

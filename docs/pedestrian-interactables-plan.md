@@ -2,7 +2,7 @@
 
 ## Status and purpose
 
-Status: the first bounded implementation is available in [sim/interactables](../sim/interactables/README.md) and the browser. It provides the five interaction types below, deterministic rule decisions, kernel-settled accounting, supplier replenishment, an emergency-site scenario, and an event-driven dashboard. It replays one six-hour scenario day; it is not an ongoing simulation service. All household and site operating values are illustrative assumptions, not calibrated Toronto parameters. Organization behavior and dashboard measures beyond that documented implementation remain design recommendations.
+Status: the first bounded implementation is available in [sim/interactables](../sim/interactables/README.md) and the browser. It provides deterministic household choices, kernel-settled accounting, supplier replenishment, an emergency-site scenario, and an event-driven dashboard for one six-hour scenario. Proposal-linked immutable organization records and append-only stakeholder-input records are now available in the Council API and browser; plans pin their IDs and hashes, and rollout events carry linked organization references. These are evidence and review records only: there is no proposal-responsive organization behavior, outreach workflow, source verification, or representativeness claim. The simulation is not an ongoing service. Household and site values are illustrative assumptions, not calibrated Toronto parameters. The remaining active extension is bounded organization behavior, real stakeholder evidence collection, and persistence; the broader candidate interactions below are not all implementation commitments. See the [canonical roadmap](../NEXT_STEPS.md).
 
 This plan defines pedestrian access to food services and the food and economic outcomes those interactions change. It is a food-service measurement component of the wider Toronto simulation. Track household food flows and spending, site stock and service, supplier activity, and public costs from committed events; a mapped site alone does not establish its inventory or operating capacity.
 
@@ -14,6 +14,8 @@ The browser renders Python-generated household food journeys along the Toronto w
 
 The data plan and `sim/data` pipeline currently support location-oriented City GIS sources, including food retailers, food-support sites, and education locations. They do not supply current site-level prices, inventories, daily service capacity, demand served, or school-meal reach. Those values must remain unknown until independently sourced, or be identified as scenario assumptions. See the [Toronto data plan](data-plan.md#evidence-states) and [data pipeline documentation](../sim/data/README.md).
 
+For the first integrated proposal, extend only the organization and stakeholder mechanisms needed to evaluate its stated outcomes. The current municipal food-site action is a starting point, not a commitment to model every food organization or proposal type.
+
 ## Modeling boundary
 
 Represent three related but separate actors:
@@ -22,7 +24,7 @@ Represent three related but separate actors:
 2. **Food and service organizations.** Retailers, distributors, processors, school nutrition operators, and food-support organizations set or receive operational state such as inventory, prices, hours, delivery plans, funding, and service capacity.
 3. **Public institutions.** City and other funders can activate a policy, provide a budget, or change a program's modeled capacity. Policy activation is a simulation event with a date, budget, and stated capacity effect.
 
-The pedestrian selects from a finite set of feasible choices generated from current state. Python validates eligibility, opening hours, travel feasibility, available stock, price, and capacity. The economic kernel rechecks a selected purchase or service before committing its effects. Optional language models may rank legal choices only after the rule-based baseline and accounting invariants are established.
+The pedestrian selects from a finite set of feasible choices generated from current state. Python validates eligibility, opening hours, travel feasibility, available stock, price, and capacity. The economic kernel rechecks a selected purchase or service before committing its effects. The active pilot uses deterministic rules. Small-model or LLM ranking is deferred until the Council, organization, stakeholder-evidence, and persistence gates pass and a specific decision needs that added complexity.
 
 ## Implemented interactables
 
@@ -66,6 +68,34 @@ City departments and funders can be modeled as actors that propose or execute ac
 
 For each proposal, identify affected population groups, organizations that control relevant resources or services, responsible public authorities, and stakeholder input needed to assess impacts. Synthetic households, and workers if represented, can support distributional analysis, but their generated choices or dialogue do not count as consultation or as the views of real people. Keep actual consultation, survey, and partner-submission records in a separate, source-linked evidence stream. Record the date, geography, method, population reached, consent or publication limits, and groups not reached where known. Preserve conflicting views and evidence gaps; simulated stakeholder or department roles must not claim to speak for real residents, businesses, or organizations.
 
+### First municipal food-site proposal: minimum actor and stakeholder set
+
+For a pilot centered on `establish_service_site`, begin with the actors needed to establish whether a site can be authorized, prepared, supplied, and operated. Reuse existing scenario records for City funding, suppliers, retailers, and food-support sites where they fit; do not create duplicate agents just to represent the same organization. Record missing operational facts as unknown or as labeled scenario assumptions.
+
+| Actor | Minimum modeled authority or mechanism | Scope condition |
+| --- | --- | --- |
+| **City program sponsor, funder, and approving authority** | Mandate, proposed and approved budget, site approval, program decision, and rollout milestones. Keep recommendations, human decisions, and committed actions distinct. | Include the public bodies or roles that actually control the proposal's funding and approval. Council review remains a human decision workflow. |
+| **Site host or property/facility manager** | Permission to use the site; readiness constraints such as access, storage, utilities, and occupancy schedule. Record lease or facility costs only when sourced. | Include when the host or property controller is distinct from the City or service operator, or can delay or constrain launch. |
+| **Service operator** | Operating hours, service capacity, receipt and use of stock, service rules, and any documented eligibility requirements. Represent staffing through supported capacity limits before modeling individual staff decisions. | Identify whether the operator is a City unit or a partner. A partner is not controlled by the City without a recorded agreement or authority. |
+| **Supplier or distributor** | Order acceptance, available quantities, prices, delivery windows or lead times, and delivery shortfalls. Commit accepted deliveries and payments through the event ledger. | Extend the existing supplier actor. Add a separate carrier only if it controls a material delivery constraint. |
+| **Existing retailers and food-support providers** | Preserve their supported baseline stock, prices, hours, and service capacity; report changes in modeled transactions and access. | Reuse existing scenario sites. Do not assume strategic price, hours, staffing, closure, or procurement responses to a new site without evidence or a clearly labeled sensitivity case. |
+
+The proposal impact map should identify, at minimum, intended or potentially eligible users; residents near the site; and people who may not use the service because of distance, hours, eligibility, mobility or other access barriers. It should also identify affected site workers and volunteers, delivery workers where relevant, nearby retailers, and existing food-support organizations. Include relevant community, accessibility, or culturally specific organizations when they are affected or provide input; document who was reached and who was not rather than treating any organization as a proxy for an entire community.
+
+Keep these groups' actual views in consultation, survey, or partner-submission records, not in synthetic dialogue. Synthetic households may support distributional scenarios, but do not label them representative of residents without appropriate evidence. Preserve disagreement among residents, workers, businesses, partners, and public bodies in the proposal record.
+
+Add schools, processors, contractors, detailed labor or firm-finance decisions, or other organizations only when the selected proposal changes their resources or services. For a delivery constraint, first model order limits, delivery windows, or lead-time ranges. Add roadway traffic or additional transport actors only if traffic, curb access, or travel delay materially affects the proposal's stated outcomes and suitable evidence is available.
+
+## Active implementation sequence
+
+1. **Complete the Council path.** Connect exact proposal revisions and the implemented organization/input records to a reviewer-defined impact map and scope, typed plan, explicit decision, paired run, and exact trace replay. The browser still lacks scope, plan, decision, and run controls.
+2. **Use the pilot actor record.** For each relevant business, supplier, public operator, or partner, record identity/source, operating-status evidence, authority or agreement, resources, hours, capacity, and permitted decisions. The current forms capture these fields but do not execute them. Next, add only bounded operational decisions such as accepting a capped order, setting a delivery window, or applying an evidenced service limit. Do not infer strategic competitor responses from a directory location.
+3. **Collect and review real input separately.** Use the stakeholder-input records for documented consultation and partner submissions, preserving source, date, geography, method, reach, consent limits, conflicts, and gaps. The form does not conduct outreach or verify representativeness. Synthetic residents remain outcome-generating model entities, not consultation participants.
+4. **Connect decisions to the ledger and event history.** Commit cash, stock, capacity, and schedule changes through the authoritative Python path. Keep business receipts, costs, public transfers, and public outlays distinct. If evidence is insufficient, expose an assumption range and sensitivity case rather than an asserted observed response.
+5. **Extend the same pilot across operating days.** Add persistence only after actor and event records are defined. Pin the rollout calendar separately from daily hours and service cycles; checkpoint and replay the same state, decisions, and resource changes across restarts.
+
+The gate for each addition is a traceable mechanism with explicit authority, resource effects, evidence state, and a testable failure case. Full staffing, rent, margin, competition, LLM decision-making, and additional service types remain deferred until the selected proposal needs them and suitable evidence or declared sensitivity ranges exist.
+
 ## Interaction and event record
 
 Record each attempted interaction, including unsuccessful attempts. A common event record should contain:
@@ -77,7 +107,10 @@ route_id, travel_seconds, queue_seconds, service_seconds
 product_or_service_id, quantity_grams, payment_cents
 result, denial_or_failure_reason
 evidence_state, source_id, scenario_parameter_id
+organization_refs: [{role, organization_id, record_id, sha256}]
 ```
+
+For Council rollout events, these references identify the frozen organization records linked to a stage. They document the plan context; they do not claim that an organization made a real-world decision.
 
 Use integer cents, grams, and simulation seconds for committed economic quantities. Preserve the distinction between an option being offered, an option being chosen, and the service or transaction actually being completed. Record stockout, closure, inaccessible route, unaffordable basket, and capacity denial as distinct outcomes.
 

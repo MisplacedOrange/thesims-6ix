@@ -36,6 +36,12 @@ const lightRecipes: Record<Lighting, Recipe> = {
   blue: { top: '#13213a', horizon: '#4b5b78', sun: '#a9bde6', sunPower: 0.5, ambient: 0.8, exposure: 1.1, water: '#122233', azimuth: -2.0, elevation: 0.1 },
 };
 const WATER_Y = -1.6;
+const PEDESTRIAN_SCALE = 0.75;
+const PEDESTRIAN_GROUND_Y = 0.3;
+const PEDESTRIAN_ORIGINAL_FOOT_Y = 1.45;
+function pedestrianY(originalY: number): number {
+  return PEDESTRIAN_GROUND_Y + (originalY - PEDESTRIAN_ORIGINAL_FOOT_Y) * PEDESTRIAN_SCALE;
+}
 
 /** Colours the base land: lot paving inside the mapped core, streets between procedural blocks outside it. */
 function groundMaterial(map: THREE.Texture): THREE.MeshStandardMaterial {
@@ -306,7 +312,6 @@ export class TorontoScene {
   private paused = false;
   private speed = 10;
   private seconds = 0;
-  private trafficSeconds = 0;
   private lastTime = 0;
   private lastTick = 0;
   private backgroundTimer = 0;
@@ -365,7 +370,7 @@ export class TorontoScene {
     this.city.add(this.buildings, this.greenery, this.paths, this.traffic, this.proposedLocationMarker); this.paths.visible = false;
     this.buildProposedLocationMarker();
     this.buildLandscape(); this.buildTraffic(); this.buildArchitecture(); this.buildSurroundings(); this.buildTrees(); this.buildLandmarks(); this.buildPeople();
-    this.ring = new THREE.Mesh(new THREE.RingGeometry(0.7, 0.9, 48), new THREE.MeshBasicMaterial({ color: '#e5f5b7', side: THREE.DoubleSide }));
+    this.ring = new THREE.Mesh(new THREE.RingGeometry(5.25, 7.5, 48), new THREE.MeshBasicMaterial({ color: '#e5f5b7', side: THREE.DoubleSide }));
     this.ring.rotation.x = -Math.PI / 2; this.ring.visible = false; this.ring.renderOrder = 10; this.scene.add(this.ring);
     this.resizeObserver = new ResizeObserver(this.resize); this.resizeObserver.observe(container); this.resize();
     this.renderer.domElement.addEventListener('pointerdown', this.pointerDown);
@@ -506,7 +511,7 @@ export class TorontoScene {
     if (!this.trafficBodies || !this.trafficCabins || !this.trafficWheels) return;
     for (let i = 0; i < this.trafficVehicles.length; i++) {
       const vehicle = this.trafficVehicles[i]!;
-      const pose = sampleTraffic(vehicle, this.trafficSeconds);
+      const pose = sampleTraffic(vehicle, this.seconds);
       this.dummy.rotation.set(0, pose.heading, 0);
       this.dummy.scale.set(vehicle.scale, vehicle.scale, vehicle.scale);
       this.dummy.position.set(pose.x, 0.3 + 0.75 * vehicle.scale, pose.z);
@@ -667,9 +672,9 @@ export class TorontoScene {
       this.people.remove(child);
     }
     const count = this.crowd.residents.length;
-    this.bodies = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.22, 0.58, 3, 5), new THREE.MeshStandardMaterial({ roughness: 0.85 }), count);
-    this.heads = new THREE.InstancedMesh(new THREE.SphereGeometry(0.12, 7, 5), new THREE.MeshStandardMaterial({ color: '#eed2ae', roughness: 1 }), count);
-    this.legs = new THREE.InstancedMesh(new THREE.BoxGeometry(0.17, 0.74, 0.18), new THREE.MeshStandardMaterial({ color: '#465f5a', roughness: 1 }), count * 2);
+    this.bodies = new THREE.InstancedMesh(new THREE.CapsuleGeometry(1.3 * PEDESTRIAN_SCALE, 2.4 * PEDESTRIAN_SCALE, 3, 5), new THREE.MeshStandardMaterial({ roughness: 0.85 }), count);
+    this.heads = new THREE.InstancedMesh(new THREE.SphereGeometry(1.25 * PEDESTRIAN_SCALE, 7, 5), new THREE.MeshStandardMaterial({ color: '#eed2ae', roughness: 1 }), count);
+    this.legs = new THREE.InstancedMesh(new THREE.BoxGeometry(0.9 * PEDESTRIAN_SCALE, 2.7 * PEDESTRIAN_SCALE, 1 * PEDESTRIAN_SCALE), new THREE.MeshStandardMaterial({ color: '#465f5a', roughness: 1 }), count * 2);
     for (const resident of this.crowd.residents) this.bodies.setColorAt(resident.id, new THREE.Color(resident.color));
     this.bodies.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.heads.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.legs.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.bodies.frustumCulled = false; this.heads.frustumCulled = false; this.legs.frustumCulled = false;
@@ -720,8 +725,8 @@ export class TorontoScene {
     let picked: number | null = null, nearest = 18;
     for (const resident of this.crowd.residents) {
       const p = this.pose(resident);
-      if (this.camera.position.distanceTo(new THREE.Vector3(p.x, 1.6, p.z)) > obstruction + 3) continue;
-      point.set(p.x, 1.6, p.z).project(this.camera);
+      if (this.camera.position.distanceTo(new THREE.Vector3(p.x, pedestrianY(8), p.z)) > obstruction + 3) continue;
+      point.set(p.x, pedestrianY(8), p.z).project(this.camera);
       if (point.z > 1) continue;
       const distance = Math.hypot((point.x + 1) / 2 * rect.width - event.clientX + rect.left, (1 - point.y) / 2 * rect.height - event.clientY + rect.top);
       if (distance < nearest) { nearest = distance; picked = resident.id; }
@@ -767,26 +772,26 @@ export class TorontoScene {
     if (this.disposed) return;
     const elapsed = this.lastTime ? Math.max(0, (now - this.lastTime) / 1000) : 0;
     const delta = Math.min(elapsed, 0.1); this.lastTime = now;
-    this.trafficSeconds += Math.min(elapsed, 0.5);
     if (!this.paused && !document.hidden) this.seconds = Math.min(this.trace.horizon_seconds, this.seconds + delta * this.speed);
     let walking = 0;
     this.dummy.scale.setScalar(1);
     for (const resident of this.crowd.residents) {
       const p = this.pose(resident);
       if (p.walking) walking++;
-      const gait = p.walking ? Math.sin(this.seconds * resident.speed * 3.8 + resident.id) * 0.12 : 0;
+      const gait = p.walking ? Math.sin(this.seconds * resident.speed * 3.8 + resident.id) * PEDESTRIAN_SCALE : 0;
       this.dummy.rotation.set(0, p.heading, 0);
-      this.dummy.position.set(p.x, 1.33 + Math.abs(gait) * 0.025, p.z); this.dummy.updateMatrix(); this.bodies?.setMatrixAt(resident.id, this.dummy.matrix);
-      this.dummy.position.y = 1.83; this.dummy.updateMatrix(); this.heads?.setMatrixAt(resident.id, this.dummy.matrix);
+      const bounce = Math.abs(gait) * 0.2;
+      this.dummy.position.set(p.x, pedestrianY(5.2) + bounce, p.z); this.dummy.updateMatrix(); this.bodies?.setMatrixAt(resident.id, this.dummy.matrix);
+      this.dummy.position.y = pedestrianY(8.8) + bounce; this.dummy.updateMatrix(); this.heads?.setMatrixAt(resident.id, this.dummy.matrix);
       for (let side = 0; side < 2; side++) {
-        const off = side === 0 ? -0.15 : 0.15, swing = gait * (side === 0 ? -1 : 1);
-        this.dummy.position.set(p.x + Math.cos(p.heading) * off + Math.sin(p.heading) * swing, 0.62, p.z - Math.sin(p.heading) * off + Math.cos(p.heading) * swing);
+        const off = (side === 0 ? -0.75 : 0.75) * PEDESTRIAN_SCALE, swing = gait * (side === 0 ? -1 : 1);
+        this.dummy.position.set(p.x + Math.cos(p.heading) * off + Math.sin(p.heading) * swing, pedestrianY(2.8), p.z - Math.sin(p.heading) * off + Math.cos(p.heading) * swing);
         this.dummy.rotation.set(swing * 0.4, p.heading, 0); this.dummy.updateMatrix(); this.legs?.setMatrixAt(resident.id * 2 + side, this.dummy.matrix);
       }
       if (this.selected === resident.id) {
         this.ring.position.set(p.x, 0.34, p.z); this.ring.scale.setScalar(1 + Math.sin(now / 600) * 0.08);
         if (this.following && !this.flight) {
-          const difference = new THREE.Vector3(p.x, 1.6, p.z).sub(this.controls.target);
+          const difference = new THREE.Vector3(p.x, pedestrianY(8), p.z).sub(this.controls.target);
           this.camera.position.addScaledVector(difference, 0.05); this.controls.target.addScaledVector(difference, 0.05);
         }
       }
@@ -882,7 +887,7 @@ export class TorontoScene {
     const resident = this.selected === null ? undefined : this.crowd.residents[this.selected];
     if (!resident) return;
     const p = this.pose(resident);
-    this.fly(new THREE.Vector3(p.x + 35, 30, p.z + 35), new THREE.Vector3(p.x, 1.6, p.z));
+    this.fly(new THREE.Vector3(p.x + 35, 30, p.z + 35), new THREE.Vector3(p.x, pedestrianY(8), p.z));
     this.following = true;
   }
   private fly(position: THREE.Vector3, target: THREE.Vector3): void {

@@ -11,6 +11,9 @@ export type HouseholdState = {
   cash_cents: number; pantry_grams: number; carrying_grams: number; consumed_grams: number;
   unmet_grams: number; expenditure_cents: number; received_grams: number; purchased_grams: number;
 };
+export type OrganizationActorReference = {
+  role: string; organization_id: string; record_id: string; sha256: string;
+};
 export type Site = {
   id: string; name: string; type: 'retailer' | 'support' | 'school' | 'emergency' | 'council'; node: number; point: Point;
   opens: number; closes: number; price_cents_per_100g: number; capacity: number; service_seconds: number;
@@ -19,7 +22,7 @@ export type Site = {
   source_snapshot_id?: string; source_retrieved_at?: string; source_published_at?: string | null;
   source_updated_at?: string | null; source_address?: string; source_quality_flags?: string[];
   location_evidence_state?: string; operations_evidence_state?: string; listing_current_status?: string;
-  map_snap_distance_m?: number; network_point?: Point;
+  map_snap_distance_m?: number; network_point?: Point; organization_refs?: OrganizationActorReference[];
 };
 export type SiteState = {
   stock_grams: number; served: number; visits: number; denials: number; sold_grams: number;
@@ -32,6 +35,7 @@ export type InteractionEvent = {
   travel_seconds: number; queue_seconds: number; service_seconds: number; quantity_grams: number; payment_cents: number;
   result: string; denial_or_failure_reason: string | null; evidence_state: string; source_id: string | null;
   scenario_parameter_id: string; household_state?: HouseholdState; site_state?: SiteState;
+  organization_refs?: OrganizationActorReference[];
   public_spending_cents: number; option_id?: string; shortfall_grams?: number; substitution?: boolean;
   reduced_basket?: boolean; portions?: number;
   options?: { option_id: string; quantity_grams?: number; payment_cents?: number; total_seconds?: number }[];
@@ -44,7 +48,9 @@ export type Journey = {
 };
 export type FoodTraceFields = {
   schema: number; scenario_id: string; seed: number; horizon_seconds: number;
-  start_time: string; evidence_state: string; geography: string; population: number;
+  start_time: string; timezone?: string; local_date?: string | null; end_time_exclusive?: string | null;
+  scenario_manifest_id?: string; scenario_manifest_sha256?: string;
+  evidence_state: string; geography: string; population: number;
   sites: Site[]; households: Household[]; initial_households: Record<string, HouseholdState>;
   initial_sites: Record<string, SiteState>; journeys: Record<string, Journey>; events: InteractionEvent[];
   assumptions: { parameter_id: string; food_use: string; crossing_delay_seconds: number; scope: string; unknown_inputs: string[] };
@@ -54,12 +60,13 @@ export type FoodTraceFields = {
 export type PresetFoodTrace = FoodTraceFields & { policy: 'baseline' | 'emergency' };
 export type CouncilFoodTrace = FoodTraceFields & {
   policy: 'council'; run_id: string; run_ref: CouncilRunRef; rollout_events: RolloutEvent[];
+  council_context?: { organization_refs: OrganizationActorReference[]; stakeholder_input_refs: { record_id: string; sha256: string }[] };
 };
 export type FoodTrace = PresetFoodTrace | CouncilFoodTrace;
 export type RolloutEvent = {
   event_id: string; stage: 'readiness' | 'funding' | 'delivery' | 'commissioning' | 'opening' | 'closure' | 'blocked' | 'no_launch';
   simulation_time: number; status: 'completed' | 'blocked' | 'not_started'; reason: string | null;
-  amount_cents: number; stock_grams: number; capacity: number;
+  amount_cents: number; stock_grams: number; capacity: number; organization_refs?: OrganizationActorReference[];
 };
 export type FoodView = {
   households: Record<string, HouseholdState>; sites: Record<string, SiteState>; events: InteractionEvent[];

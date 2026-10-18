@@ -2,7 +2,7 @@
 
 ## Status and purpose
 
-Status: the dedicated /dashboard page is implemented for the current bounded food-access traces. Its charts synchronize across tabs with the simulation page's committed trace playback and display the ingested input and retrieved source snapshot IDs. A Python-authoritative live service, reusable metric registry and reducer for verified completed-run exports, and reporting over broader runs remain planned. The 3D simulation page no longer hosts the statistics dashboard.
+Status: the dedicated /dashboard page is implemented for the current bounded food-access traces. Its charts synchronize across tabs with the simulation page's committed trace playback; snapshot provenance and assumptions are available in collapsed run notes. A Python-authoritative live service, reusable metric registry and reducer for verified completed-run exports, and reporting over broader runs remain planned. The 3D simulation page no longer hosts the statistics dashboard.
 
 The dashboard tracks how the current food-access runs affect household access, retail and service operations, school meals, food support, and public costs. It is a full-page analytics workspace at /dashboard, reached from the simulation page. Selecting a site in the city can open the corresponding site record in the dashboard. The dashboard can select a trace and seek its playhead; it does not settle purchases or activate policies.
 
@@ -37,7 +37,7 @@ The dashboard is a separate page, not a side panel beside the 3D environment. Th
 
 ### Views
 
-1. **Overview:** selected run and snapshot provenance, graph-first household food flow, service and purchase activity, modeled site inventory, recent interactions, and site activity.
+1. **Overview:** graph-first household food flow, service and purchase activity, and modeled site inventory. Run provenance and assumptions are tucked into collapsed notes.
 2. **Interaction log:** searchable event records filtered by action, result, or site, with event-level timing and result details.
 3. **Sites and services:** site inventory, operating status, throughput, denials, and recent activity, including retail, support, school, and emergency sites.
 4. **Households:** searchable household records, modeled food outcomes, a single-run roll-up by selected group, and household event history.

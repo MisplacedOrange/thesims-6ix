@@ -1,14 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { ArrowDownLeft, ArrowRight, BarChart3, Check, ChevronRight, Compass, Expand, Eye, Footprints, Info, Landmark, Layers3,
-  MapPin, Moon, Pause, Play, Plus, Minus, RotateCcw, Settings2, Sun, Sunrise, Trees,
-  VolumeX, X } from 'lucide-react';
+import { ArrowDownLeft, ArrowRight, BarChart3, ChevronRight, Compass, Expand, Eye, Footprints, Info, Landmark,
+  MapPin, Pause, Play, Plus, Minus, RotateCcw, Trees, VolumeX, X } from 'lucide-react';
 import { loadDistrict, loadIslands } from './district.ts';
-import type { District, Point } from './district.ts';
-import type { Layer, Lighting, SceneTick, TorontoScene } from './scene.ts';
+import type { District } from './district.ts';
+import type { SceneTick, TorontoScene } from './scene.ts';
 import { foodView } from './interactables.ts';
-import type { CouncilFoodTrace, FoodTrace } from './interactables.ts';
-import { HouseholdDetails } from './FoodDetails.tsx';
+import type { FoodTrace } from './interactables.ts';
+import { at, HouseholdDetails } from './FoodDetails.tsx';
 import { isDashboardCommand, LIVE_RUN_CHANNEL } from './liveRun.ts';
 import { parseRunRef, sameRunRef, serializeRunRef } from './runRef.ts';
 import type { RunRef } from './runRef.ts';
@@ -16,17 +15,13 @@ import { loadRunTrace } from './runTrace.ts';
 import { CouncilPanel } from './CouncilPanel.tsx';
 
 const emptyTick: SceneTick = { seconds: 0, walking: 0, resting: 0, selected: null };
-function clock(seconds: number): string {
-  const time = Math.floor(seconds) + 8 * 3600 + 30 * 60;
-  return [Math.floor(time / 3600) % 24, Math.floor(time / 60) % 60, time % 60].map(n => String(n).padStart(2, '0')).join(':');
-}
 function distance(meters: number): string { return meters >= 1000 ? (meters / 1000).toFixed(1) + ' km' : Math.round(meters) + ' m'; }
 function initialPolicy(): 'baseline' | 'emergency' {
   return new URLSearchParams(window.location.search).get('policy') === 'emergency' ? 'emergency' : 'baseline';
 }
 function initialPopulation(): number {
   const value = Number(new URLSearchParams(window.location.search).get('population'));
-  return [200, 600, 1200].includes(value) ? value : 600;
+  return [200, 600, 1200, 2400].includes(value) ? value : 2400;
 }
 function initialRunRef(): RunRef {
   const fromUrl = new URLSearchParams(window.location.search).get('run');
@@ -61,16 +56,13 @@ export function App() {
     const initial = initialRunRef(); return initial.kind === 'council' ? 'council' : initial.policy;
   });
   const [siteId, setSiteId] = useState<string | null>(null);
-  const [projectedPoint, setProjectedPoint] = useState<Point | null>(null);
   const [councilOpen, setCouncilOpen] = useState(false);
   const [busy, setBusy] = useState(false), [runError, setRunError] = useState<string | null>(null);
   const traceRequest = useRef(0);
   const [ready, setReady] = useState(false), [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(emptyTick), [selected, setSelected] = useState<number | null>(null);
   const [paused, setPaused] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches), [speed, setSpeed] = useState(10), [population, setPopulation] = useState(initialPopulation);
-  const [lighting, setLighting] = useState<Lighting>('golden');
-  const [uiVisible, setUiVisible] = useState(true), [settingsOpen, setSettingsOpen] = useState(false);
-  const [layers, setLayers] = useState<Record<Layer, boolean>>({ buildings: true, greenery: true, paths: false, traffic: true });
+  const [uiVisible, setUiVisible] = useState(true);
   useEffect(() => { activeRunRef.current = runRef; }, [runRef]);
   useEffect(() => {
     let active = true;
@@ -135,7 +127,6 @@ export function App() {
     window.addEventListener('keydown', keyboard); element?.addEventListener('scene-error', contextError);
     return () => { window.removeEventListener('keydown', keyboard); element?.removeEventListener('scene-error', contextError); };
   }, []);
-  function chooseLight(id: Lighting) { setLighting(id); engine.current?.setLighting(id); }
   async function loadRunRef(nextRunRef: RunRef) {
     const request = ++traceRequest.current;
     activeRunRef.current = nextRunRef;
@@ -144,32 +135,12 @@ export function App() {
       const next = await loadRunTrace(nextRunRef);
       if (request !== traceRequest.current || !engine.current) return;
       engine.current.setFoodTrace(next, nextRunRef); setTick(emptyTick); setTrace(next); setRunRef(nextRunRef);
-      setPopulation(next.population); setPolicy(next.policy); setSiteId(null); setProjectedPoint(null);
+      setPopulation(next.population); setPolicy(next.policy); setSiteId(null);
       updateRunUrl(nextRunRef, 0);
     } catch (e) {
       if (request === traceRequest.current) setRunError(e instanceof Error ? e.message : 'The scenario could not load.');
     } finally { if (request === traceRequest.current) setBusy(false); }
   }
-  async function loadRun(count: number, nextPolicy: 'baseline' | 'emergency') {
-    await loadRunRef({ kind: 'preset', population: count, policy: nextPolicy });
-  }
-  const onCouncilRunLoaded = useCallback((nextRunRef: Extract<RunRef, { kind: 'council' }>, next: CouncilFoodTrace) => {
-    traceRequest.current++;
-    activeRunRef.current = nextRunRef;
-    engine.current?.setFoodTrace(next, nextRunRef);
-    setTrace(next); setRunRef(nextRunRef); setPopulation(next.population); setPolicy('council');
-    setTick(emptyTick); setSiteId(null); setRunError(null); setBusy(false); setCouncilOpen(false);
-    updateRunUrl(nextRunRef, 0);
-  }, []);
-  const onProjectLocation = useCallback((point: Point | null) => setProjectedPoint(point), []);
-  const onFocusLocation = useCallback((point: Point) => engine.current?.focusProposedSite(point), []);
-  const onSeekToRolloutStage = useCallback((seconds: number) => {
-    const next = Math.max(0, Math.min(seconds, trace?.horizon_seconds ?? seconds));
-    engine.current?.seek(next);
-    setTick(previous => ({ ...previous, seconds: next }));
-    updateRunUrl(runRef, next);
-  }, [runRef, trace]);
-  useEffect(() => { engine.current?.setProposedLocation(projectedPoint); }, [projectedPoint, ready]);
   useEffect(() => {
     if (!trace || busy || !liveChannel.current) return;
     const publish = () => {
@@ -193,9 +164,6 @@ export function App() {
     const timer = window.setInterval(publish, 1000);
     return () => window.clearInterval(timer);
   }, [trace, runRef, population, policy, tick.seconds, paused, busy, speed]);
-  function toggleLayer(layer: Layer) {
-    const visible = !layers[layer]; setLayers(previous => ({ ...previous, [layer]: visible })); engine.current?.setLayer(layer, visible);
-  }
   const resident = selected === null ? null : tick.selected;
   const residentStyle: CSSProperties & { '--resident-color': string } = { '--resident-color': resident?.color ?? '#b7c9a2' };
   const mappedHeights = district?.buildings.filter(b => b.basis !== 'estimate').length ?? 0;
@@ -203,7 +171,7 @@ export function App() {
   const household = trace?.households.find(h => h.resident_id === selected);
   const selectedSite = trace?.sites.find(site => site.id === siteId);
   return (
-    <main className={'environment light-' + lighting + (!uiVisible ? ' cinema' : '')}>
+    <main className={'environment light-golden' + (!uiVisible ? ' cinema' : '')}>
       <div className="world" ref={container} />
       <div className="vignette" />
       {!ready && !error && <div className="loading-screen" role="status">
@@ -223,9 +191,8 @@ export function App() {
                 + '&time=' + Math.floor(tick.seconds) + (siteId ? '&site=' + encodeURIComponent(siteId) : '')}>
               <BarChart3 size={15} /> Run dashboard <ArrowRight size={14} /></a>
             <button className="quiet-button council-toggle" aria-expanded={councilOpen} aria-controls="council-panel"
-              onClick={() => { setCouncilOpen(open => !open); setSettingsOpen(false); }}><Landmark size={15} /> Council</button>
+              onClick={() => setCouncilOpen(open => !open)}><Landmark size={15} /> Council</button>
             <button className="icon-button info-button" onClick={() => dialog.current?.showModal()} aria-label="About the environment"><Info size={18} /></button>
-            <button className="icon-button mobile-settings" onClick={() => setSettingsOpen(v => !v)} aria-label="Toggle city settings"><Settings2 size={18} /></button>
             <button className="quiet-button hide-button" onClick={() => setUiVisible(false)}><Expand size={15} /> Hide interface <kbd>H</kbd></button>
           </nav>
         </header>
@@ -242,35 +209,7 @@ export function App() {
         </section>}
         {busy && <div className="food-loading" role="status">Loading food scenario…</div>}
         {runError && <div className="food-run-error" role="alert">{runError}</div>}
-        <CouncilPanel id="council-panel" open={councilOpen} ready={ready} population={population}
-          seed={trace?.seed ?? 0} currentTrace={trace} currentRunRef={runRef} currentSeconds={tick.seconds}
-          onClose={() => setCouncilOpen(false)} onRunLoaded={onCouncilRunLoaded}
-          onProjectLocation={onProjectLocation} onFocusLocation={onFocusLocation} onSeekTo={onSeekToRolloutStage} />
-        <button className="meet-button glass" disabled={!ready} onClick={() => engine.current?.meetResident()}>
-          <span className="resident-avatars"><i /><i /><i /></span><span>Every dot has somewhere to be.<b>Meet a resident <ArrowRight size={13} /></b></span>
-        </button>
-        <section className={'settings-panel glass' + (settingsOpen ? ' mobile-open' : '') + (councilOpen ? ' council-covered' : '')} aria-label="City settings">
-          <div className="settings-title"><span><Layers3 size={15} /> City settings</span></div>
-          <label className="section-label">CITY LIFE <span>{population.toLocaleString()}</span></label>
-          <div className="segmented population" aria-label="Pedestrian population">
-            {[{ n: 200, label: 'Quiet' }, { n: 600, label: 'Everyday' }, { n: 1200, label: 'Lively' }].map(option => <button key={option.n} className={population === option.n ? 'selected' : ''} aria-pressed={population === option.n} disabled={!ready || busy} onClick={() => { void loadRun(option.n, policy === 'council' ? 'baseline' : policy); }}>{option.label}</button>)}
-          </div>
-          <div className="setting-divider" />
-          <label className="section-label">FOOD SCENARIO</label>
-          <div className="segmented population" aria-label="Food access scenario">
-            {[{ id: 'baseline' as const, label: 'Baseline' }, { id: 'emergency' as const, label: 'Emergency site' }].map(option =>
-              <button key={option.id} className={policy === option.id ? 'selected' : ''} aria-pressed={policy === option.id}
-                disabled={!ready || busy} onClick={() => { void loadRun(population, option.id); }}>{option.label}</button>)}
-          </div>
-          <div className="setting-divider" />
-          <label className="section-label">LIGHT & ATMOSPHERE <Sun size={13} /></label>
-          <div className="lighting-controls" aria-label="Lighting">
-            {([{ id: 'day', title: 'Daylight', Icon: Sun }, { id: 'golden', title: 'Golden hour', Icon: Sunrise }, { id: 'blue', title: 'Blue hour', Icon: Moon }] satisfies { id: Lighting; title: string; Icon: typeof Sun }[]).map(({ id, title, Icon }) => <button key={id} title={title} aria-label={title} aria-pressed={lighting === id} className={lighting === id ? 'selected' : ''} onClick={() => chooseLight(id)}><Icon size={17} /><span>{title === 'Golden hour' ? 'Golden' : title === 'Blue hour' ? 'Blue hour' : 'Daylight'}</span></button>)}
-          </div>
-          <div className="setting-divider" />
-          <label className="section-label">LAYERS <Eye size={13} /></label>
-          {([{ id: 'buildings', label: 'Buildings' }, { id: 'greenery', label: 'Greenery' }, { id: 'paths', label: 'Walking network' }, { id: 'traffic', label: 'Road traffic' }] satisfies { id: Layer; label: string }[]).map(layer => <label className="layer-row" key={layer.id}><span>{layer.label}</span><span className="toggle"><input type="checkbox" checked={layers[layer.id]} onChange={() => toggleLayer(layer.id)} /><i><Check size={10} /></i></span></label>)}
-        </section>
+        <CouncilPanel id="council-panel" open={councilOpen} onClose={() => setCouncilOpen(false)} />
         {resident && <section className="resident-card glass" aria-label="Selected resident">
           <div className="resident-heading"><span className="eyebrow">ONE OF THE SIX</span><button className="small-icon" onClick={() => engine.current?.select(null)} aria-label="Close resident details"><X size={15} /></button></div>
           <div className="resident-profile"><div className="resident-portrait" style={residentStyle}><i /><b /></div><div><h2>{resident.name}</h2><span>Synthetic resident · #{String(resident.id + 1).padStart(4, '0')}</span></div></div>
@@ -279,7 +218,7 @@ export function App() {
           <div className="route-progress"><i style={{ width: Math.max(2, resident.progress * 100) + '%' }} /></div>
           <div className="route-meta"><span>{distance(resident.routeLength)} route</span><span>{resident.activity === 'Walking' ? resident.speed.toFixed(1) + ' m/s' : 'Resting'}</span></div>
           <button className="follow-button" onClick={() => engine.current?.followSelected()}><Footprints size={14} /> Follow this journey <ArrowRight size={14} /></button>
-          {household && food && <HouseholdDetails household={household} view={food} />}
+          {household && food && <HouseholdDetails household={household} view={food} startTime={trace?.start_time} timezone={trace?.timezone} />}
         </section>}
         <div className="map-controls" aria-label="Camera controls">
           <button onClick={() => engine.current?.resetCamera()} aria-label="Reset camera" title="Return to the city view"><Compass size={21} /><small>N</small></button>
@@ -288,7 +227,7 @@ export function App() {
         <section className="playback glass" aria-label="Simulation playback">
           <button className="reset-button" aria-label="Restart pedestrian simulation" title="Restart · R" disabled={!ready} onClick={() => engine.current?.reset()}><RotateCcw size={17} /></button>
           <button className="play-button" aria-label={paused ? 'Resume simulation' : 'Pause simulation'} disabled={!ready} onClick={() => setPaused(v => !v)}>{paused ? <Play size={19} fill="currentColor" /> : <Pause size={19} fill="currentColor" />}</button>
-          <div className="time-display"><span>{trace && tick.seconds >= trace.horizon_seconds ? 'DAY COMPLETE' : paused ? 'SIMULATION PAUSED' : 'FOOD ACCESS DAY'}</span><time data-testid="simulation-time">{clock(tick.seconds)}</time></div>
+          <div className="time-display"><span>{trace && tick.seconds >= trace.horizon_seconds ? 'DAY COMPLETE' : paused ? 'SIMULATION PAUSED' : 'FOOD ACCESS DAY'}</span><time data-testid="simulation-time">{at(tick.seconds, trace?.start_time, trace?.timezone)}</time></div>
           <div className="playback-divider" />
           <div className="speed-controls" aria-label="Simulation speed">{[1, 10, 30, 120].map(value => <button key={value} className={speed === value ? 'selected' : ''} aria-pressed={speed === value} onClick={() => setSpeed(value)}>{value}×</button>)}</div>
           <div className="activity-pill"><span /><b data-testid="walking-count">{tick.walking.toLocaleString()}</b> walking</div>

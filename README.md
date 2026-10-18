@@ -4,7 +4,7 @@ A browser 3D environment for exploring downtown Toronto and watching synthetic p
 
 ## Current implementation
 
-The browser application in [apps/web](apps/web/) loads a frozen, attributed OpenStreetMap snapshot of downtown Toronto with building massing, landmarks, parks, streets, and household pedestrians. It replays a Python-settled food-access day with home pantries, retail purchases, food support, school nutrition, supplier deliveries, and an optional emergency food site. A local Council workflow also accepts exact Markdown revisions, records explicit scope, plan and reviewer decisions, and runs one hypothetical municipal food site against a same-seed baseline. Operating values are illustrative assumptions. The bounded local feature does not create an ongoing city simulation or grant real City authority. See the [implemented interaction contract](sim/interactables/README.md) and [planner plan](docs/agent-planner-plan.md).
+The browser application in [apps/web](apps/web/) loads a frozen, attributed OpenStreetMap snapshot of downtown Toronto and replays a Python-settled six-hour food-access scenario. The local Council API stores exact Markdown revisions, scope, plan, reviewer decisions, and a paired run for one hypothetical municipal food site. In the current working tree, the browser panel exposes proposal intake and revision inspection; scope, plan, decision, and run controls remain unfinished in the UI. Operating values are illustrative assumptions. The active roadmap focuses on completing this Council flow, adding bounded organization decisions and actual stakeholder evidence, and extending the authoritative simulation across operating days. See the [implemented interaction contract](sim/interactables/README.md) and [active roadmap](NEXT_STEPS.md).
 
 Use Node.js 24 or newer and Python 3.10 or newer. From the repository root, start the browser and its local Council service together:
 
@@ -20,19 +20,17 @@ This repository contains a headless Python research prototype. It runs one synth
 
 The older `sim.integration` school-day fixture remains separate from the browser food-access scenario. It has no API, durable run database, or live LLM connection. [Here is why that legacy fixture says school day](docs/integration.md#why-the-prototype-says-school-day).
 
-## Product scope
+## Active scope
 
-The target product is an ongoing Toronto simulation with a side-panel Council workflow. The current bounded implementation preserves Markdown and source spans, keeps unknown content visible, and asks the reviewer to choose one supported action and labeled parameters. It does not interpret proposals through a conversational model or refresh external evidence. A recorded simulated decision applies only to a six-hour scenario; it does not authorize real City action.
+The current priorities are: complete the human-reviewed Council proposal flow; model bounded economic decisions by relevant organizations; record actual stakeholder input separately from synthetic household behavior; and build a persistent simulation with pinned, traceable evidence. The existing site action is a starting point for an integrated proof. Broader policy catalogs and other model features are deferred unless the selected proposal requires them. No simulated decision authorizes real City action.
 
-See the [agent planner plan](docs/agent-planner-plan.md) for the planner's roles, authority boundaries, work packages, and rollout behavior.
-
-The initial demo proposals are city-operated affordable grocery stores, rescue and processing of surplus food, and expanded school meals with shared food purchasing. They are example inputs, not a closed list of supported proposals. New Markdown proposals should use the same intake and validation flow without requiring a new hard-coded policy ID.
+See [the focused product plan](PLAN.md), [the active roadmap](NEXT_STEPS.md), and the [agent planner plan](docs/agent-planner-plan.md) for scope, authority boundaries, and acceptance gates.
 
 ## Technology
 
-TypeScript, React, Three.js, and Vite implement the browser. Python generates bounded deterministic food-access runs through the existing economic kernel and owns the local Council records and paired traces; the browser displays committed projections. The target architecture adds a persistent Python world service, general action catalog, and broader evidence and agent workflows. See the [system architecture](docs/architecture.md).
+TypeScript, React, Three.js, and Vite implement the browser. Python generates bounded deterministic food-access runs through the existing economic kernel and owns the local Council records and paired traces; the browser displays committed projections. The active architecture extends this path with proposal-specific organization decisions, separate stakeholder evidence, and persistent runs. See the [system architecture](docs/architecture.md).
 
-Read [the product plan](PLAN.md) first. The [next steps](NEXT_STEPS.md) separate the bounded Council proof from the future ongoing simulation. The specifications cover world and state ownership in [architecture](docs/architecture.md), agent and outcome semantics in [simulation](docs/simulation.md), Toronto inputs in [the data plan](docs/data-plan.md), and study design in [experiments and validation](docs/experiments-and-validation.md).
+Read [the focused product plan](PLAN.md) and [active roadmap](NEXT_STEPS.md) first. Supporting specifications cover state ownership and persistence in [architecture](docs/architecture.md), organization and stakeholder semantics in [simulation](docs/simulation.md) and [pedestrian interactables](docs/pedestrian-interactables-plan.md), Toronto inputs in [the data plan](docs/data-plan.md), and evaluation boundaries in [experiments and validation](docs/experiments-and-validation.md). Those subsystem documents retain implementation details; the active roadmap controls current commitments.
 
 The product scope describes the intended system. The status of each implemented component is recorded separately in the implementation and integration documents.
 

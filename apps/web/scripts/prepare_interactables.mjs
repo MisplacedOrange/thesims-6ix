@@ -9,6 +9,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const out = resolve(root, 'apps/web/public/data/interactables');
 const inputs = [
   'apps/web/public/data/toronto.json',
+  'planning/scenarios/toronto-long-horizon-v1.json',
   'sim/core/data/catalog.json',
   'sim/data/snapshots/toronto-downtown-sites-v3.json',
 ];
@@ -20,7 +21,7 @@ for (const directory of ['sim/interactables', 'sim/core', 'sim/data']) {
 const hash = createHash('sha256');
 for (const path of inputs) hash.update(path).update(readFileSync(resolve(root, path)));
 const digest = hash.digest('hex');
-const outputs = [200, 600, 1200].flatMap(n => ['baseline', 'emergency'].map(p => `${out}/${n}-${p}.json`));
+const outputs = [200, 600, 1200, 2400].flatMap(n => ['baseline', 'emergency'].map(p => `${out}/${n}-${p}.json`));
 if (!existsSync(`${out}/input.sha256`) || readFileSync(`${out}/input.sha256`, 'utf8') !== digest || !outputs.every(existsSync)) {
   const result = spawnSync(process.env.PYTHON || 'python', ['-m', 'sim.interactables'], { cwd: root, stdio: 'inherit' });
   if (result.error) throw result.error;

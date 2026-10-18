@@ -3,20 +3,33 @@ import type { FoodView, Household, InteractionEvent } from './interactables.ts';
 export const dollars = (cents: number) => new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(cents / 100);
 export const grams = (value: number) => value >= 1000 ? (value / 1000).toFixed(1) + ' kg' : value.toLocaleString() + ' g';
 export const words = (value: string) => value.replaceAll('_', ' ').replace(/^./, letter => letter.toUpperCase());
-export const at = (seconds: number) => {
-  const time = (8 * 3600 + 30 * 60 + Math.floor(seconds)) % (24 * 3600);
+export const at = (seconds: number, startTime = '2026-10-17T08:30:00', timezone = 'America/Toronto') => {
+  const hasOffset = /(?:Z|[+-]\d{2}:\d{2})$/.test(startTime);
+  if (hasOffset) {
+    const instant = new Date(Date.parse(startTime) + Math.floor(seconds) * 1000);
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+    }).formatToParts(instant);
+    const value = (type: string) => parts.find(part => part.type === type)?.value ?? '00';
+    return `${value('hour')}:${value('minute')}:${value('second')}`;
+  }
+  const start = startTime.match(/T(\d{2}):(\d{2}):(\d{2})/);
+  const origin = start ? Number(start[1]) * 3600 + Number(start[2]) * 60 + Number(start[3]) : 0;
+  const time = (origin + Math.floor(seconds)) % (24 * 3600);
   return String(Math.floor(time / 3600)).padStart(2, '0') + ':' + String(Math.floor(time / 60) % 60).padStart(2, '0');
 };
 export const duration = (seconds: number) => seconds < 60 ? Math.round(seconds) + ' s' : (seconds / 60).toFixed(1) + ' min';
 
-function EventLine({ event }: { event: InteractionEvent }) {
-  return <li><time>{at(event.simulation_time)}</time><span>{words(event.action)} <b>{event.household_id ?? event.site_id ?? 'City'}</b>
+function EventLine({ event, startTime, timezone }: { event: InteractionEvent; startTime: string; timezone?: string }) {
+  return <li><time>{at(event.simulation_time, startTime, timezone)}</time><span>{words(event.action)} <b>{event.household_id ?? event.site_id ?? 'City'}</b>
     {event.quantity_grams > 0 && <> / {grams(event.quantity_grams)}</>}
     {event.payment_cents > 0 && <> / {dollars(event.payment_cents)}</>}
     {event.denial_or_failure_reason && <em>{words(event.denial_or_failure_reason)}</em>}</span></li>;
 }
 
-export function HouseholdDetails({ household, view }: { household: Household; view: FoodView }) {
+export function HouseholdDetails({ household, view, startTime = '2026-10-17T08:30:00', timezone }: {
+  household: Household; view: FoodView; startTime?: string; timezone?: string;
+}) {
   const state = view.households[household.id]!;
   const events = view.events.filter(event => event.household_id === household.id);
   const offer = events.filter(event => event.action === 'offered').at(-1);
@@ -31,10 +44,10 @@ export function HouseholdDetails({ household, view }: { household: Household; vi
       <div><dt>Food spending</dt><dd>{dollars(state.expenditure_cents)}</dd></div></dl>
     <p className="assumption-note">Households own their cash and food. Need uses 300 g of produce per person in this illustrative day.</p>
     {chosen && <p>Rule choice: <b>{words(chosen.option_id ?? 'none')}</b>{chosen.reduced_basket ? ' / smaller basket' : ''}{chosen.substitution ? ' / substitute store' : ''}</p>}
-    {offer && <details><summary>Feasible choices at {at(offer.simulation_time)}</summary>
+    {offer && <details><summary>Feasible choices at {at(offer.simulation_time, startTime, timezone)}</summary>
       <ul>{offer.options?.map(option => <li key={option.option_id}>{words(option.option_id)}{option.quantity_grams ? ' / ' + grams(option.quantity_grams) + ' / ' + dollars(option.payment_cents ?? 0) : ''}</li>)}</ul>
       {offer.excluded?.map(item => <p key={item.site_id}>{words(item.site_id)}: {words(item.reason)}</p>)}
     </details>}
-    <details><summary>Interaction history ({events.length})</summary><ol className="food-events">{events.map(event => <EventLine key={event.event_id} event={event} />)}</ol></details>
+    <details><summary>Interaction history ({events.length})</summary><ol className="food-events">{events.map(event => <EventLine key={event.event_id} event={event} startTime={startTime} timezone={timezone} />)}</ol></details>
   </div>;
 }

@@ -61,7 +61,8 @@ test('Council trace decoder rejects malformed records before scene and dashboard
 
 test('Council state decoder rejects unsupported schema versions', () => {
   const state = { schema: 1, session_id: 'session', revision: 0, proposal: null, scope: null,
-    scope_history: [], proposal_history: [], plan: null, decisions: [], runs: [], locations: [], service: { available: true } };
+    scope_history: [], proposal_history: [], plan: null, organizations: [], organization_records: [],
+    stakeholder_inputs: [], decisions: [], runs: [], locations: [], service: { available: true } };
   assert.equal(isCouncilState(state), true);
   assert.equal(isCouncilState({ ...state, schema: 2 }), false);
 });

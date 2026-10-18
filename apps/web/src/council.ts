@@ -33,6 +33,36 @@ export type Advice = {
   role: 'finance' | 'site_readiness' | 'supply' | 'access';
   status: 'ready' | 'caution' | 'blocked'; note: string; authority: 'advisory';
 };
+export type OrganizationRole =
+  | 'city_department' | 'city_funder' | 'property_owner' | 'site_host' | 'site_operator'
+  | 'supplier_distributor' | 'delivery_carrier' | 'contractor' | 'retailer' | 'school'
+  | 'food_support_provider' | 'community_organization' | 'other';
+export type EvidenceState = 'observed' | 'announced' | 'estimated' | 'illustrative_assumption' | 'unknown';
+export type OrganizationReference = {
+  role: OrganizationRole; organization_id: string; record_id: string; sha256: string;
+};
+export type StakeholderInputReference = { record_id: string; sha256: string };
+export type OrganizationRecord = {
+  id: string; sha256: string; proposal_id: string; proposal_sha256: string;
+  organization_id: string; organization_revision: number; supersedes_record_id: string | null;
+  name: string; role: OrganizationRole; evidence_state: EvidenceState;
+  operating_status: 'operating' | 'not_operating' | 'seasonal' | 'unknown';
+  authority_status: 'documented' | 'assumed' | 'unknown'; authority_basis: string;
+  location_id: string | null; source_label: string; source_url: string;
+  budget_cents: number | null; stock_grams: number | null; service_capacity: number | null;
+  operating_hours: string; permitted_decisions: string[]; agreement: string;
+  resource_notes: string; notes: string;
+};
+export type StakeholderInputRecord = {
+  id: string; sha256: string; proposal_id: string; proposal_sha256: string;
+  stakeholder_group: 'residents_users' | 'nearby_residents' | 'access_barriers' | 'workers_volunteers'
+    | 'nearby_businesses' | 'food_support_partners' | 'community_organization' | 'public_authorities' | 'other';
+  organization_id: string | null; organization_record_id: string | null; organization_record_sha256: string | null;
+  input_date: string; method: 'consultation' | 'survey' | 'partner_submission' | 'meeting' | 'other';
+  evidence_state: EvidenceState; source_label: string; source_url: string; geography: string;
+  reach_summary: string; consent_limits: string; views_summary: string;
+  groups_not_reached: string; conflicting_views: string;
+};
 export type WorldInputs = {
   population: number; seed: number; map_sha256: string; catalog_id: string; catalog_sha256: string;
   source_snapshot_id: string; source_sha256: string; simulator_version: string; sha256: string;
@@ -40,6 +70,9 @@ export type WorldInputs = {
 type PlanFields = {
   id: string; proposal_id: string; proposal_sha256: string; sha256: string; scope_id: string; scope_sha256: string;
   execution_blockers: string[]; advice: Advice[]; world: WorldInputs;
+  organization_refs: OrganizationReference[]; organization_snapshot_refs: OrganizationReference[];
+  stakeholder_input_refs: StakeholderInputReference[]; organization_record_gaps: string[];
+  organization_binding_ambiguities: string[];
 };
 export type Plan = PlanFields & (
   | { action: 'establish_service_site'; parameters: SiteParameters }
@@ -58,16 +91,22 @@ export type RunSummary = {
 export type CouncilState = {
   schema: 1; session_id: string; revision: number; proposal: Proposal | null; scope: ScopeRevision | null;
   scope_history: ScopeRevision[]; proposal_history: ProposalRevisionSummary[]; plan: Plan | null;
+  organizations: OrganizationRecord[]; organization_records: OrganizationRecord[];
+  stakeholder_inputs: StakeholderInputRecord[];
   decisions: Decision[]; runs: RunSummary[]; locations: LocationChoice[]; service: { available: true };
 };
 
 export type ProposalCommand = { markdown: string };
+export type OrganizationCommand = Omit<OrganizationRecord,
+  'id' | 'sha256' | 'organization_revision' | 'supersedes_record_id'>;
+export type StakeholderInputCommand = Omit<StakeholderInputRecord, 'id' | 'sha256'
+  | 'organization_record_id' | 'organization_record_sha256'>;
 export type ScopeCommand = {
   proposal_id: string; evaluated_scope: string; excluded_scope: string; reviewer_note: string;
 };
 export type PlanCommand = {
   proposal_id: string; scope_id: string; action: Plan['action']; parameters: SiteParameters | null;
-  population: number; seed: number;
+  population: number; seed: number; organization_bindings?: Partial<Record<OrganizationRole, string>>;
 };
 export type DecisionCommand = {
   proposal_id: string; proposal_sha256: string; scope_id: string; scope_sha256: string;
@@ -76,7 +115,8 @@ export type DecisionCommand = {
 };
 export type RunCommand = { decision_id: string };
 
-type CouncilEndpoint = '/api/council/proposals' | '/api/council/scopes' | '/api/council/plans'
+type CouncilEndpoint = '/api/council/proposals' | '/api/council/organizations' | '/api/council/stakeholder-inputs'
+  | '/api/council/scopes' | '/api/council/plans'
   | '/api/council/decisions' | '/api/council/runs';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -85,6 +125,68 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isString(value: unknown): value is string { return typeof value === 'string'; }
 function isNumber(value: unknown): value is number { return typeof value === 'number' && Number.isFinite(value); }
 function isStringArray(value: unknown): value is string[] { return Array.isArray(value) && value.every(isString); }
+function isNullableString(value: unknown): value is string | null { return value === null || isString(value); }
+function isNullableInteger(value: unknown): value is number | null { return value === null || Number.isInteger(value); }
+function isActorReference(value: unknown): boolean {
+  return isRecord(value) && isString(value.role) && isString(value.organization_id)
+    && isString(value.record_id) && isString(value.sha256);
+}
+function isActorReferenceArray(value: unknown): boolean {
+  return Array.isArray(value) && value.every(isActorReference);
+}
+const organizationRoles: OrganizationRole[] = [
+  'city_department', 'city_funder', 'property_owner', 'site_host', 'site_operator',
+  'supplier_distributor', 'delivery_carrier', 'contractor', 'retailer', 'school',
+  'food_support_provider', 'community_organization', 'other',
+];
+const evidenceStates: EvidenceState[] = ['observed', 'announced', 'estimated', 'illustrative_assumption', 'unknown'];
+function isOrganizationReference(value: unknown): value is OrganizationReference {
+  return isRecord(value) && organizationRoles.includes(value.role as OrganizationRole)
+    && isString(value.organization_id) && isString(value.record_id) && isString(value.sha256);
+}
+function isOrganizationReferenceArray(value: unknown): value is OrganizationReference[] {
+  return Array.isArray(value) && value.every(isOrganizationReference);
+}
+function isStakeholderInputReference(value: unknown): value is StakeholderInputReference {
+  return isRecord(value) && isString(value.record_id) && isString(value.sha256);
+}
+function isStakeholderInputReferenceArray(value: unknown): value is StakeholderInputReference[] {
+  return Array.isArray(value) && value.every(isStakeholderInputReference);
+}
+function isOrganization(value: unknown): value is OrganizationRecord {
+  return isRecord(value) && isString(value.id) && isString(value.sha256)
+    && isString(value.proposal_id) && isString(value.proposal_sha256)
+    && isString(value.organization_id) && Number.isInteger(value.organization_revision)
+    && isNullableString(value.supersedes_record_id) && isString(value.name)
+    && organizationRoles.includes(value.role as OrganizationRole)
+    && evidenceStates.includes(value.evidence_state as EvidenceState)
+    && (value.operating_status === 'operating' || value.operating_status === 'not_operating'
+      || value.operating_status === 'seasonal' || value.operating_status === 'unknown')
+    && (value.authority_status === 'documented' || value.authority_status === 'assumed' || value.authority_status === 'unknown')
+    && isString(value.authority_basis) && isNullableString(value.location_id)
+    && isString(value.source_label) && isString(value.source_url)
+    && isNullableInteger(value.budget_cents) && isNullableInteger(value.stock_grams)
+    && isNullableInteger(value.service_capacity) && isString(value.operating_hours)
+    && isStringArray(value.permitted_decisions) && isString(value.agreement)
+    && isString(value.resource_notes) && isString(value.notes);
+}
+function isStakeholderInput(value: unknown): value is StakeholderInputRecord {
+  return isRecord(value) && isString(value.id) && isString(value.sha256)
+    && isString(value.proposal_id) && isString(value.proposal_sha256)
+    && (value.stakeholder_group === 'residents_users' || value.stakeholder_group === 'nearby_residents'
+      || value.stakeholder_group === 'access_barriers' || value.stakeholder_group === 'workers_volunteers'
+      || value.stakeholder_group === 'nearby_businesses' || value.stakeholder_group === 'food_support_partners'
+      || value.stakeholder_group === 'community_organization' || value.stakeholder_group === 'public_authorities'
+      || value.stakeholder_group === 'other')
+    && isNullableString(value.organization_id) && isNullableString(value.organization_record_id)
+    && isNullableString(value.organization_record_sha256) && isString(value.input_date)
+    && (value.method === 'consultation' || value.method === 'survey' || value.method === 'partner_submission'
+      || value.method === 'meeting' || value.method === 'other')
+    && evidenceStates.includes(value.evidence_state as EvidenceState)
+    && isString(value.source_label) && isString(value.source_url) && isString(value.geography)
+    && isString(value.reach_summary) && isString(value.consent_limits) && isString(value.views_summary)
+    && isString(value.groups_not_reached) && isString(value.conflicting_views);
+}
 function isSpan(value: unknown): value is Span {
   return isRecord(value) && Number.isInteger(value.start_line) && Number.isInteger(value.end_line)
     && isString(value.text);
@@ -148,7 +250,11 @@ function isPlan(value: unknown): value is Plan {
   return isString(value.id) && isString(value.proposal_id) && isString(value.proposal_sha256) && isString(value.sha256)
     && isString(value.scope_id) && isString(value.scope_sha256)
     && actionParametersMatch && isStringArray(value.execution_blockers)
-    && Array.isArray(value.advice) && value.advice.every(isAdvice) && isWorld(value.world);
+    && Array.isArray(value.advice) && value.advice.every(isAdvice) && isWorld(value.world)
+    && isOrganizationReferenceArray(value.organization_refs)
+    && isOrganizationReferenceArray(value.organization_snapshot_refs)
+    && isStakeholderInputReferenceArray(value.stakeholder_input_refs)
+    && isStringArray(value.organization_record_gaps) && isStringArray(value.organization_binding_ambiguities);
 }
 function isDecision(value: unknown): value is Decision {
   return isRecord(value) && isString(value.id) && isString(value.proposal_id) && isString(value.proposal_sha256)
@@ -172,6 +278,9 @@ export function isCouncilState(value: unknown): value is CouncilState {
     && Array.isArray(value.scope_history) && value.scope_history.every(isScope)
     && Array.isArray(value.proposal_history) && value.proposal_history.every(isProposalRevision)
     && (value.plan === null || isPlan(value.plan))
+    && Array.isArray(value.organizations) && value.organizations.every(isOrganization)
+    && Array.isArray(value.organization_records) && value.organization_records.every(isOrganization)
+    && Array.isArray(value.stakeholder_inputs) && value.stakeholder_inputs.every(isStakeholderInput)
     && Array.isArray(value.decisions) && value.decisions.every(isDecision)
     && Array.isArray(value.runs) && value.runs.every(isRunSummary)
     && Array.isArray(value.locations) && value.locations.every(isLocation)
@@ -236,6 +345,10 @@ async function postCouncilCommand(endpoint: CouncilEndpoint, body: object, revis
 
 export const submitProposal = (command: ProposalCommand, revision: number) =>
   postCouncilCommand('/api/council/proposals', command, revision);
+export const saveOrganization = (command: OrganizationCommand, revision: number) =>
+  postCouncilCommand('/api/council/organizations', command, revision);
+export const saveStakeholderInput = (command: StakeholderInputCommand, revision: number) =>
+  postCouncilCommand('/api/council/stakeholder-inputs', command, revision);
 export const saveScope = (command: ScopeCommand, revision: number) =>
   postCouncilCommand('/api/council/scopes', command, revision);
 export const savePlan = (command: PlanCommand, revision: number) =>
@@ -253,7 +366,8 @@ function isRolloutEvent(value: unknown): value is RolloutEvent {
     && isNumber(value.simulation_time) && value.simulation_time >= 0
     && (value.status === 'completed' || value.status === 'blocked' || value.status === 'not_started')
     && (value.reason === null || isString(value.reason)) && isNumber(value.amount_cents)
-    && isNumber(value.stock_grams) && isNumber(value.capacity);
+    && isNumber(value.stock_grams) && isNumber(value.capacity)
+    && (!('organization_refs' in value) || isActorReferenceArray(value.organization_refs));
 }
 
 function isNumberArray(value: unknown): value is number[] { return Array.isArray(value) && value.every(isNumber); }
@@ -299,7 +413,8 @@ function isSite(value: unknown): boolean {
     && (!('operations_evidence_state' in value) || isString(value.operations_evidence_state))
     && (!('listing_current_status' in value) || isString(value.listing_current_status))
     && (!('map_snap_distance_m' in value) || isNumber(value.map_snap_distance_m))
-    && (!('network_point' in value) || isPoint(value.network_point));
+    && (!('network_point' in value) || isPoint(value.network_point))
+    && (!('organization_refs' in value) || isActorReferenceArray(value.organization_refs));
 }
 function isJourney(value: unknown): boolean {
   return isRecord(value) && isString(value.route_id) && isString(value.site_id)
@@ -329,6 +444,7 @@ function isInteractionEvent(value: unknown): boolean {
     && isString(value.evidence_state) && nullableString(value.source_id) && isString(value.scenario_parameter_id)
     && (!('household_state' in value) || isHouseholdState(value.household_state))
     && (!('site_state' in value) || isSiteState(value.site_state)) && isNumber(value.public_spending_cents)
+    && (!('organization_refs' in value) || isActorReferenceArray(value.organization_refs))
     && (!('option_id' in value) || isString(value.option_id)) && optionalNumber('shortfall_grams')
     && optionalBoolean('substitution') && optionalBoolean('reduced_basket') && optionalNumber('portions')
     && optionsValid && excludedValid;
@@ -361,9 +477,13 @@ function isFoodTracePayload(value: Record<string, unknown>): boolean {
 export function isCouncilFoodTrace(value: unknown, expected: CouncilRunRef): value is CouncilFoodTrace {
   if (!isRecord(value) || !isRunRef(value.run_ref)) return false;
   const runRef = value.run_ref;
+  const context = value.council_context;
+  const contextValid = context === undefined || (isRecord(context)
+    && isActorReferenceArray(context.organization_refs)
+    && isStakeholderInputReferenceArray(context.stakeholder_input_refs));
   return value.policy === 'council' && isFoodTracePayload(value) && value.run_id === expected.run_id
     && runRef.kind === 'council' && sameRunRef(runRef, expected)
-    && Array.isArray(value.rollout_events) && value.rollout_events.every(isRolloutEvent);
+    && Array.isArray(value.rollout_events) && value.rollout_events.every(isRolloutEvent) && contextValid;
 }
 
 export async function loadCouncilTrace(runRef: CouncilRunRef): Promise<CouncilFoodTrace> {

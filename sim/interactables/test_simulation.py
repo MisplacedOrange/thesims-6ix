@@ -2,7 +2,8 @@
 
 import unittest
 
-from sim.interactables.simulation import HORIZON, WalkingNetwork, run
+from sim.interactables.manifest import load_manifest
+from sim.interactables.simulation import HORIZON, WalkingNetwork, run, run_day
 
 
 def district():
@@ -108,6 +109,31 @@ class FoodInteractionsTest(unittest.TestCase):
             run(self.map, True)
         with self.assertRaises(ValueError):
             run(self.map, 0)
+
+    def test_frozen_manifest_pins_today_and_five_year_decisions(self):
+        manifest = load_manifest()
+        self.assertEqual(manifest["start_date"], "2026-10-18")
+        self.assertEqual(manifest["timezone"], "America/Toronto")
+        self.assertEqual(manifest["horizon_months"], 60)
+        self.assertEqual(manifest["planning"]["first_decision_date"], "2026-11-01")
+        self.assertEqual(manifest["planning"]["decision_count"], 60)
+        self.assertEqual(manifest["end_date_exclusive"], "2031-10-18")
+
+    def test_calendar_day_runner_is_deterministic_and_respects_dst(self):
+        baseline = run_day(self.map, "2026-10-18", population=8)
+        self.assertEqual(baseline, run_day(self.map, "2026-10-18", population=8))
+        self.assertEqual(baseline["horizon_seconds"], 86400)
+        self.assertEqual(baseline["start_time"], "2026-10-18T00:00:00-04:00")
+        self.assertEqual(baseline["accounting"]["invariant_problems"], [])
+        self.assertEqual(baseline["accounting"]["imported_grams"],
+                         baseline["accounting"]["remaining_grams"] + baseline["accounting"]["consumed_grams"])
+        times = [event["simulation_time"] for event in baseline["events"]]
+        self.assertEqual(times, sorted(times))
+        self.assertTrue(all(0 <= second <= baseline["horizon_seconds"] for second in times))
+        spring = run_day(self.map, "2026-03-08", population=1)
+        fall = run_day(self.map, "2026-11-01", population=1)
+        self.assertEqual(spring["horizon_seconds"], 23 * 3600)
+        self.assertEqual(fall["horizon_seconds"], 25 * 3600)
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ import sys
 import threading
 import uuid
 from dataclasses import dataclass
+from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Callable
@@ -20,17 +21,32 @@ from urllib.parse import unquote, urlsplit
 
 from sim import core
 from sim.data.simulation_sites import load_simulation_site_snapshot
-from sim.interactables.simulation import HORIZON, MunicipalSiteSchedule, run as run_food_day
+from sim.interactables.simulation import HORIZON, MAX_POPULATION, MunicipalSiteSchedule, run as run_food_day
 
 ROOT = Path(__file__).resolve().parents[1]
 MAP_PATH = ROOT / "apps" / "web" / "public" / "data" / "toronto.json"
 SITE_SNAPSHOT_PATH = ROOT / "sim" / "data" / "snapshots" / "toronto-downtown-sites-v3.json"
 DEFAULT_DB = ROOT / "state" / "council.sqlite"
-DEFAULT_POPULATION = 600
+DEFAULT_POPULATION = 2400
 DEFAULT_SEED = 2026
 MAX_MARKDOWN = 200_000
 MAX_GRANT_CENTS = 30_000
 MAX_STOCK_GRAMS = 60_000
+ORGANIZATION_ROLES = {
+    "city_department", "city_funder", "property_owner", "site_host", "site_operator",
+    "supplier_distributor", "delivery_carrier", "contractor", "retailer", "school",
+    "food_support_provider", "community_organization", "other",
+}
+CORE_ORGANIZATION_ROLES = ("city_funder", "site_host", "site_operator", "supplier_distributor")
+EVIDENCE_STATES = {"observed", "announced", "estimated", "illustrative_assumption", "unknown"}
+OPERATING_STATUSES = {"operating", "not_operating", "seasonal", "unknown"}
+AUTHORITY_STATES = {"documented", "assumed", "unknown"}
+STAKEHOLDER_GROUPS = {
+    "residents_users", "nearby_residents", "access_barriers", "workers_volunteers",
+    "nearby_businesses", "food_support_partners", "community_organization",
+    "public_authorities", "other",
+}
+INPUT_METHODS = {"consultation", "survey", "partner_submission", "meeting", "other"}
 SECTION_NAMES = {
     "constraints": "constraints", "measures": "measures", "assumptions": "assumptions",
     "goals": "goals", "changes": "changes", "unknowns": "unknowns",
@@ -91,10 +107,48 @@ def _text(value: Any, label: str, limit: int, allow_empty: bool = False) -> str:
     return value
 
 
-def _fields(payload: Any, required: set[str]) -> dict[str, Any]:
-    if not isinstance(payload, dict) or set(payload) != required:
+def _fields(payload: Any, required: set[str], optional: set[str] | None = None) -> dict[str, Any]:
+    optional = optional or set()
+    if (not isinstance(payload, dict) or not required <= set(payload)
+            or set(payload) - required - optional):
         raise CouncilError(400, "invalid_body", "Request body has missing or unexpected fields.")
     return payload
+
+
+def _enum(value: Any, label: str, choices: set[str]) -> str:
+    if not isinstance(value, str) or value not in choices:
+        options = ", ".join(sorted(choices))
+        raise CouncilError(400, "invalid_field", f"{label} must be one of: {options}.")
+    return value
+
+
+def _optional_nonnegative_int(value: Any, label: str) -> int | None:
+    if value is None:
+        return None
+    return _strict_int(value, label, 0, 2**31 - 1)
+
+
+def _text_list(value: Any, label: str, max_items: int = 20, max_item_length: int = 160) -> list[str]:
+    if not isinstance(value, list) or len(value) > max_items:
+        raise CouncilError(400, "invalid_field", f"{label} must be a list of at most {max_items} text items.")
+    result = []
+    for item in value:
+        text = _text(item, label, max_item_length)
+        if not text.strip():
+            raise CouncilError(400, "invalid_field", f"{label} items cannot be blank.")
+        result.append(text.strip())
+    return result
+
+
+def _iso_date(value: Any, label: str) -> str:
+    text = _text(value, label, 10)
+    try:
+        parsed = date.fromisoformat(text)
+    except ValueError as exc:
+        raise CouncilError(400, "invalid_field", f"{label} must be an ISO date (YYYY-MM-DD).") from exc
+    if parsed.isoformat() != text:
+        raise CouncilError(400, "invalid_field", f"{label} must be an ISO date (YYYY-MM-DD).")
+    return text
 
 
 def _finite_float(value: str) -> float:
@@ -285,11 +339,44 @@ class CouncilService:
         return [json.loads(row["body_json"]) for row in connection.execute(
             "SELECT body_json FROM records WHERE kind=? ORDER BY revision,record_id", (kind,))]
 
+    def _proposal_organizations(self, connection: sqlite3.Connection,
+                                proposal: dict[str, Any] | None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        if proposal is None:
+            return [], []
+        history = [record for record in self._all_records(connection, "organization")
+                   if record.get("proposal_id") == proposal["id"]
+                   and record.get("proposal_sha256") == proposal["sha256"]]
+        latest: dict[str, dict[str, Any]] = {}
+        for record in history:
+            actor_id = record["organization_id"]
+            if actor_id not in latest or record["organization_revision"] > latest[actor_id]["organization_revision"]:
+                latest[actor_id] = record
+        organizations = sorted(latest.values(), key=lambda item: (item["role"], item["organization_id"]))
+        return organizations, history
+
+    def _proposal_stakeholder_inputs(self, connection: sqlite3.Connection,
+                                     proposal: dict[str, Any] | None) -> list[dict[str, Any]]:
+        if proposal is None:
+            return []
+        return [record for record in self._all_records(connection, "stakeholder_input")
+                if record.get("proposal_id") == proposal["id"]
+                and record.get("proposal_sha256") == proposal["sha256"]]
+
     def _state(self, connection: sqlite3.Connection) -> dict[str, Any]:
         head = self._head(connection)
         proposal = self._record(connection, head["proposal_id"]) if head["proposal_id"] else None
         scope = self._record(connection, head["scope_id"]) if head["scope_id"] else None
         plan = self._record(connection, head["plan_id"]) if head["plan_id"] else None
+        organizations, organization_records = self._proposal_organizations(connection, proposal)
+        stakeholder_inputs = self._proposal_stakeholder_inputs(connection, proposal)
+        if plan is not None:
+            plan.setdefault("organization_refs", [])
+            plan.setdefault("organization_snapshot_refs", [])
+            plan.setdefault("stakeholder_input_refs", [])
+            bound_roles = {item.get("role") for item in plan["organization_refs"]}
+            plan.setdefault("organization_record_gaps",
+                            [role for role in CORE_ORGANIZATION_ROLES if role not in bound_roles])
+            plan.setdefault("organization_binding_ambiguities", [])
         proposals = self._all_records(connection, "proposal")
         scopes = self._all_records(connection, "scope")
         decisions = self._all_records(connection, "decision")
@@ -312,6 +399,9 @@ class CouncilService:
             "scope": scope,
             "scope_history": scopes,
             "plan": plan,
+            "organizations": organizations,
+            "organization_records": organization_records,
+            "stakeholder_inputs": stakeholder_inputs,
             "decisions": decisions,
             "runs": runs,
             "locations": self._locations(),
@@ -444,6 +534,116 @@ class CouncilService:
                 return {"proposal_id": record["id"], "scope_id": None, "plan_id": None,
                         "decision_id": None, "latest_run_id": head["latest_run_id"]}
             return self._command(route, expected, key, payload, write)
+        if route == "/organizations":
+            def write(connection: sqlite3.Connection, head: dict[str, Any], command_key: str) -> dict[str, Any]:
+                required = {
+                    "proposal_id", "proposal_sha256", "organization_id", "name", "role",
+                    "evidence_state", "operating_status", "authority_status", "authority_basis",
+                    "location_id", "source_label", "source_url", "budget_cents", "stock_grams",
+                    "service_capacity", "operating_hours", "permitted_decisions", "agreement",
+                    "resource_notes", "notes",
+                }
+                data = _fields(payload, required)
+                proposal = self._record(connection, head["proposal_id"]) if head["proposal_id"] else None
+                if (proposal is None or data["proposal_id"] != proposal["id"]
+                        or data["proposal_sha256"] != proposal["sha256"]):
+                    raise CouncilError(409, "proposal_conflict", "Organization record must refer to the exact current proposal revision.", head["revision"])
+                organization_id = _text(data["organization_id"], "organization_id", 64).strip()
+                if not re.fullmatch(r"[a-z0-9][a-z0-9._-]{1,63}", organization_id):
+                    raise CouncilError(400, "invalid_organization_id", "organization_id must be a stable lowercase id using letters, numbers, dots, underscores, or hyphens.")
+                role = _enum(data["role"], "role", ORGANIZATION_ROLES)
+                evidence_state = _enum(data["evidence_state"], "evidence_state", EVIDENCE_STATES)
+                operating_status = _enum(data["operating_status"], "operating_status", OPERATING_STATUSES)
+                authority_status = _enum(data["authority_status"], "authority_status", AUTHORITY_STATES)
+                authority_basis = _text(data["authority_basis"], "authority_basis", 2000, allow_empty=True).strip()
+                agreement = _text(data["agreement"], "agreement", 2000, allow_empty=True).strip()
+                if authority_status == "documented" and not (authority_basis or agreement):
+                    raise CouncilError(400, "authority_basis_required", "Documented authority requires an authority basis or agreement.")
+                location_id = data["location_id"]
+                if location_id is not None:
+                    location_id = _text(location_id, "location_id", 80)
+                    if location_id not in {item["id"] for item in self._locations()}:
+                        raise CouncilError(400, "unknown_location", "Organization location must match the pinned location list.")
+                source_label = _text(data["source_label"], "source_label", 300).strip()
+                source_url = _text(data["source_url"], "source_url", 1000, allow_empty=True).strip()
+                current, _ = self._proposal_organizations(connection, proposal)
+                previous = next((record for record in current if record["organization_id"] == organization_id), None)
+                record = {
+                    "id": self._stable_id(head["session_id"], command_key, "organization"),
+                    "proposal_id": proposal["id"], "proposal_sha256": proposal["sha256"],
+                    "organization_id": organization_id,
+                    "organization_revision": previous["organization_revision"] + 1 if previous else 1,
+                    "supersedes_record_id": previous["id"] if previous else None,
+                    "name": _text(data["name"], "name", 200).strip(),
+                    "role": role, "evidence_state": evidence_state,
+                    "operating_status": operating_status, "authority_status": authority_status,
+                    "authority_basis": authority_basis,
+                    "location_id": location_id, "source_label": source_label, "source_url": source_url,
+                    "budget_cents": _optional_nonnegative_int(data["budget_cents"], "budget_cents"),
+                    "stock_grams": _optional_nonnegative_int(data["stock_grams"], "stock_grams"),
+                    "service_capacity": _optional_nonnegative_int(data["service_capacity"], "service_capacity"),
+                    "operating_hours": _text(data["operating_hours"], "operating_hours", 300, allow_empty=True).strip(),
+                    "permitted_decisions": _text_list(data["permitted_decisions"], "permitted_decisions"),
+                    "agreement": agreement,
+                    "resource_notes": _text(data["resource_notes"], "resource_notes", 2000, allow_empty=True).strip(),
+                    "notes": _text(data["notes"], "notes", 2000, allow_empty=True).strip(),
+                }
+                record["sha256"] = _record_hash(record)
+                self._record_insert(connection, "organization", head["revision"] + 1, record)
+                return {"proposal_id": head["proposal_id"], "scope_id": None,
+                        "plan_id": None, "decision_id": None, "latest_run_id": head["latest_run_id"]}
+            return self._command(route, expected, key, payload, write)
+        if route == "/stakeholder-inputs":
+            def write(connection: sqlite3.Connection, head: dict[str, Any], command_key: str) -> dict[str, Any]:
+                required = {
+                    "proposal_id", "proposal_sha256", "stakeholder_group", "organization_id",
+                    "input_date", "method", "evidence_state", "source_label", "source_url",
+                    "geography", "reach_summary", "consent_limits", "views_summary",
+                    "groups_not_reached", "conflicting_views",
+                }
+                data = _fields(payload, required)
+                proposal = self._record(connection, head["proposal_id"]) if head["proposal_id"] else None
+                if (proposal is None or data["proposal_id"] != proposal["id"]
+                        or data["proposal_sha256"] != proposal["sha256"]):
+                    raise CouncilError(409, "proposal_conflict", "Stakeholder input must refer to the exact current proposal revision.", head["revision"])
+                stakeholder_group = _enum(data["stakeholder_group"], "stakeholder_group", STAKEHOLDER_GROUPS)
+                method = _enum(data["method"], "method", INPUT_METHODS)
+                evidence_state = _enum(data["evidence_state"], "evidence_state", EVIDENCE_STATES)
+                organization_id = data["organization_id"]
+                organization_record_id = None
+                organization_record_sha256 = None
+                if organization_id is not None:
+                    organization_id = _text(organization_id, "organization_id", 64).strip()
+                    organizations, _ = self._proposal_organizations(connection, proposal)
+                    organization = next((item for item in organizations
+                                         if item["organization_id"] == organization_id), None)
+                    if organization is None:
+                        raise CouncilError(400, "unknown_organization", "Input organization must exist in the current proposal roster.")
+                    organization_record_id = organization["id"]
+                    organization_record_sha256 = organization["sha256"]
+                source_label = _text(data["source_label"], "source_label", 300).strip()
+                source_url = _text(data["source_url"], "source_url", 1000, allow_empty=True).strip()
+                record = {
+                    "id": self._stable_id(head["session_id"], command_key, "stakeholder"),
+                    "proposal_id": proposal["id"], "proposal_sha256": proposal["sha256"],
+                    "stakeholder_group": stakeholder_group, "organization_id": organization_id,
+                    "organization_record_id": organization_record_id,
+                    "organization_record_sha256": organization_record_sha256,
+                    "input_date": _iso_date(data["input_date"], "input_date"),
+                    "method": method, "evidence_state": evidence_state,
+                    "source_label": source_label, "source_url": source_url,
+                    "geography": _text(data["geography"], "geography", 300).strip(),
+                    "reach_summary": _text(data["reach_summary"], "reach_summary", 2000).strip(),
+                    "consent_limits": _text(data["consent_limits"], "consent_limits", 2000, allow_empty=True).strip(),
+                    "views_summary": _text(data["views_summary"], "views_summary", 4000).strip(),
+                    "groups_not_reached": _text(data["groups_not_reached"], "groups_not_reached", 2000, allow_empty=True).strip(),
+                    "conflicting_views": _text(data["conflicting_views"], "conflicting_views", 2000, allow_empty=True).strip(),
+                }
+                record["sha256"] = _record_hash(record)
+                self._record_insert(connection, "stakeholder_input", head["revision"] + 1, record)
+                return {"proposal_id": head["proposal_id"], "scope_id": None,
+                        "plan_id": None, "decision_id": None, "latest_run_id": head["latest_run_id"]}
+            return self._command(route, expected, key, payload, write)
         if route == "/scopes":
             def write(connection: sqlite3.Connection, head: dict[str, Any], command_key: str) -> dict[str, Any]:
                 data = _fields(payload, {"proposal_id", "evaluated_scope", "excluded_scope", "reviewer_note"})
@@ -464,16 +664,54 @@ class CouncilService:
             return self._command(route, expected, key, payload, write)
         if route == "/plans":
             def write(connection: sqlite3.Connection, head: dict[str, Any], command_key: str) -> dict[str, Any]:
-                data = _fields(payload, {"proposal_id", "scope_id", "action", "parameters", "population", "seed"})
+                data = _fields(payload, {"proposal_id", "scope_id", "action", "parameters", "population", "seed"},
+                               {"organization_bindings"})
                 proposal = self._record(connection, head["proposal_id"]) if head["proposal_id"] else None
                 scope = self._record(connection, head["scope_id"]) if head["scope_id"] else None
                 if not proposal or data["proposal_id"] != proposal["id"] or not scope or data["scope_id"] != scope["id"]:
                     raise CouncilError(409, "scope_conflict", "Plan must refer to the current proposal and saved scope.", head["revision"])
-                population = _strict_int(data["population"], "population", 200, 1200)
-                if population not in {200, 600, 1200}:
+                population = _strict_int(data["population"], "population", 200, MAX_POPULATION)
+                if population not in {200, 600, 1200, 2400}:
                     raise CouncilError(400, "invalid_population", "Population must match a supported city setting.")
                 seed = _strict_int(data["seed"], "seed", 0, 2**31 - 1)
                 world, _, snapshot = _world_inputs(population, seed)
+                organizations, _ = self._proposal_organizations(connection, proposal)
+                organization_by_role: dict[str, list[dict[str, Any]]] = {}
+                for organization in organizations:
+                    organization_by_role.setdefault(organization["role"], []).append(organization)
+                bindings = data.get("organization_bindings", {})
+                if not isinstance(bindings, dict) or set(bindings) - set(CORE_ORGANIZATION_ROLES):
+                    raise CouncilError(400, "invalid_organization_bindings", "Organization bindings must map core roles to organization ids.")
+                organization_refs = []
+                organization_record_gaps = []
+                organization_binding_ambiguities = []
+                for role in CORE_ORGANIZATION_ROLES:
+                    candidates = organization_by_role.get(role, [])
+                    selected = None
+                    if role in bindings:
+                        organization_id = _text(bindings[role], f"organization_bindings.{role}", 64)
+                        selected = next((item for item in candidates
+                                         if item["organization_id"] == organization_id), None)
+                        if selected is None:
+                            raise CouncilError(400, "invalid_organization_binding",
+                                               f"No current {role} organization has id {organization_id}.")
+                    elif len(candidates) == 1:
+                        selected = candidates[0]
+                    elif len(candidates) > 1:
+                        organization_binding_ambiguities.append(role)
+                    else:
+                        organization_record_gaps.append(role)
+                    if selected is not None:
+                        organization_refs.append({
+                            "role": role, "organization_id": selected["organization_id"],
+                            "record_id": selected["id"], "sha256": selected["sha256"],
+                        })
+                stakeholder_inputs = self._proposal_stakeholder_inputs(connection, proposal)
+                organization_snapshot_refs = [
+                    {"role": item["role"], "organization_id": item["organization_id"],
+                     "record_id": item["id"], "sha256": item["sha256"]}
+                    for item in organizations
+                ]
                 action = data["action"]
                 if not isinstance(action, str) or action not in {"establish_service_site", "unsupported"}:
                     raise CouncilError(400, "unsupported_action", "Choose a listed action or explicitly mark this scope unsupported.")
@@ -493,12 +731,21 @@ class CouncilService:
                     if data["parameters"] is not None:
                         raise CouncilError(400, "invalid_plan", "An unsupported action cannot carry executable parameters.")
                     blockers.append("This scope has no supported simulator action.")
+                if action == "establish_service_site" and organization_binding_ambiguities:
+                    roles = ", ".join(organization_binding_ambiguities)
+                    blockers.append(f"Multiple organization records claim these pilot roles; select one explicitly: {roles}.")
                 record = {
                     "id": self._stable_id(head["session_id"], command_key, "plan"),
                     "proposal_id": proposal["id"], "proposal_sha256": proposal["sha256"],
                     "scope_id": scope["id"], "scope_sha256": scope["sha256"],
                     "action": action, "parameters": parameters,
                     "execution_blockers": blockers, "advice": self._advice(parameters, blockers, action),
+                    "organization_refs": organization_refs,
+                    "organization_snapshot_refs": organization_snapshot_refs,
+                    "stakeholder_input_refs": [{"record_id": item["id"], "sha256": item["sha256"]}
+                                               for item in stakeholder_inputs],
+                    "organization_record_gaps": organization_record_gaps,
+                    "organization_binding_ambiguities": organization_binding_ambiguities,
                     "world": world,
                 }
                 record["sha256"] = _record_hash(record)
@@ -620,6 +867,19 @@ class CouncilService:
                 raise CouncilError(409, "run_not_approved", "Run requires the current approval of a supported exact plan.", head["revision"])
             if plan["execution_blockers"] and not decision["confirmed_no_launch"]:
                 raise CouncilError(409, "no_launch_confirmation_required", "The approved plan has blockers and no explicit no-launch confirmation.", head["revision"])
+            for ref in plan.get("organization_snapshot_refs", []):
+                organization = self._record(connection, ref["record_id"])
+                if (organization is None or organization.get("proposal_id") != proposal["id"]
+                        or organization.get("proposal_sha256") != proposal["sha256"]
+                        or organization.get("organization_id") != ref["organization_id"]
+                        or organization.get("sha256") != ref["sha256"]):
+                    raise CouncilError(409, "organization_record_changed", "A frozen organization record is missing or does not match this plan.", head["revision"])
+            for ref in plan.get("stakeholder_input_refs", []):
+                stakeholder_input = self._record(connection, ref["record_id"])
+                if (stakeholder_input is None or stakeholder_input.get("proposal_id") != proposal["id"]
+                        or stakeholder_input.get("proposal_sha256") != proposal["sha256"]
+                        or stakeholder_input.get("sha256") != ref["sha256"]):
+                    raise CouncilError(409, "stakeholder_record_changed", "A frozen stakeholder-input record is missing or does not match this plan.", head["revision"])
             connection.rollback()
             connection.close()
         except Exception:
@@ -642,15 +902,21 @@ class CouncilService:
             funding_second=params["funding_second"], delivery_second=params["delivery_second"],
             commissioning_second=params["commissioning_second"], open_second=params["open_second"],
             close_second=params["close_second"], blocker_reasons=tuple(plan["execution_blockers"]),
+            organization_refs=tuple((ref["role"], ref["organization_id"], ref["record_id"], ref["sha256"])
+                                    for ref in plan.get("organization_refs", [])),
         )
         population, seed = world["population"], world["seed"]
         try:
             baseline = run_food_day(district, population, seed, False, (), site_snapshot,
                                     world["source_sha256"], council_run_ref={
-                                        "kind": "council", "run_id": run_id, "arm": "baseline"})
+                                        "kind": "council", "run_id": run_id, "arm": "baseline",
+                                        "organization_refs": plan.get("organization_refs", []),
+                                        "stakeholder_input_refs": plan.get("stakeholder_input_refs", [])})
             intervention = run_food_day(district, population, seed, False, (), site_snapshot,
                                         world["source_sha256"], schedule, {
-                                            "kind": "council", "run_id": run_id, "arm": "intervention"})
+                                            "kind": "council", "run_id": run_id, "arm": "intervention",
+                                            "organization_refs": plan.get("organization_refs", []),
+                                            "stakeholder_input_refs": plan.get("stakeholder_input_refs", [])})
         except (ValueError, RuntimeError, core.ConservationError) as exc:
             raise CouncilError(422, "simulation_failed", f"The bounded simulation could not complete: {exc}") from exc
         trace_hashes = {"baseline": _sha(baseline), "intervention": _sha(intervention)}
@@ -661,6 +927,9 @@ class CouncilService:
         record = {
             "id": run_id, "proposal_id": proposal["id"], "plan_id": plan["id"],
             "scope_id": scope["id"], "decision_id": decision["id"],
+            "organization_refs": plan.get("organization_refs", []),
+            "organization_snapshot_refs": plan.get("organization_snapshot_refs", []),
+            "stakeholder_input_refs": plan.get("stakeholder_input_refs", []),
             "inputs_sha256": world["sha256"], "baseline_trace_sha256": trace_hashes["baseline"],
             "intervention_trace_sha256": trace_hashes["intervention"],
             "population": population, "seed": seed,
@@ -759,7 +1028,8 @@ class CouncilHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         path = urlsplit(self.path).path
         route = path.removeprefix("/api/council")
-        if path not in {"/api/council/proposals", "/api/council/scopes", "/api/council/plans",
+        if path not in {"/api/council/proposals", "/api/council/organizations",
+                        "/api/council/stakeholder-inputs", "/api/council/scopes", "/api/council/plans",
                         "/api/council/decisions", "/api/council/runs"}:
             self._error(CouncilError(404, "not_found", "Council command was not found."))
             return

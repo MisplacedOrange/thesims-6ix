@@ -11,11 +11,11 @@ import { loadRunTrace } from './runTrace.ts';
 
 type DashboardSection = 'overview' | 'interactions' | 'sites' | 'households';
 type GroupDimension = 'income_band' | 'area' | 'mobility' | 'size';
-const sections: { id: DashboardSection; label: string; code: string }[] = [
-  { id: 'overview', label: 'Overview', code: '01' },
-  { id: 'interactions', label: 'Interaction log', code: '02' },
-  { id: 'sites', label: 'Sites & services', code: '03' },
-  { id: 'households', label: 'Households', code: '04' },
+const sections: { id: DashboardSection; label: string }[] = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'interactions', label: 'Interaction log' },
+  { id: 'sites', label: 'Sites & services' },
+  { id: 'households', label: 'Households' },
 ];
 const sectionFromQuery = (): DashboardSection => {
   const value = new URLSearchParams(window.location.search).get('view');
@@ -23,7 +23,7 @@ const sectionFromQuery = (): DashboardSection => {
 };
 const populationFromQuery = () => {
   const value = Number(new URLSearchParams(window.location.search).get('population'));
-  return [200, 600, 1200].includes(value) ? value : 600;
+  return [200, 600, 1200, 2400].includes(value) ? value : 2400;
 };
 const policyFromQuery = (): 'baseline' | 'emergency' =>
   new URLSearchParams(window.location.search).get('policy') === 'emergency' ? 'emergency' : 'baseline';
@@ -45,8 +45,8 @@ const timeFromQuery = (horizon: number) => {
   return Number.isFinite(value) && value >= 0 ? Math.min(value, horizon) : horizon;
 };
 
-function siteStatus(site: Site, seconds: number) {
-  if (seconds < site.active_from) return 'Scheduled ' + at(site.active_from);
+function siteStatus(site: Site, seconds: number, startTime: string, timezone?: string) {
+  if (seconds < site.active_from) return 'Scheduled ' + at(site.active_from, startTime, timezone);
   if (seconds < site.opens || seconds >= site.closes) return 'Closed';
   return 'Open';
 }
@@ -61,7 +61,7 @@ function EventRow({ trace, event, selected, onSelect }: {
   const status = event.result.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   return <button type="button" className={'terminal-event-row' + (selected ? ' selected' : '')}
     aria-pressed={selected} onClick={() => onSelect(event)}>
-    <time>{at(event.simulation_time)}</time>
+    <time>{at(event.simulation_time, trace.start_time, trace.timezone)}</time>
     <span className="terminal-event-action"><b>{words(event.action)}</b><small>{subject}{site ? ' / ' + site.name : ''}</small></span>
     <em className={'terminal-result result-' + status}>{words(event.result)}</em>
     <span className="terminal-event-amount">{amount}</span>
@@ -69,7 +69,7 @@ function EventRow({ trace, event, selected, onSelect }: {
   </button>;
 }
 
-const chartBox = { left: 40, right: 860, top: 22, bottom: 148 };
+const chartBox = { left: 62, right: 1000, top: 32, bottom: 252 };
 const seriesColors = ['#538a6d', '#c58b61', '#82966d', '#6488a0', '#8978a4'];
 
 function chartPath<T extends { seconds: number }>(points: T[], horizon: number, maximum: number,
@@ -87,17 +87,19 @@ function chartPath<T extends { seconds: number }>(points: T[], horizon: number, 
   return path;
 }
 
-function ChartGrid({ maximum, units, horizon }: { maximum: number; units: string; horizon: number }) {
+function ChartGrid({ maximum, units, horizon, startTime, timezone }: {
+  maximum: number; units: string; horizon: number; startTime: string; timezone?: string;
+}) {
   const y = (fraction: number) => chartBox.bottom - fraction * (chartBox.bottom - chartBox.top);
   return <>
     {[0, 1 / 3, 2 / 3, 1].map(fraction => <g key={fraction}>
       <line x1={chartBox.left} x2={chartBox.right} y1={y(fraction)} y2={y(fraction)} className="terminal-gridline" />
-      <text x="34" y={y(fraction) + 3} textAnchor="end">{(maximum * fraction).toFixed(units === 'kg' ? 1 : 0)}</text>
+      <text x="52" y={y(fraction) + 4} textAnchor="end">{(maximum * fraction).toFixed(units === 'kg' ? 1 : 0)}</text>
     </g>)}
-    {[0, 0.5, 1].map(fraction => <text key={fraction} x={chartBox.left + fraction * (chartBox.right - chartBox.left)} y="174" textAnchor={fraction === 0 ? 'start' : fraction === 1 ? 'end' : 'middle'}>
-      {at(horizon * fraction)}
+    {[0, 0.5, 1].map(fraction => <text key={fraction} x={chartBox.left + fraction * (chartBox.right - chartBox.left)} y="288" textAnchor={fraction === 0 ? 'start' : fraction === 1 ? 'end' : 'middle'}>
+      {at(horizon * fraction, startTime, timezone)}
     </text>)}
-    <text x="6" y="14" className="terminal-axis-unit">{units.toUpperCase()}</text>
+    <text x="8" y="18" className="terminal-axis-unit">{units.toUpperCase()}</text>
   </>;
 }
 
@@ -111,19 +113,19 @@ function FoodFlowChart({ trace, points, seconds }: { trace: FoodTrace; points: F
   const current = points.at(-1)!;
   const cursorX = chartBox.left + Math.min(1, seconds / Math.max(1, trace.horizon_seconds)) * (chartBox.right - chartBox.left);
   return <div className="terminal-chart">
-    <svg viewBox="0 0 880 192" role="img" aria-label="Cumulative purchased, received, and consumed produce in kilograms through the live simulation playhead">
-      <ChartGrid maximum={maximumGrams / 1000} units="kg" horizon={trace.horizon_seconds} />
+    <svg viewBox="0 0 1040 320" role="img" aria-label="Cumulative purchased, received, and consumed produce in kilograms through the live simulation playhead">
+      <ChartGrid maximum={maximumGrams / 1000} units="kg" horizon={trace.horizon_seconds} startTime={trace.start_time} timezone={trace.timezone} />
       {series.map(item => <g key={item.key}>
         <path d={chartPath(points, trace.horizon_seconds, maximumGrams, point => point[item.key])} className="terminal-chart-series" style={{ stroke: item.color }} />
-        <circle cx={cursorX} cy={chartBox.bottom - current[item.key] / maximumGrams * (chartBox.bottom - chartBox.top)} r="4" className="terminal-chart-point" style={{ fill: item.color }}>
-          <title>{item.label}: {(current[item.key] / 1000).toFixed(2)} kg at {at(seconds)}</title>
+        <circle cx={cursorX} cy={chartBox.bottom - current[item.key] / maximumGrams * (chartBox.bottom - chartBox.top)} r="5" className="terminal-chart-point" style={{ fill: item.color }}>
+          <title>{item.label}: {(current[item.key] / 1000).toFixed(2)} kg at {at(seconds, trace.start_time, trace.timezone)}</title>
         </circle>
       </g>)}
       <line x1={cursorX} x2={cursorX} y1={chartBox.top} y2={chartBox.bottom} className="terminal-live-cursor" />
-      <text x="852" y="14" textAnchor="end" className="terminal-axis-unit">PRODUCE COMPONENT</text>
+      <text x="1028" y="18" textAnchor="end" className="terminal-axis-unit">PRODUCE COMPONENT</text>
     </svg>
     <div className="terminal-chart-legend">{series.map(item => <span key={item.key}><i style={{ backgroundColor: item.color }} />{item.label}</span>)}</div>
-    <div className="terminal-chart-footer"><span>COMMITTED HOUSEHOLD FOOD FLOW</span><span>PLAYHEAD {at(seconds)}</span></div>
+    <div className="terminal-chart-footer"><span>COMMITTED HOUSEHOLD FOOD FLOW</span><span>PLAYHEAD {at(seconds, trace.start_time, trace.timezone)}</span></div>
   </div>;
 }
 
@@ -142,18 +144,18 @@ function ServiceActivityChart({ trace, points, seconds }: { trace: FoodTrace; po
   const maximum = Math.max(1, fullCounts.completed, fullCounts.denied, fullCounts.noPurchase);
   const cursorX = chartBox.left + Math.min(1, seconds / Math.max(1, trace.horizon_seconds)) * (chartBox.right - chartBox.left);
   return <div className="terminal-chart">
-    <svg viewBox="0 0 880 192" role="img" aria-label="Cumulative completed services, service denials, and no-purchase decisions through the live simulation playhead">
-      <ChartGrid maximum={maximum} units="events" horizon={trace.horizon_seconds} />
+    <svg viewBox="0 0 1040 320" role="img" aria-label="Cumulative completed services, service denials, and no-purchase decisions through the live simulation playhead">
+      <ChartGrid maximum={maximum} units="events" horizon={trace.horizon_seconds} startTime={trace.start_time} timezone={trace.timezone} />
       {series.map(item => <g key={item.key}>
         <path d={chartPath(points, trace.horizon_seconds, maximum, point => point[item.key])} className="terminal-chart-series" style={{ stroke: item.color }} />
-        <circle cx={cursorX} cy={chartBox.bottom - points.at(-1)![item.key] / maximum * (chartBox.bottom - chartBox.top)} r="4" className="terminal-chart-point" style={{ fill: item.color }}>
-          <title>{item.label}: {points.at(-1)![item.key]} at {at(seconds)}</title>
+        <circle cx={cursorX} cy={chartBox.bottom - points.at(-1)![item.key] / maximum * (chartBox.bottom - chartBox.top)} r="5" className="terminal-chart-point" style={{ fill: item.color }}>
+          <title>{item.label}: {points.at(-1)![item.key]} at {at(seconds, trace.start_time, trace.timezone)}</title>
         </circle>
       </g>)}
       <line x1={cursorX} x2={cursorX} y1={chartBox.top} y2={chartBox.bottom} className="terminal-live-cursor" />
     </svg>
     <div className="terminal-chart-legend">{series.map(item => <span key={item.key}><i style={{ backgroundColor: item.color }} />{item.label}</span>)}</div>
-    <div className="terminal-chart-footer"><span>EVENT COUNTS / CUMULATIVE</span><span>PLAYHEAD {at(seconds)}</span></div>
+    <div className="terminal-chart-footer"><span>EVENT COUNTS / CUMULATIVE</span><span>PLAYHEAD {at(seconds, trace.start_time, trace.timezone)}</span></div>
   </div>;
 }
 
@@ -163,22 +165,22 @@ function SiteStockChart({ trace, points, seconds }: { trace: FoodTrace; points: 
     ...trace.events.map(event => event.site_state?.stock_grams ?? 0)), [trace]);
   const cursorX = chartBox.left + Math.min(1, seconds / Math.max(1, trace.horizon_seconds)) * (chartBox.right - chartBox.left);
   return <div className="terminal-chart">
-    <svg viewBox="0 0 880 192" role="img" aria-label="Site inventory in kilograms, updated from committed site stock changes">
-      <ChartGrid maximum={maximumGrams / 1000} units="kg" horizon={trace.horizon_seconds} />
+    <svg viewBox="0 0 1040 320" role="img" aria-label="Site inventory in kilograms, updated from committed site stock changes">
+      <ChartGrid maximum={maximumGrams / 1000} units="kg" horizon={trace.horizon_seconds} startTime={trace.start_time} timezone={trace.timezone} />
       {trace.sites.map((site, index) => {
         const color = seriesColors[index % seriesColors.length]!;
         const value = (point: SiteStockPoint) => point.stock_grams[site.id] ?? 0;
         return <g key={site.id}>
           <path d={chartPath(points, trace.horizon_seconds, maximumGrams, value, true)} className="terminal-chart-series" style={{ stroke: color }} />
-          <circle cx={cursorX} cy={chartBox.bottom - value(points.at(-1)!) / maximumGrams * (chartBox.bottom - chartBox.top)} r="4" className="terminal-chart-point" style={{ fill: color }}>
-            <title>{site.name}: {(value(points.at(-1)!) / 1000).toFixed(2)} kg at {at(seconds)}</title>
+          <circle cx={cursorX} cy={chartBox.bottom - value(points.at(-1)!) / maximumGrams * (chartBox.bottom - chartBox.top)} r="5" className="terminal-chart-point" style={{ fill: color }}>
+            <title>{site.name}: {(value(points.at(-1)!) / 1000).toFixed(2)} kg at {at(seconds, trace.start_time, trace.timezone)}</title>
           </circle>
         </g>;
       })}
       <line x1={cursorX} x2={cursorX} y1={chartBox.top} y2={chartBox.bottom} className="terminal-live-cursor" />
     </svg>
     <div className="terminal-chart-legend">{trace.sites.map((site, index) => <span key={site.id}><i style={{ backgroundColor: seriesColors[index % seriesColors.length] }} />{site.name}</span>)}</div>
-    <div className="terminal-chart-footer"><span>MODELED SITE INVENTORY</span><span>PLAYHEAD {at(seconds)}</span></div>
+    <div className="terminal-chart-footer"><span>MODELED SITE INVENTORY</span><span>PLAYHEAD {at(seconds, trace.start_time, trace.timezone)}</span></div>
   </div>;
 }
 
@@ -189,7 +191,7 @@ function EventDetails({ trace, event, onSite, onHousehold }: {
     <p>Select a record to inspect its result, service timing, and related household or site.</p></aside>;
   const site = trace.sites.find(candidate => candidate.id === event.site_id);
   return <aside className="terminal-panel terminal-event-detail">
-    <div className="terminal-panel-heading"><div><span className="terminal-panel-code">EVENT INSPECTOR / {at(event.simulation_time)}</span>
+    <div className="terminal-panel-heading"><div><span className="terminal-panel-code">EVENT INSPECTOR / {at(event.simulation_time, trace.start_time, trace.timezone)}</span>
       <h3>{words(event.action)}</h3></div><em className={'terminal-result result-' + event.result.toLowerCase().replace(/[^a-z0-9]+/g, '-')}>{words(event.result)}</em></div>
     <dl className="terminal-definitions">
       <div><dt>Event ID</dt><dd>{event.event_id}</dd></div>
@@ -400,27 +402,18 @@ export function DashboardPage() {
       <a className="analytics-brand" href="/" aria-label="Back to The Sims 6ix simulation">
         <span className="analytics-brand-mark">6</span><span>THE SIMS <b>6IX</b><small>TORONTO SIMULATION</small></span>
       </a>
-      <div className="analytics-rail-label">WORKSPACE</div>
       <nav className="analytics-nav" aria-label="Analytics sections">
         {sections.map(item => <button type="button" key={item.id} aria-current={section === item.id ? 'page' : undefined}
           className={section === item.id ? 'active' : ''} onClick={() => chooseSection(item.id)}>
-          <small>{item.code}</small><span>{item.label}</span><i />
+          <span>{item.label}</span><i />
         </button>)}
       </nav>
-      <div className="analytics-rail-bottom">
-        <span className={'live-indicator' + (liveConnected ? ' live-connected' : '')}><i />
-          {liveConnected ? liveState?.paused ? 'TRACE PLAYBACK PAUSED' : 'TRACE PLAYBACK LIVE' : 'NO SIMULATION TAB'}</span>
-        <p>{liveConnected ? 'Charts follow committed events in the open simulation tab.' : 'Open the simulation in another tab to sync its playhead.'}</p>
-        <a target="_blank" rel="noreferrer" href={cityUrl(runRef, view?.seconds ?? playhead, selectedSiteId, null)} className="back-to-city">
-          <ArrowDownLeft size={14} /> Open simulation
-        </a>
-      </div>
     </aside>
 
     <div className="analytics-workspace">
       <header className="analytics-topbar">
-        <div className="analytics-breadcrumb"><span>SIMULATION</span><i>/</i><b>RUN ANALYTICS</b></div>
-        <div className="analytics-top-actions"><span className="readonly-badge"><i /> {liveConnected ? liveState?.paused ? 'TRACE PLAYBACK / PAUSED' : 'TRACE PLAYBACK / SYNCED' : 'LOCAL TRACE REPLAY'}</span>
+        <div className="analytics-top-actions"><span className="readonly-badge" title={liveConnected ? 'Synchronized to the simulation tab' : 'Showing the selected committed trace'}><i />
+            {trace && view && view.seconds >= trace.horizon_seconds ? 'COMPLETE' : liveConnected ? liveState?.paused ? 'PAUSED' : 'SYNCED' : 'LOCAL REPLAY'}</span>
           <a target="_blank" rel="noreferrer" href={cityUrl(runRef, view?.seconds ?? 0, selectedSiteId,
             selectedEvent?.resident_id !== null && selectedEvent ? selectedEvent.resident_id : null)} className="city-link">Open city <ArrowDownLeft size={14} /></a>
         </div>
@@ -428,12 +421,12 @@ export function DashboardPage() {
 
       <div className="analytics-content">
         <section className="analytics-heading">
-          <div><span className="analytics-kicker">OPERATIONS / FOOD ACCESS</span><h1>Run dashboard</h1>
-            <p>Inspect household journeys, service outcomes, sites, and run activity.</p></div>
+          <div><span className="analytics-kicker">FOOD ACCESS</span><h1>Run dashboard</h1>
+            <p>Simulation outcomes and service activity.</p></div>
           <button className="analytics-export" type="button" onClick={downloadRun} disabled={!trace}><Download size={15} /> Export run data</button>
         </section>
 
-        <section className="analytics-commandbar" aria-label="Run controls">
+        <section className="analytics-commandbar" aria-label="Run selection">
           <label><span>SCENARIO</span><select value={policy} onChange={event => {
             if (event.target.value === 'baseline' || event.target.value === 'emergency') chooseRun(population, event.target.value);
           }}>
@@ -441,10 +434,8 @@ export function DashboardPage() {
             <option value="council" disabled={runRef.kind !== 'council'}>Council run</option>
           </select></label>
           <label><span>POPULATION</span><select value={population} onChange={event => chooseRun(Number(event.target.value), policy === 'council' ? 'baseline' : policy)}>
-            {[200, 600, 1200].map(count => <option value={count} key={count}>{count.toLocaleString()} households</option>)}
+            {[200, 600, 1200, 2400].map(count => <option value={count} key={count}>{count.toLocaleString()} household agents</option>)}
           </select></label>
-          <div className="commandbar-meta"><span>TRACE KEY</span><b>{trace ? trace.scenario_id + ' / ' + trace.population + ' / ' + trace.policy + ' / seed ' + trace.seed : 'LOADING TRACE'}</b></div>
-          <div className="commandbar-meta"><span>GEOGRAPHY</span><b>{trace?.geography ?? 'Downtown Toronto'}</b></div>
         </section>
 
         {runRef.kind === 'council' && <section className="council-arm-control" aria-label="Council run comparison">
@@ -461,24 +452,15 @@ export function DashboardPage() {
         {!loading && error && <div className="analytics-state analytics-error" role="alert"><b>Run data unavailable</b><p>{error}</p>
           <button type="button" onClick={() => setRetry(value => value + 1)}>Retry load <ArrowRight size={14} /></button></div>}
         {!loading && trace && view && <>
-          <section className="analytics-run-strip">
-            <span><i className="status-dot" /> {trace.scenario_id}</span><span>SEED <b>{trace.seed}</b></span>
-            <span>HOUSEHOLDS <b>{trace.population.toLocaleString()}</b></span>
-            {trace.data_snapshot && <><span>INGESTED INPUT <b>{trace.data_snapshot.content.snapshot_id}</b></span>
-              <span>RETRIEVED SOURCE <b>{trace.data_snapshot.content.source_snapshot_id}</b></span></>}
-            <span>SIMULATION <b>{view.seconds >= trace.horizon_seconds ? 'COMPLETE' : liveConnected ? liveState?.paused ? 'PAUSED PLAYBACK' : 'LIVE PLAYBACK' : 'REPLAY'}</b></span>
-          </section>
-
           <section className="analytics-time-control">
-            <div><span><Clock3 size={14} /> TIME WINDOW</span><b>08:30 — {at(view.seconds)}</b></div>
+            <div><span><Clock3 size={14} /> SIMULATION TIME</span><b>{at(0, trace.start_time, trace.timezone)} — {at(view.seconds, trace.start_time, trace.timezone)}</b></div>
             <input aria-label="Run time playhead" type="range" min="0" max={trace.horizon_seconds} step="60"
               value={Math.floor(view.seconds)} onChange={event => chooseTime(Number(event.target.value))} />
-            <div className="time-control-scale"><span>08:30 START</span><span>{at(trace.horizon_seconds)} END</span></div>
+            <div className="time-control-scale"><span>{at(0, trace.start_time, trace.timezone)} START</span><span>{at(trace.horizon_seconds, trace.start_time, trace.timezone)} END</span></div>
           </section>
 
           {section === 'overview' && <section className="analytics-section">
-            <div className="analytics-section-title"><div><span className="analytics-kicker">01 / RUN SNAPSHOT</span><h2>Overview</h2></div>
-              <span className="scope-label">VALUES THROUGH {at(view.seconds)}</span></div>
+            <div className="analytics-section-title"><h2>Overview</h2></div>
             <div className="analytics-live-grid" aria-label="Live simulation charts">
               <section className="terminal-panel">
                 <div className="terminal-panel-heading"><div><span className="terminal-panel-code">HOUSEHOLD FOOD / CUMULATIVE</span><h3>Produce flow through the run</h3></div>
@@ -497,30 +479,10 @@ export function DashboardPage() {
               </section>
             </div>
 
-            <div className="analytics-overview-grid lower">
-              <section className="terminal-panel terminal-table-panel">
-                <div className="terminal-panel-heading"><div><span className="terminal-panel-code">LATEST RECORDS</span><h3>Interaction stream</h3></div>
-                  <button className="text-action" onClick={() => chooseSection('interactions')}>Open log <ArrowRight size={13} /></button></div>
-                <div className="terminal-event-head"><span>TIME</span><span>ACTION / SUBJECT</span><span>RESULT</span><span>QUANTITY</span><span>PAYMENT</span></div>
-                <div className="terminal-event-list">{view.events.slice(-8).reverse().map(event =>
-                  <EventRow key={event.event_id} trace={trace} event={event} selected={false} onSelect={selected => { selectEvent(selected); chooseSection('interactions'); }} />)}</div>
-              </section>
-              <section className="terminal-panel">
-                <div className="terminal-panel-heading"><div><span className="terminal-panel-code">SITE OPERATIONS</span><h3>Service locations</h3></div>
-                  <button className="text-action" onClick={() => chooseSection('sites')}>View sites <ArrowRight size={13} /></button></div>
-                <div className="terminal-mini-sites">{trace.sites.slice(0, 6).map(site => {
-                  return <button key={site.id} onClick={() => selectSite(site.id)}>
-                    <span><b>{site.name}</b><small>{words(site.type)} / {site.source_id ? 'ingested listing' : 'scenario facility'}</small></span>
-                    <span>{siteStatus(site, view.seconds)}<small>MODELED STATUS</small></span>
-                  </button>;
-                })}</div>
-              </section>
-            </div>
           </section>}
 
           {section === 'interactions' && <section className="analytics-section">
-            <div className="analytics-section-title"><div><span className="analytics-kicker">02 / EVENT ARCHIVE</span><h2>Interaction log</h2></div>
-              <span className="scope-label">{filteredEvents.length.toLocaleString()} MATCHING EVENTS</span></div>
+            <div className="analytics-section-title"><h2>Interaction log</h2></div>
             <div className="terminal-filterbar">
               <label className="terminal-search"><Search size={15} /><input aria-label="Search interactions" placeholder="Search household, site, or reason"
                 value={query} onChange={event => { setQuery(event.target.value); setEventLimit(60); }} /></label>
@@ -536,7 +498,7 @@ export function DashboardPage() {
                 <div className="terminal-event-head"><span>TIME</span><span>ACTION / SUBJECT</span><span>RESULT</span><span>QUANTITY</span><span>PAYMENT</span></div>
                 {filteredEvents.length ? <div className="terminal-event-list">{filteredEvents.slice(0, eventLimit).map(event =>
                   <EventRow key={event.event_id} trace={trace} event={event} selected={event.event_id === selectedEvent?.event_id} onSelect={selectEvent} />)}</div>
-                  : <p className="terminal-empty">No events match the selected filters through {at(view.seconds)}.</p>}
+                  : <p className="terminal-empty">No events match the selected filters through {at(view.seconds, trace.start_time, trace.timezone)}.</p>}
                 {filteredEvents.length > eventLimit && <button className="terminal-load-more" onClick={() => setEventLimit(limit => limit + 60)}>Load 60 earlier events</button>}
               </section>
               <EventDetails trace={trace} event={selectedEvent} onSite={selectSite} onHousehold={selectHousehold} />
@@ -544,8 +506,7 @@ export function DashboardPage() {
           </section>}
 
           {section === 'sites' && <section className="analytics-section">
-            <div className="analytics-section-title"><div><span className="analytics-kicker">03 / SERVICE NETWORK</span><h2>Sites & services</h2></div>
-              <span className="scope-label">{sites.length} LOCATIONS IN RUN</span></div>
+            <div className="analytics-section-title"><h2>Sites & services</h2></div>
             <div className="terminal-filterbar site-filterbar">
               <label><span>LOCATION TYPE</span><select value={siteTypeFilter} onChange={event => setSiteTypeFilter(event.target.value)}>
                 <option value="all">All locations</option>{['retailer', 'support', 'school', 'emergency', 'council'].map(type => <option key={type} value={type}>{words(type)}</option>)}</select></label>
@@ -557,7 +518,7 @@ export function DashboardPage() {
                   const state = view.sites[site.id]!;
                   return <button type="button" className={'terminal-site-row' + (selectedSiteId === site.id ? ' selected' : '')}
                     aria-pressed={selectedSiteId === site.id} key={site.id} onClick={() => setSelectedSiteId(site.id)}>
-                    <span><b>{site.name}</b><small>{words(site.type)} / {site.id}</small></span><span>{siteStatus(site, view.seconds)}</span>
+                    <span><b>{site.name}</b><small>{words(site.type)} / {site.id}</small></span><span>{siteStatus(site, view.seconds, trace.start_time, trace.timezone)}</span>
                     <span>{grams(state.stock_grams)}</span><span>{state.visits} / {state.denials}</span>
                     <span>{state.served} / {state.capacity}</span><span>{dollars(state.revenue_cents)}</span>
                   </button>;
@@ -565,16 +526,14 @@ export function DashboardPage() {
               </section>
               <aside className="terminal-panel terminal-event-detail">
                 {selectedSite ? <><div className="terminal-panel-heading"><div><span className="terminal-panel-code">SITE RECORD / {words(selectedSite.type)}</span>
-                    <h3>{selectedSite.name}</h3></div><span className="site-state-chip">{siteStatus(selectedSite, view.seconds)}</span></div>
+                    <h3>{selectedSite.name}</h3></div><span className="site-state-chip">{siteStatus(selectedSite, view.seconds, trace.start_time, trace.timezone)}</span></div>
                   <p className="terminal-site-note">{selectedSite.source_id
                     ? `City-listed location from ${selectedSite.source_snapshot_id}. Current operating status is unknown; price, stock, hours, capacity, eligibility, and modeled activity remain illustrative.`
                     : `Synthetic intervention location and operating values under ${trace.scenario_id}.`}</p>
                   <dl className="terminal-definitions">
                     {selectedSite.source_record_url && <div><dt>Location source</dt><dd><a href={selectedSite.source_record_url} target="_blank" rel="noreferrer">{selectedSite.source_id} / {selectedSite.source_record_id}</a></dd></div>}
-                    {selectedSite.source_address && <div><dt>Listed address</dt><dd>{selectedSite.source_address}</dd></div>}
                     {selectedSite.source_retrieved_at && <div><dt>Snapshot retrieved</dt><dd>{selectedSite.source_retrieved_at}</dd></div>}
-                    {selectedSite.map_snap_distance_m !== undefined && <div><dt>Nearest walk node</dt><dd>{selectedSite.map_snap_distance_m.toFixed(1)} m from listed point</dd></div>}
-                    <div><dt>Service window</dt><dd>{at(selectedSite.opens)} — {at(selectedSite.closes)}</dd></div>
+                    <div><dt>Service window</dt><dd>{at(selectedSite.opens, trace.start_time, trace.timezone)} — {at(selectedSite.closes, trace.start_time, trace.timezone)}</dd></div>
                     <div><dt>Eligibility</dt><dd>{selectedSite.eligible}</dd></div>
                     <div><dt>Current stock</dt><dd>{grams(view.sites[selectedSite.id]!.stock_grams)}</dd></div>
                     <div><dt>Price / 100 g</dt><dd>{dollars(view.sites[selectedSite.id]!.price_cents_per_100g)}</dd></div>
@@ -592,10 +551,9 @@ export function DashboardPage() {
           </section>}
 
           {section === 'households' && <section className="analytics-section">
-            <div className="analytics-section-title"><div><span className="analytics-kicker">04 / HOUSEHOLD OUTCOMES</span><h2>Households</h2></div>
-              <span className="scope-label">{filteredHouseholds.length.toLocaleString()} MATCHING HOUSEHOLDS</span></div>
+            <div className="analytics-section-title"><h2>Households</h2></div>
             <section className="terminal-panel cohort-panel">
-              <div className="terminal-panel-heading"><div><span className="terminal-panel-code">SINGLE RUN / GROUPED VIEW</span><h3>Outcome roll-up</h3></div>
+              <div className="terminal-panel-heading"><div><span className="terminal-panel-code">GROUPED OUTCOMES</span><h3>Average per household</h3></div>
                 <label className="terminal-inline-select"><span>GROUP BY</span><select value={groupBy} onChange={event => setGroupBy(event.target.value as GroupDimension)}>
                   <option value="income_band">Income band</option><option value="area">Area</option><option value="mobility">Mobility</option><option value="size">Household size</option>
                 </select></label></div>
@@ -625,22 +583,21 @@ export function DashboardPage() {
               <aside className="terminal-panel household-inspector">
                 {selectedHousehold && view ? <><div className="terminal-panel-heading"><div><span className="terminal-panel-code">HOUSEHOLD RECORD</span><h3>{selectedHousehold.id}</h3></div>
                     <span className="household-icon"><Users size={15} /></span></div>
-                  <HouseholdDetails household={selectedHousehold} view={view} /></>
+                  <HouseholdDetails household={selectedHousehold} view={view} startTime={trace.start_time} timezone={trace.timezone} /></>
                   : <div className="terminal-detail-empty"><span className="terminal-panel-code">HOUSEHOLD INSPECTOR</span><p>Select a household to inspect its modeled resources, food use, and event history.</p></div>}
               </aside>
             </div>
           </section>}
 
           <footer className="analytics-footnote">
-            <span>TRACE {trace.scenario_id} / SEED {trace.seed}</span>
-            <span>EVIDENCE {words(trace.evidence_state)}</span>
-            <span>{trace.assumptions.scope}</span>
-            <span>Food: grams / Cash: CAD / Time: simulation clock</span>
+            <span>Synthetic scenario output; not observed Toronto service data.</span>
             <details className="terminal-assumptions">
-              <summary>Evidence and assumptions</summary>
+              <summary>Run notes and provenance</summary>
+              <p>{trace.scenario_id} / {trace.policy} / seed {trace.seed} / {trace.population.toLocaleString()} synthetic household agents. Evidence: {words(trace.evidence_state)}.</p>
+              {trace.data_snapshot && <p>Ingested input: {trace.data_snapshot.content.snapshot_id}. Retrieved source: {trace.data_snapshot.content.source_snapshot_id}.</p>}
               <p>{trace.assumptions.food_use} Crossing wait: {trace.assumptions.crossing_delay_seconds} seconds. {trace.assumptions.scope}</p>
               <p>Parameter set: {trace.assumptions.parameter_id}. Unknown inputs: {trace.assumptions.unknown_inputs.join(', ') || 'None listed'}.</p>
-              <p>Values are synthetic scenario outputs from a cached Python-generated trace, not observed Toronto service data.</p>
+              <p>Prices, stock, hours, capacity, eligibility, and service activity are illustrative where the trace does not provide observed values.</p>
             </details>
           </footer>
         </>}

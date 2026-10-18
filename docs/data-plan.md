@@ -1,8 +1,14 @@
 # Data plan
 
-## Current map and next data gate
+## Existing spatial baseline
 
-The browser already uses a frozen, attributed OpenStreetMap snapshot of downtown Toronto with a walking graph for the bounded food-access scenario. The next data milestone is to validate this baseline and expand it into a licensed, versioned Toronto world package with broader building massing, a usable street and pedestrian graph, stable feature IDs, and an explicit coordinate transform. Show lower-detail Toronto context outside the first active simulation area. Concentrate detailed destinations, pedestrian paths, and intervention sites inside that area. A geometry layer alone does not establish occupancy, rent, ownership, service capacity, or economic activity.
+The browser already uses a frozen, attributed OpenStreetMap snapshot of downtown Toronto with a walking graph for the bounded food-access scenario. Retain that context for the active pilot. A geometry layer alone does not establish occupancy, rent, ownership, service capacity, or economic activity. Broader map coverage is deferred unless the selected proposal requires it.
+
+## Active evidence priorities
+
+The next data work should support the selected proposal and actor map: dated operating status, authority or agreement, service hours and capacity, supplier availability and delivery constraints, prices and inventory, and costs only where needed for the proposal's outcomes. Add actual stakeholder and partner input as a separately governed, source-linked evidence stream with date, geography, method, reach, consent limits, disagreements, and representation gaps. Do not infer these fields from a mapped site or synthetic household.
+
+Keep source publication, observation, retrieval, and refresh-check dates distinct. Preserve raw inputs, hashes, transformations, rejected-row reports, and evidence states. Do not begin broader acquisition for transit, drones, additional geography, or other features until the selected proposal establishes a need. The [active roadmap](../NEXT_STEPS.md) controls current acquisition priorities; the register below remains a source inventory.
 
 ## Evidence states
 

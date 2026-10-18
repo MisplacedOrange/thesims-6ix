@@ -9,7 +9,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function isRunRef(value: unknown): value is RunRef {
   if (!isRecord(value)) return false;
   if (value.kind === 'preset') {
-    return typeof value.population === 'number' && [200, 600, 1200].includes(value.population)
+    return typeof value.population === 'number' && [200, 600, 1200, 2400].includes(value.population)
       && (value.policy === 'baseline' || value.policy === 'emergency');
   }
   return value.kind === 'council' && typeof value.run_id === 'string' && value.run_id.length > 0
