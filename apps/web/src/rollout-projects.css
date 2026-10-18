@@ -18,3 +18,22 @@
 .rollout-pin:active:not(:disabled){transform:translate(-50%,-115%) scale(.98)}
 @media(max-width:800px){.rollout-tracker{left:16px;top:86px;width:255px;max-height:calc(100dvh - 300px);padding:13px}.rollout-pin{min-width:155px;padding:6px;gap:6px}.rollout-pin-info strong{font-size:10px}.rollout-pin-icon{width:30px;height:35px}.rollout-tracker-heading{font-size:8px}}
 @media(prefers-reduced-motion:reduce){.rollout-pin,.rollout-progress>span{transition:none}}
+
+/* Match the map controls while retaining rollout state and milestone controls. */
+.rollout-tracker{left:16px;top:128px;border:1px solid #dadce0;border-radius:8px;background:#fff;color:#3c4043;box-shadow:0 1px 6px rgba(60,64,67,.28);backdrop-filter:none}
+.rollout-pin{border-color:#dadce0;border-radius:8px;background:#fff;color:#3c4043;box-shadow:0 1px 6px rgba(60,64,67,.28)}
+.rollout-pin::after{background:#fff;border-color:#dadce0}
+.rollout-pin-icon,.rollout-project-icon{background:#e8f0fe;color:#1967d2;clip-path:none;border-radius:8px}
+.rollout-progress,.rollout-pin .rollout-progress{background:#e8eaed}
+.rollout-progress>span{background:#1a73e8}
+.rollout-arm-switch{background:#f1f3f4}
+.rollout-arm-switch button{color:#5f6368}
+.rollout-arm-switch button[aria-pressed=true]{background:#e8f0fe;color:#1967d2}
+.rollout-project,.rollout-project-metrics,.rollout-milestones li,.rollout-timeline{border-color:#dadce0}
+.rollout-project-actions button,.rollout-milestones button{background:#e8f0fe;color:#1967d2}
+.rollout-tracker-heading>b,.rollout-status,.rollout-stage>span,.rollout-schedule-note,.rollout-project-metrics>span,.rollout-timeline,.rollout-note{color:#70757a}
+.rollout-project-metrics b{color:#3c4043}
+.rollout-timeline input{accent-color:#1a73e8}
+.rollout-pin:hover,.rollout-pin:focus-visible{border-color:#1a73e8}
+.rollout-tracker button:focus-visible,.rollout-tracker input:focus-visible{outline-color:#1a73e8}
+@media(max-width:800px){.rollout-tracker{left:12px;top:128px;width:min(255px,calc(100vw - 82px));max-height:calc(100dvh - 250px)}}

@@ -211,8 +211,12 @@ export function App() {
       {error && <div className="error-screen" role="alert"><MapPin size={28} /><h1>Let’s get the city back.</h1><p>{error}</p><button className="primary-button" onClick={() => window.location.reload()}>Reload environment <RotateCcw size={15} /></button></div>}
       <div className="interface" inert={!uiVisible}>
         <header className="topbar">
-          <a className="brand" href="/" aria-label="The Sims 6ix home"><span className="brand-mark"><i /></span><span>the sims <b>6ix</b><small>A LIVING TORONTO</small></span></a>
-          <div className="location"><span className="location-dot" /><span>DOWNTOWN TORONTO<small>43.6500° N &nbsp; 79.3850° W</small></span></div>
+          <div className="map-location-card">
+            <a className="brand" href="/" aria-label="The Sims 6ix home"><span className="brand-mark"><i /></span><span>the sims <b>6ix</b><small>A LIVING TORONTO</small></span></a>
+            <button className="location" onClick={() => engine.current?.resetCamera()} title="Recenter on Downtown Toronto" aria-label="Recenter on Downtown Toronto">
+              <MapPin size={18} /><span>DOWNTOWN TORONTO<small>TORONTO, ON · 43.6500° N · 79.3850° W</small></span><Compass size={17} />
+            </button>
+          </div>
           <nav className="header-actions" aria-label="Environment tools">
             <a className="quiet-button analytics-link" aria-label="Open run dashboard" target="_blank" rel="noreferrer"
               href={'/dashboard?' + (runRef.kind === 'council'

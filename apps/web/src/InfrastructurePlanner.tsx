@@ -37,7 +37,7 @@ export function InfrastructurePlanner({ state, onChange, disabled }: {
     try { onChange(await work()); } catch (e) { setError(e instanceof Error ? e.message : 'Council command failed.'); }
     finally { setPending(false); }
   }
-  return <section className="council-record-section" aria-label="Infrastructure planner">
+  return <section className="council-record-section infrastructure-planner" aria-label="Infrastructure planner">
     <h3>Infrastructure planner</h3>
     <p>Review a scope, save a plan, then record a decision before running. Scenarios are hypothetical and last six hours.</p>
     {error && <p role="alert" className="council-error">{error}</p>}
