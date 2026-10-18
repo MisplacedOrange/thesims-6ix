@@ -4,12 +4,7 @@
     "app": {
       "root": ".",
       "runtime": "python",
-      "entrypoint": "sim.council:app",
-      "includeFiles": [
-        "apps/web/public/data/toronto.json",
-        "sim/core/data/catalog.json",
-        "sim/data/snapshots/toronto-downtown-sites-v3.json"
-      ]
+      "entrypoint": "sim.council:app"
     },
     "web": {
       "root": "apps/web",
