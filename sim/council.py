@@ -14,7 +14,7 @@ import sqlite3
 import sys
 import threading
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -22,6 +22,8 @@ from typing import Any, Callable
 from urllib.parse import unquote, urlsplit
 
 from sim import core
+from sim import council_planner
+from sim.council_actions import EXECUTABLE_ACTIONS, CANDIDATE_REQUIREMENTS, action_catalog
 from sim.data.simulation_sites import load_simulation_site_snapshot
 from sim.interactables.simulation import HORIZON, MAX_POPULATION, MunicipalSiteSchedule, run as run_food_day
 
@@ -58,7 +60,7 @@ SECTION_NAMES = {
 
 def _simulator_version() -> str:
     digest = hashlib.sha256()
-    paths = [ROOT / "sim" / "council.py"]
+    paths = [ROOT / "sim" / "council.py", ROOT / "sim" / "council_actions.py"]
     for package in ("core", "interactables", "data"):
         paths.extend(path for path in (ROOT / "sim" / package).rglob("*.py")
                      if "tests" not in path.relative_to(ROOT / "sim" / package).parts
@@ -263,6 +265,7 @@ class CouncilService:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._initialize()
+        council_planner.initialize(self)
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.db_path, timeout=30, isolation_level=None)
@@ -408,7 +411,9 @@ class CouncilService:
             "decisions": decisions,
             "runs": runs,
             "locations": self._locations(),
+            "action_catalog": action_catalog(),
             "service": {"available": True},
+            "planner": council_planner.public_state(self, connection),
         }
 
     def _source_context(self) -> dict[str, Any]:
@@ -520,6 +525,8 @@ class CouncilService:
             connection.close()
 
     def command(self, route: str, expected: int, key: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if route == "/planner/drafts":
+            return council_planner.generate(self, expected, key, payload)
         if route == "/proposals":
             def write(connection: sqlite3.Connection, head: dict[str, Any], command_key: str) -> dict[str, Any]:
                 data = _fields(payload, {"markdown"})
@@ -668,7 +675,8 @@ class CouncilService:
         if route == "/plans":
             def write(connection: sqlite3.Connection, head: dict[str, Any], command_key: str) -> dict[str, Any]:
                 data = _fields(payload, {"proposal_id", "scope_id", "action", "parameters", "population", "seed"},
-                               {"organization_bindings"})
+                               {"organization_bindings", "planner_draft_id"})
+                council_planner.validate_adoption(self, connection, data)
                 proposal = self._record(connection, head["proposal_id"]) if head["proposal_id"] else None
                 scope = self._record(connection, head["scope_id"]) if head["scope_id"] else None
                 if not proposal or data["proposal_id"] != proposal["id"] or not scope or data["scope_id"] != scope["id"]:
@@ -716,25 +724,38 @@ class CouncilService:
                     for item in organizations
                 ]
                 action = data["action"]
-                if not isinstance(action, str) or action not in {"establish_service_site", "unsupported"}:
+                if not isinstance(action, str) or action not in EXECUTABLE_ACTIONS | CANDIDATE_REQUIREMENTS.keys() | {"unsupported"}:
                     raise CouncilError(400, "unsupported_action", "Choose a listed action or explicitly mark this scope unsupported.")
                 parameters = None
                 blockers: list[str] = []
-                if action == "establish_service_site":
-                    parameters = self._site_parameters(data["parameters"], population, snapshot)
-                    procurement = parameters["stock_grams"] * 20 // 100
+                if action in EXECUTABLE_ACTIONS:
+                    if action == "establish_service_site":
+                        parameters = self._site_parameters(data["parameters"], population, snapshot)
+                        site = parameters
+                    else:
+                        change = _fields(data["parameters"], {"base_site", "effective_second", "target_capacity"})
+                        site = self._site_parameters(change["base_site"], population, snapshot)
+                        effective = _strict_int(change["effective_second"], "effective_second", 0, HORIZON)
+                        target = _strict_int(change["target_capacity"], "target_capacity", 0, population)
+                        if not site["open_second"] < effective < site["close_second"]:
+                            raise CouncilError(400, "invalid_schedule", "Capacity changes must occur strictly inside base site operating hours.")
+                        if ((action == "expand_facility" and target <= site["service_capacity"])
+                                or (action == "reduce_or_close_service" and target >= site["service_capacity"])):
+                            raise CouncilError(400, "invalid_capacity", "Expansion must increase the visit limit; reduction must decrease it.")
+                        parameters = {"base_site": site, "effective_second": effective, "target_capacity": target}
+                    procurement = site["stock_grams"] * 20 // 100
                     available_stock = population * 200
-                    if parameters["grant_cents"] < procurement:
-                        blockers.append(f"Grant {parameters['grant_cents']}¢ cannot cover the full {procurement}¢ supplier purchase.")
-                    if parameters["stock_grams"] <= 0:
+                    if site["grant_cents"] < procurement:
+                        blockers.append(f"Grant {site['grant_cents']}¢ cannot cover the full {procurement}¢ supplier purchase.")
+                    if site["stock_grams"] <= 0:
                         blockers.append("No supplier stock was requested.")
-                    if parameters["stock_grams"] > available_stock:
-                        blockers.append(f"Supplier opening stock is {available_stock} g, below the requested {parameters['stock_grams']} g.")
+                    if site["stock_grams"] > available_stock:
+                        blockers.append(f"Supplier opening stock is {available_stock} g, below the requested {site['stock_grams']} g.")
                 else:
                     if data["parameters"] is not None:
                         raise CouncilError(400, "invalid_plan", "An unsupported action cannot carry executable parameters.")
-                    blockers.append("This scope has no supported simulator action.")
-                if action == "establish_service_site" and organization_binding_ambiguities:
+                    blockers.append(CANDIDATE_REQUIREMENTS.get(action, "This scope has no supported simulator action."))
+                if action in EXECUTABLE_ACTIONS and organization_binding_ambiguities:
                     roles = ", ".join(organization_binding_ambiguities)
                     blockers.append(f"Multiple organization records claim these pilot roles; select one explicitly: {roles}.")
                 record = {
@@ -752,6 +773,9 @@ class CouncilService:
                     "world": world,
                 }
                 record["sha256"] = _record_hash(record)
+                if data.get("planner_draft_id") is not None:
+                    record["planner_draft_id"] = data["planner_draft_id"]
+                    record["sha256"] = _record_hash(record)
                 self._record_insert(connection, "plan", head["revision"] + 1, record)
                 return {"plan_id": record["id"], "decision_id": None,
                         "latest_run_id": head["latest_run_id"]}
@@ -780,7 +804,7 @@ class CouncilService:
                 confirmed = data["confirmed_no_launch"]
                 if not isinstance(confirmed, bool):
                     raise CouncilError(400, "invalid_field", "confirmed_no_launch must be a boolean.")
-                if choice == "approve" and plan["action"] == "unsupported":
+                if choice == "approve" and plan["action"] not in EXECUTABLE_ACTIONS:
                     raise CouncilError(409, "unsupported_action", "Unsupported scope cannot be approved for execution.", head["revision"])
                 if choice == "approve" and plan["execution_blockers"] and not confirmed:
                     raise CouncilError(409, "no_launch_confirmation_required", "Confirm the blocked plan will produce a no-launch run.", head["revision"])
@@ -832,13 +856,13 @@ class CouncilService:
 
     @staticmethod
     def _advice(parameters: dict[str, Any] | None, blockers: list[str], action: str) -> list[dict[str, str]]:
-        if action == "unsupported":
+        if action not in EXECUTABLE_ACTIONS:
             return [{"role": role, "status": "blocked", "authority": "advisory",
                      "note": "No supported site action was selected; this advice cannot authorize a run."}
                     for role in ("finance", "site_readiness", "supply", "access")]
         assert parameters is not None
         status = "blocked" if blockers else "caution"
-        p = parameters
+        p = parameters.get("base_site", parameters)
         return [
             {"role": "finance", "status": status, "authority": "advisory",
              "note": f"The scenario cap is {p['grant_cents']}¢. Full stock procurement costs {p['stock_grams'] * 20 // 100}¢; this is not a live appropriation."},
@@ -862,7 +886,7 @@ class CouncilService:
             proposal = self._record(connection, head["proposal_id"]) if head["proposal_id"] else None
             scope = self._record(connection, head["scope_id"]) if head["scope_id"] else None
             if (not decision or not plan or not proposal or not scope or data["decision_id"] != decision["id"]
-                    or decision["choice"] != "approve" or plan["action"] != "establish_service_site"
+                    or decision["choice"] != "approve" or plan["action"] not in EXECUTABLE_ACTIONS
                     or decision["proposal_sha256"] != proposal["sha256"]
                     or decision["scope_sha256"] != scope["sha256"]
                     or decision["plan_sha256"] != plan["sha256"]
@@ -897,7 +921,8 @@ class CouncilService:
         if live_world != world:
             raise CouncilError(409, "world_changed", "Frozen inputs differ from the current files. Save a new plan before running.", expected)
         run_id = "council-" + hashlib.sha256((head["session_id"] + "|" + key).encode("utf-8")).hexdigest()[:24]
-        params = plan["parameters"]
+        change = plan["parameters"] if plan["action"] != "establish_service_site" else None
+        params = change["base_site"] if change else plan["parameters"]
         schedule = MunicipalSiteSchedule(
             site_id="council-site-" + plan["id"][-12:], location_id=params["location_id"],
             grant_cents=params["grant_cents"], stock_grams=params["stock_grams"],
@@ -909,9 +934,13 @@ class CouncilService:
                                     for ref in plan.get("organization_refs", [])),
         )
         population, seed = world["population"], world["seed"]
+        baseline_schedule = schedule if change else None
+        if change:
+            schedule = replace(schedule, capacity_change_second=change["effective_second"],
+                               target_capacity=change["target_capacity"])
         try:
             baseline = run_food_day(district, population, seed, False, (), site_snapshot,
-                                    world["source_sha256"], council_run_ref={
+                                    world["source_sha256"], baseline_schedule, council_run_ref={
                                         "kind": "council", "run_id": run_id, "arm": "baseline",
                                         "organization_refs": plan.get("organization_refs", []),
                                         "stakeholder_input_refs": plan.get("stakeholder_input_refs", [])})
@@ -1044,6 +1073,9 @@ def _handle_council_request(service: CouncilService, method: str, raw_path: str,
     path = urlsplit(raw_path).path
     try:
         if method == "GET":
+            if path.startswith("/api/council/live/"):
+                from sim.live import sessions
+                return 200, sessions.request(method, path)
             if path == "/api/council":
                 return 200, service.state()
             match = re.fullmatch(r"/api/council/runs/([a-zA-Z0-9-]+)/traces/(baseline|intervention)", path)
@@ -1055,9 +1087,10 @@ def _handle_council_request(service: CouncilService, method: str, raw_path: str,
             raise CouncilError(405, "method_not_allowed", "Council only accepts GET and POST requests.")
 
         route = path.removeprefix("/api/council")
-        if path not in {"/api/council/proposals", "/api/council/organizations",
+        live_route = path == "/api/council/live" or re.fullmatch(r"/api/council/live/[a-zA-Z0-9-]+/(next|close)", path)
+        if not live_route and path not in {"/api/council/proposals", "/api/council/organizations",
                         "/api/council/stakeholder-inputs", "/api/council/scopes", "/api/council/plans",
-                        "/api/council/decisions", "/api/council/runs"}:
+                        "/api/council/decisions", "/api/council/runs", "/api/council/planner/drafts"}:
             raise CouncilError(404, "not_found", "Council command was not found.")
         if headers.get("x-council-schema") != "1":
             raise CouncilError(400, "unsupported_schema", "X-Council-Schema must be 1.")
@@ -1081,6 +1114,9 @@ def _handle_council_request(service: CouncilService, method: str, raw_path: str,
             raise CouncilError(400, "invalid_json", "Request body must be valid JSON without NaN or infinity.") from exc
         if not isinstance(payload, dict):
             raise CouncilError(400, "invalid_body", "Request body must be a JSON object.")
+        if live_route:
+            from sim.live import sessions
+            return 200, sessions.request(method, path, payload)
         if_match = headers.get("if-match", "")
         if not if_match.isdecimal():
             raise CouncilError(400, "invalid_revision", "If-Match must be a non-negative integer revision.")
@@ -1173,7 +1209,10 @@ app = CouncilASGI()
 def serve(db_path: Path | None = None, port: int = 8765) -> None:
     service = CouncilService(db_path or _default_db_path())
     handler = type("BoundCouncilHandler", (CouncilHandler,), {"service": service})
-    server = ThreadingHTTPServer(("127.0.0.1", port), handler)
+    # Windows SO_REUSEADDR can let a second app bind this same live port, leaving
+    # browser requests routed to a stale backend. Refuse duplicate listeners.
+    server_type = type("CouncilHTTPServer", (ThreadingHTTPServer,), {"allow_reuse_address": os.name != "nt"})
+    server = server_type(("127.0.0.1", port), handler)
     server.daemon_threads = True
     print(f"Council API listening on http://127.0.0.1:{port}", flush=True)
     try:

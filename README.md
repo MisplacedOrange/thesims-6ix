@@ -14,6 +14,23 @@ Use Node.js 24 or newer and Python 3.10 or newer. From the repository root, star
 
 The development command serves Vite and starts the Council API bound only to `127.0.0.1:8765`; Ctrl+C stops both. Open the Local URL printed by Vite. See the [environment guide](apps/web/README.md) for controls, tests, data licensing, and limitations.
 
+## OpenAI Council planner
+
+The root `.env` is reserved for local credentials and ignored by Git. If it is
+missing, copy `.env.example` to `.env`. Open `.env` in your editor and enter your
+key after `OPENAI_API_KEY=`. Keep the key out of chat, browser code, `VITE_*`
+variables, and committed files. Git ignore rules prevent accidental staging;
+they do not encrypt the file or restrict local filesystem access.
+
+Set `OPENAI_MODEL` to an accessible model supporting Responses structured outputs
+and `COUNCIL_OPENAI_ENABLED=true` when ready. In Council's **Simulation** section,
+save a scope, generate and review a draft, adopt it as a validated plan, then
+record a separate approval decision before running. No model calls happen at
+startup or during replay. Without credentials, manual planning remains available.
+See the [OpenAI planner guide](docs/openai-planner.md) for sharing consent, call
+limits, provenance, failures and concurrent-edit handling. Model generation is
+local-only until the hosted Council service has user authentication.
+
 ## Vercel deployment
 
 [`vercel.json`](vercel.json) defines a Vite `web` service and a Python `app` service. Requests under `/api/` go to the Council API; all other paths go to the browser app. Set the Vercel project's framework to **Services** and use `vercel dev` to run both services locally.

@@ -1,10 +1,22 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { isCouncilFoodTrace, isCouncilState } from './council.ts';
+import { isCouncilFoodTrace, isCouncilState, loadCouncilState } from './council.ts';
 import type { CouncilRunRef } from './runRef.ts';
 
 const expectedRun: CouncilRunRef = { kind: 'council', run_id: 'custom-run-17', arm: 'intervention' };
+
+test('a stale Council backend gives restart instructions and names missing fields', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ schema: 1, organizations: [] }), {
+    headers: { 'Content-Type': 'application/json' },
+  });
+  try {
+    await assert.rejects(loadCouncilState(), error => error instanceof Error
+      && error.message.includes('older version') && error.message.includes('organization_records')
+      && error.message.includes('stakeholder_inputs') && error.message.includes('restart'));
+  } finally { globalThis.fetch = originalFetch; }
+});
 
 function validTrace(): Record<string, unknown> {
   const trace = JSON.parse(readFileSync(new URL('../public/data/interactables/600-baseline.json', import.meta.url), 'utf8')) as Record<string, unknown>;
@@ -65,4 +77,15 @@ test('Council state decoder rejects unsupported schema versions', () => {
     stakeholder_inputs: [], decisions: [], runs: [], locations: [], service: { available: true } };
   assert.equal(isCouncilState(state), true);
   assert.equal(isCouncilState({ ...state, schema: 2 }), false);
+  assert.equal(isCouncilState({ ...state, action_catalog: [null] }), false);
+  assert.equal(isCouncilState({ ...state, action_catalog: [{ action: 'expand_facility', version: 1,
+    executable: true, label: 'Expand', inputs: 'Base site and target', effects: 'Visit limit', limits: 'Six hours' }] }), true);
+});
+
+test('Council trace decoder accepts capacity changes and rejects unknown stages', () => {
+  const trace = validTrace();
+  (trace.rollout_events as Array<Record<string, unknown>>)[0]!.stage = 'capacity_change';
+  assert.equal(isCouncilFoodTrace(trace, expectedRun), true);
+  (trace.rollout_events as Array<Record<string, unknown>>)[0]!.stage = 'unvalidated_world_edit';
+  assert.equal(isCouncilFoodTrace(trace, expectedRun), false);
 });

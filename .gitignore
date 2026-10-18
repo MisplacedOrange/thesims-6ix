@@ -8,3 +8,8 @@ build/
 dist/
 state/
 apps/web/public/data/interactables/
+
+# Local credentials; only placeholder templates belong in Git.
+.env
+.env.*
+!.env.example

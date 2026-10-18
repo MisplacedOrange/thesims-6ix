@@ -12,6 +12,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 import sim.council as council
+import pytest
 from sim.council import CouncilHandler, CouncilService
 
 
@@ -105,6 +106,65 @@ def decision_body(state, confirmed_no_launch=False):
 def canonical_sha(value) -> str:
     data = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
     return hashlib.sha256(data.encode("utf-8")).hexdigest()
+
+
+@pytest.mark.parametrize("action,target", [("expand_facility", 24), ("reduce_or_close_service", 6),
+                                          ("reduce_or_close_service", 0)])
+def test_capacity_action_compares_same_base_site_and_commits_only_at_effective_tick(tmp_path, action, target):
+    with council_api(tmp_path / "council.sqlite") as base:
+        state = post(base, "/api/council/proposals", 0, "p", proposal_body("## Changes\nAdjust municipal service."))
+        state = post(base, "/api/council/scopes", state["revision"], "s", scope_body(state["proposal"]))
+        body = plan_body(state, 20000)
+        body.update(action=action, parameters={"base_site": body["parameters"],
+                                              "effective_second": 12000, "target_capacity": target})
+        state = post(base, "/api/council/plans", state["revision"], "p1", body)
+        state = post(base, "/api/council/decisions", state["revision"], "d", decision_body(state))
+        state = post(base, "/api/council/runs", state["revision"], "r", {"decision_id": state["decisions"][-1]["id"]})
+        run = state["runs"][-1]
+        assert run["status"] == "complete"
+        baseline = request(base, f"/api/council/runs/{run['id']}/traces/baseline")[1]
+        intervention = request(base, f"/api/council/runs/{run['id']}/traces/intervention")[1]
+        assert baseline["accounting"]["invariant_problems"] == intervention["accounting"]["invariant_problems"] == []
+        assert baseline["households"] == intervention["households"]
+        assert not any(e["stage"] == "capacity_change" for e in baseline["rollout_events"])
+        changed = [e for e in intervention["rollout_events"] if e["stage"] == "capacity_change"]
+        assert len(changed) == 1 and changed[0]["capacity"] == target
+        assert changed[0]["simulation_time"] == 12000 and changed[0]["status"] == "completed"
+        assert [e for e in baseline["rollout_events"] if e["simulation_time"] < 12000] == [
+            e for e in intervention["rollout_events"] if e["simulation_time"] < 12000]
+        site_id = next(s["id"] for s in intervention["sites"] if s["type"] == "council")
+        assert next(s for s in baseline["sites"] if s["id"] == site_id)["spending_cents"] == 4000
+        assert next(s for s in intervention["sites"] if s["id"] == site_id)["spending_cents"] == 4000
+        if target == 0:
+            assert not any(e["action"] == "service" and e.get("site_id") == site_id
+                           and e["simulation_time"] >= 12000 and e["result"] == "completed"
+                           for e in intervention["events"])
+
+
+def test_candidates_cannot_be_approved_and_capacity_validation_is_atomic(tmp_path):
+    with council_api(tmp_path / "council.sqlite") as base:
+        state = post(base, "/api/council/proposals", 0, "p", proposal_body("## Changes\nInfrastructure"))
+        assert len(state["action_catalog"]) == 10
+        state = post(base, "/api/council/scopes", state["revision"], "s", scope_body(state["proposal"]))
+        for index, candidate in enumerate(item for item in state["action_catalog"] if not item["executable"]):
+            body = plan_body(state, 20000)
+            body.update(action=candidate["action"], parameters=None)
+            state = post(base, "/api/council/plans", state["revision"], f"p{index}", body)
+            assert state["plan"]["execution_blockers"]
+            status, error = request(base, "/api/council/decisions", "POST", revision=state["revision"],
+                                    key=f"d{index}", body=decision_body(state, True))
+            assert status == 409 and error["error"]["code"] == "unsupported_action"
+        for index, (action, target, second) in enumerate([
+            ("expand_facility", 12, 12000), ("reduce_or_close_service", 24, 12000),
+            ("expand_facility", 24, 8000), ("expand_facility", 24, 20000),
+            ("expand_facility", True, 12000), ("reduce_or_close_service", -1, 12000),
+        ]):
+            body = plan_body(state, 20000)
+            body.update(action=action, parameters={"base_site": body["parameters"],
+                                                  "effective_second": second, "target_capacity": target})
+            status, _ = request(base, "/api/council/plans", "POST", revision=state["revision"], key=f"bad{index}", body=body)
+            assert status == 400
+            assert request(base, "/api/council")[1]["revision"] == state["revision"]
 
 
 def test_proposal_receipt_survives_restart_and_http_rejects_unversioned_or_non_json(tmp_path):

@@ -1,0 +1,7 @@
+.openai-planner fieldset { border: 0; padding: 0; margin: 0 0 1rem; min-width: 0; }
+.openai-planner pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.openai-planner p, .openai-planner dd { overflow-wrap: anywhere; }
+.openai-planner dt { text-transform: capitalize; font-weight: 600; margin-top: .65rem; }
+.openai-planner dd { margin: .25rem 0 .65rem; }
+.openai-consent { display: block; line-height: 1.5; margin: .75rem 0; }
+.openai-consent input { margin-right: .4rem; }

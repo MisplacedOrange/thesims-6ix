@@ -47,6 +47,7 @@ export type Journey = {
   service_start?: number; result: string;
 };
 export type FoodTraceFields = {
+  live_session_id?: string; live_day?: number; live_trace_url?: string;
   schema: number; scenario_id: string; seed: number; horizon_seconds: number;
   start_time: string; timezone?: string; local_date?: string | null; end_time_exclusive?: string | null;
   scenario_manifest_id?: string; scenario_manifest_sha256?: string;
@@ -64,7 +65,7 @@ export type CouncilFoodTrace = FoodTraceFields & {
 };
 export type FoodTrace = PresetFoodTrace | CouncilFoodTrace;
 export type RolloutEvent = {
-  event_id: string; stage: 'readiness' | 'funding' | 'delivery' | 'commissioning' | 'opening' | 'closure' | 'blocked' | 'no_launch';
+  event_id: string; stage: 'readiness' | 'funding' | 'delivery' | 'commissioning' | 'opening' | 'closure' | 'capacity_change' | 'blocked' | 'no_launch';
   simulation_time: number; status: 'completed' | 'blocked' | 'not_started'; reason: string | null;
   amount_cents: number; stock_grams: number; capacity: number; organization_refs?: OrganizationActorReference[];
 };
@@ -94,6 +95,13 @@ export async function loadFoodTrace(population: number, policy: 'baseline' | 'em
     throw new Error('The food simulation trace has an invalid contract or accounting balance.');
   }
   return trace;
+}
+
+/** Start a fresh playback when the first recorded pedestrian trip begins. */
+export function firstPedestrianDeparture(trace: FoodTrace): number {
+  let departure = Infinity;
+  for (const journey of Object.values(trace.journeys)) departure = Math.min(departure, journey.depart);
+  return Number.isFinite(departure) ? Math.max(0, Math.min(departure, trace.horizon_seconds)) : 0;
 }
 
 /** Read committed projections up to the playhead; never settle or infer a transaction. */

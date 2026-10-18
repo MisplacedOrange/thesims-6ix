@@ -1,6 +1,6 @@
 # Long-Horizon Simulation Time Plan
 
-**Status:** Gate 0 is frozen and Gate 1's one-local-day runner is implemented. Multi-day persistence, monthly planning, annual ledgers, and the five-year engine are not implemented.
+**Status:** Gate 0 is frozen and Gate 1's one-local-day runner is implemented. Browser preset sessions now continue across local days with cash, food and prices carried forward. Durable checkpoints, the full Gate 2 pilot, monthly planning, annual ledgers, and the five-year engine are not implemented.
 
 This plan defines how to replace the current six-hour food-access trace with persistent daily operations and monthly planning over five years. It focuses on simulation time, recurring state, finance, execution order, and validation. It does not claim measured Toronto pedestrian totals or calibrated long-run outcomes.
 
@@ -8,7 +8,9 @@ The versioned run contract is [toronto-long-horizon-v1.json](../planning/scenari
 
 ## Current boundary
 
-The bounded Council runner retains `HORIZON = 21,600` seconds. Browser preset traces now use a separate one-local-day entry point: its clock runs from local midnight to the next local midnight, the existing activity window begins at 08:30, and daily food consumption occurs at day close. The run records the local date, timezone, and end boundary. It still schedules one shopping or service trip per household and does not carry household, inventory, staffing, or budget state into another day. The browser loads each full-day trace as static replay data.
+The bounded Council runner retains `HORIZON = 21,600` seconds. Browser presets use a separate one-local-day entry point: its clock runs from local midnight to the next local midnight, the existing activity window begins at 08:30, and daily food consumption occurs at day close. The run records the local date, timezone, and end boundary. Live sessions generate successive days on demand, carrying cash balances, remaining household/site/supplier food and prices across midnight. Opening endowments and the emergency grant are not repeated. Daily admissions and trip schedules renew using the same seeded synthetic population. Without recurring income or supplier imports, depletion is expected.
+
+`sim/live.py` retains only the latest daily trace and a close checkpoint in service memory; retrying a day-advance request returns the already committed next day. The next daily ledger is initialized from the previous close, so daily accounting is conserved but the kernel journal is not a continuous multi-day audit log. The dashboard follows the latest day's trace and labels its totals as daily. Refresh/restart starts a fresh session. This provides continuation while the app is open, not durable save/resume, annual accounting, or a validated long-run economic model. Multi-instance hosting requires shared session storage.
 
 The 2,400-agent preset is an unweighted synthetic sample, with 1,200 retained for paired comparison. It is a simulation sample size, not a count of people observed in downtown Toronto. Population expansion weights require a defined target population and suitable local data.
 

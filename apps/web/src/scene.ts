@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { landmarks } from './district.ts';
 import type { District, Islands, Point } from './district.ts';
 import type { Crowd, Inspection, Resident } from './pedestrians.ts';
-import { foodCrowd, foodInspection, foodPose } from './interactables.ts';
+import { firstPedestrianDeparture, foodCrowd, foodInspection, foodPose } from './interactables.ts';
 import type { FoodTrace } from './interactables.ts';
 import { buildRoadClearanceIndex, isCircleClearOfRoads, TREE_CANOPY_RADIUS, TREE_TRUNK_RADIUS } from './treePlacement.ts';
 import { buildingGeometry, facadeMaterial, fillerMesh } from './facade.ts';
@@ -14,6 +14,7 @@ import { GroundBuilder, groundLayer } from './ground.ts';
 import { noiseTexture, sleeperTexture, waterNormalTexture } from './textures.ts';
 import { Sky } from './atmosphere.ts';
 import type { RunRef } from './runRef.ts';
+import { RolloutSiteLayer } from './RolloutSiteLayer.ts';
 
 export type Lighting = 'day' | 'golden' | 'blue';
 export type Layer = 'buildings' | 'greenery' | 'paths' | 'traffic';
@@ -296,6 +297,7 @@ export class TorontoScene {
   private readonly ring: THREE.Mesh;
   private readonly route = new THREE.Group();
   private readonly proposedLocationMarker = new THREE.Group();
+  private readonly rolloutSites = new RolloutSiteLayer();
   private readonly shoreline: Point[];
   private readonly land: Point[];
   private readonly atmosphere = { top: new THREE.Color(), horizon: new THREE.Color(), sun: new THREE.Color(), sunDirection: new THREE.Vector3(), azimuth: 0, elevation: 0 };
@@ -331,6 +333,7 @@ export class TorontoScene {
     private readonly onTick: (tick: SceneTick) => void, private readonly onSelect: (id: number | null) => void,
     private trace: FoodTrace, private readonly onSelectSite: (id: string | null) => void, private runRef: RunRef) {
     this.crowd = foodCrowd(trace, district);
+    this.rolloutSites.setTrace(trace);
     this.shoreline = joinShoreline(district.shores);
     this.land = landPolygon(this.shoreline, 30000);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -367,7 +370,7 @@ export class TorontoScene {
     Object.assign(this.light.shadow.camera, { near: 50, far: 9000 });
     this.light.shadow.normalBias = 0.8; this.light.shadow.bias = -0.0002;
     this.scene.add(this.sky.mesh, this.light, this.light.target, this.ambient, this.city, this.people, this.route);
-    this.city.add(this.buildings, this.greenery, this.paths, this.traffic, this.proposedLocationMarker); this.paths.visible = false;
+    this.city.add(this.buildings, this.greenery, this.paths, this.traffic, this.proposedLocationMarker, this.rolloutSites.group); this.paths.visible = false;
     this.buildProposedLocationMarker();
     this.buildLandscape(); this.buildTraffic(); this.buildArchitecture(); this.buildSurroundings(); this.buildTrees(); this.buildLandmarks(); this.buildPeople();
     this.ring = new THREE.Mesh(new THREE.RingGeometry(5.25, 7.5, 48), new THREE.MeshBasicMaterial({ color: '#e5f5b7', side: THREE.DoubleSide }));
@@ -745,6 +748,7 @@ export class TorontoScene {
       for (const resident of this.crowd.residents) if (this.pose(resident).walking) walkingCount++;
     }
     const resident = this.selected === null ? undefined : this.crowd.residents[this.selected];
+    this.rolloutSites.update(this.seconds);
     this.onTick({ seconds: this.seconds, walking: walkingCount, resting: this.crowd.residents.length - walkingCount,
       selected: resident ? foodInspection(this.trace, resident, this.seconds) : null });
     this.lastTick = now;
@@ -837,10 +841,19 @@ export class TorontoScene {
     this[layer].visible = visible;
   }
   setFoodTrace(trace: FoodTrace, runRef: RunRef): void {
+    this.rolloutSites.setTrace(trace);
     this.trace = trace; this.runRef = runRef; this.updateRunRefLabel(); this.crowd = foodCrowd(trace, this.district);
     this.reset(); this.buildPeople(); this.onSelectSite(null);
   }
-  reset(): void { this.seconds = 0; this.lastTime = 0; this.backgroundLastTime = performance.now(); this.lastTick = 0; this.select(null); }
+  reset(): void { this.seconds = firstPedestrianDeparture(this.trace); this.lastTime = 0; this.backgroundLastTime = performance.now(); this.lastTick = 0; this.select(null); }
+  continueFoodTrace(trace: FoodTrace): void {
+    this.trace = trace;
+    this.crowd = foodCrowd(trace, this.district);
+    this.seek(0);
+    const following = this.following;
+    this.select(this.selected);
+    this.following = following;
+  }
   seek(seconds: number): void { this.seconds = Math.max(0, Math.min(this.trace.horizon_seconds, seconds)); this.lastTime = 0; this.backgroundLastTime = performance.now(); this.lastTick = 0; }
   focusSite(id: string): void {
     const site = this.trace.sites.find(s => s.id === id);
@@ -855,6 +868,13 @@ export class TorontoScene {
   focusProposedSite(point: Point): void {
     this.select(null); this.onSelectSite(null);
     this.fly(new THREE.Vector3(point[0] + 180, 300, point[1] + 230), new THREE.Vector3(point[0], 8, point[1]));
+  }
+  /** Project a rollout label above its mapped site, including camera movement while paused. */
+  projectSite(point: Point): { x: number; y: number; visible: boolean } {
+    const anchor = new THREE.Vector3(point[0], 38, point[1]).project(this.camera);
+    const width = this.renderer.domElement.clientWidth, height = this.renderer.domElement.clientHeight;
+    return { x: (anchor.x + 1) * width / 2, y: (1 - anchor.y) * height / 2,
+      visible: anchor.z >= -1 && anchor.z <= 1 && Math.abs(anchor.x) < 1.12 && Math.abs(anchor.y) < 1.12 };
   }
   resetCamera(): void { this.following = false; this.fly(initialCamera.position.clone(), initialCamera.target.clone()); }
   zoom(direction: number): void {
@@ -912,6 +932,7 @@ export class TorontoScene {
     this.renderer.domElement.setAttribute('aria-label', `Interactive 3D view of downtown Toronto showing ${identity}. Drag to orbit, right drag to pan, scroll to zoom.`);
   }
   dispose(): void {
+    this.rolloutSites.dispose();
     this.disposed = true; this.renderer.setAnimationLoop(null);
     this.stopBackgroundClock(); document.removeEventListener('visibilitychange', this.visibilityChanged);
     this.resizeObserver.disconnect(); this.controls.dispose();

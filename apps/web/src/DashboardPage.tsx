@@ -353,6 +353,19 @@ export function DashboardPage() {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
+  useEffect(() => {
+    if (!liveState?.live_trace_url || trace?.live_day === liveState.live_day
+        && trace?.live_trace_url === liveState.live_trace_url) return;
+    let active = true;
+    void fetch(liveState.live_trace_url).then(async response => {
+      if (!response.ok) throw new Error('The current simulation day could not load.');
+      return await response.json() as FoodTrace;
+    }).then(next => {
+      if (!active) return;
+      setTrace(next); setSelectedEventId(null); setEventLimit(60);
+    }).catch(reason => { if (active) setError(reason instanceof Error ? reason.message : 'Live day unavailable.'); });
+    return () => { active = false; };
+  }, [liveState?.live_trace_url, liveState?.live_day, trace?.live_trace_url, trace?.live_day]);
 
   useEffect(() => {
     if (trace && selectedSiteId && !trace.sites.some(site => site.id === selectedSiteId)) setSelectedSiteId(null);
@@ -491,7 +504,7 @@ export function DashboardPage() {
 
       <div className="analytics-content">
         <section className="analytics-heading">
-          <div><span className="analytics-kicker">FOOD ACCESS</span><h1>Run dashboard</h1></div>
+          <div><span className="analytics-kicker">FOOD ACCESS{trace?.live_session_id ? ` · ${trace.local_date} · DAILY TOTALS` : ''}</span><h1>Run dashboard</h1></div>
           <button className="analytics-export" type="button" onClick={downloadRun} disabled={!trace}><Download size={15} /> Export JSON</button>
         </section>
 

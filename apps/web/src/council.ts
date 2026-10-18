@@ -1,6 +1,8 @@
 import type { CouncilFoodTrace, RolloutEvent } from './interactables.ts';
 import { isRunRef, sameRunRef } from './runRef.ts';
 import type { CouncilRunRef } from './runRef.ts';
+import { isPlannerState } from './openaiPlanner.ts';
+import type { PlannerState } from './openaiPlanner.ts';
 
 export type Span = { start_line: number; end_line: number; text: string };
 export type Citation = { label: string; url: string; status: 'unverified_reference' };
@@ -29,6 +31,15 @@ export type SiteParameters = {
   readiness_second: number; funding_second: number; delivery_second: number;
   commissioning_second: number; open_second: number; close_second: number;
 };
+export type CapacityParameters = { base_site: SiteParameters; effective_second: number; target_capacity: number };
+export type CandidateAction = 'fund_program' | 'set_municipal_price_policy' | 'arrange_procurement'
+  | 'allocate_operating_resources' | 'modify_road_or_transit' | 'develop_housing' | 'modify_utilities';
+export type ActionDescriptor = {
+  action: Exclude<Plan['action'], 'unsupported'>; version: number; executable: boolean;
+  label: string; inputs: string; effects: string; limits: string;
+};
+const candidateActions: CandidateAction[] = ['fund_program', 'set_municipal_price_policy', 'arrange_procurement',
+  'allocate_operating_resources', 'modify_road_or_transit', 'develop_housing', 'modify_utilities'];
 export type Advice = {
   role: 'finance' | 'site_readiness' | 'supply' | 'access';
   status: 'ready' | 'caution' | 'blocked'; note: string; authority: 'advisory';
@@ -68,6 +79,7 @@ export type WorldInputs = {
   source_snapshot_id: string; source_sha256: string; simulator_version: string; sha256: string;
 };
 type PlanFields = {
+  planner_draft_id?: string;
   id: string; proposal_id: string; proposal_sha256: string; sha256: string; scope_id: string; scope_sha256: string;
   execution_blockers: string[]; advice: Advice[]; world: WorldInputs;
   organization_refs: OrganizationReference[]; organization_snapshot_refs: OrganizationReference[];
@@ -76,7 +88,8 @@ type PlanFields = {
 };
 export type Plan = PlanFields & (
   | { action: 'establish_service_site'; parameters: SiteParameters }
-  | { action: 'unsupported'; parameters: null }
+  | { action: 'expand_facility' | 'reduce_or_close_service'; parameters: CapacityParameters }
+  | { action: 'unsupported' | CandidateAction; parameters: null }
 );
 export type Decision = {
   id: string; proposal_id: string; proposal_sha256: string; scope_id: string; scope_sha256: string;
@@ -94,6 +107,8 @@ export type CouncilState = {
   organizations: OrganizationRecord[]; organization_records: OrganizationRecord[];
   stakeholder_inputs: StakeholderInputRecord[];
   decisions: Decision[]; runs: RunSummary[]; locations: LocationChoice[]; service: { available: true };
+  action_catalog?: ActionDescriptor[];
+  planner?: PlannerState;
 };
 
 export type ProposalCommand = { markdown: string };
@@ -105,7 +120,8 @@ export type ScopeCommand = {
   proposal_id: string; evaluated_scope: string; excluded_scope: string; reviewer_note: string;
 };
 export type PlanCommand = {
-  proposal_id: string; scope_id: string; action: Plan['action']; parameters: SiteParameters | null;
+  planner_draft_id?: string;
+  proposal_id: string; scope_id: string; action: Plan['action']; parameters: SiteParameters | CapacityParameters | null;
   population: number; seed: number; organization_bindings?: Partial<Record<OrganizationRole, string>>;
 };
 export type DecisionCommand = {
@@ -117,7 +133,7 @@ export type RunCommand = { decision_id: string };
 
 type CouncilEndpoint = '/api/council/proposals' | '/api/council/organizations' | '/api/council/stakeholder-inputs'
   | '/api/council/scopes' | '/api/council/plans'
-  | '/api/council/decisions' | '/api/council/runs';
+  | '/api/council/decisions' | '/api/council/runs' | '/api/council/planner/drafts';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -246,7 +262,11 @@ function isWorld(value: unknown): value is WorldInputs {
 function isPlan(value: unknown): value is Plan {
   if (!isRecord(value)) return false;
   const actionParametersMatch = value.action === 'establish_service_site'
-    ? isSiteParameters(value.parameters) : value.action === 'unsupported' && value.parameters === null;
+    ? isSiteParameters(value.parameters)
+    : value.action === 'expand_facility' || value.action === 'reduce_or_close_service'
+      ? isRecord(value.parameters) && isSiteParameters(value.parameters.base_site)
+        && Number.isInteger(value.parameters.effective_second) && Number.isInteger(value.parameters.target_capacity)
+      : (value.action === 'unsupported' || candidateActions.includes(value.action as CandidateAction)) && value.parameters === null;
   return isString(value.id) && isString(value.proposal_id) && isString(value.proposal_sha256) && isString(value.sha256)
     && isString(value.scope_id) && isString(value.scope_sha256)
     && actionParametersMatch && isStringArray(value.execution_blockers)
@@ -272,6 +292,10 @@ function isRunSummary(value: unknown): value is RunSummary {
 
 export function isCouncilState(value: unknown): value is CouncilState {
   if (!isRecord(value)) return false;
+  if ('action_catalog' in value && (!Array.isArray(value.action_catalog) || !value.action_catalog.every(item =>
+    isRecord(item) && isString(item.action) && Number.isInteger(item.version) && typeof item.executable === 'boolean'
+      && isString(item.label) && isString(item.inputs) && isString(item.effects) && isString(item.limits)))) return false;
+  if ('planner' in value && !isPlannerState(value.planner)) return false;
   return value.schema === 1 && isString(value.session_id) && Number.isInteger(value.revision)
     && (value.proposal === null || isProposal(value.proposal))
     && (value.scope === null || isScope(value.scope))
@@ -307,6 +331,17 @@ async function readJson(response: Response): Promise<unknown> {
   catch { return null; }
 }
 
+function councilFormatError(payload: unknown): string {
+  if (isRecord(payload)) {
+    const required = ['organizations', 'organization_records', 'stakeholder_inputs'];
+    const missing = required.filter(field => !(field in payload));
+    if (payload.schema === 1 && missing.length > 0) {
+      return `The Council backend is an older version: its response is missing ${missing.join(', ')}. Stop all running copies of npm run dev, restart it from apps/web, then refresh this page.`;
+    }
+  }
+  return 'The Council API returned an unexpected data format. Restart the local app and refresh this page. If it persists, the browser and backend need a compatibility fix.';
+}
+
 async function fetchCouncilState(): Promise<CouncilState> {
   let response: Response;
   try { response = await fetch('/api/council'); }
@@ -314,7 +349,7 @@ async function fetchCouncilState(): Promise<CouncilState> {
   if (!isJsonResponse(response)) throw new Error('The Council API is unavailable on this host. City playback is still available.');
   const payload = await readJson(response);
   if (!response.ok) throw new Error(errorMessage(payload, response.status));
-  if (!isCouncilState(payload)) throw new Error('The Council service returned data that does not match its contract.');
+  if (!isCouncilState(payload)) throw new Error(councilFormatError(payload));
   return payload;
 }
 
@@ -339,7 +374,7 @@ async function postCouncilCommand(endpoint: CouncilEndpoint, body: object, revis
   if (!isJsonResponse(response)) throw new Error('The Council API did not return a command response. The command outcome is unknown; refresh before retrying.');
   const payload = await readJson(response);
   if (!response.ok) throw new Error(errorMessage(payload, response.status));
-  if (!isCouncilState(payload)) throw new Error('The Council service response does not match its contract. The command result is unknown.');
+  if (!isCouncilState(payload)) throw new Error(councilFormatError(payload) + ' The command result is unknown; refresh before retrying.');
   return payload;
 }
 
@@ -358,11 +393,14 @@ export const saveDecision = (command: DecisionCommand, revision: number) =>
 export const createRun = (command: RunCommand, revision: number) =>
   postCouncilCommand('/api/council/runs', command, revision);
 
+export const generatePlannerDraft = (command: { population: number; seed: number; consent_to_send: boolean }, revision: number) =>
+  postCouncilCommand('/api/council/planner/drafts', command, revision);
+
 function isRolloutEvent(value: unknown): value is RolloutEvent {
   return isRecord(value) && isString(value.event_id)
     && (value.stage === 'readiness' || value.stage === 'funding' || value.stage === 'delivery'
       || value.stage === 'commissioning' || value.stage === 'opening' || value.stage === 'closure'
-      || value.stage === 'blocked' || value.stage === 'no_launch')
+      || value.stage === 'capacity_change' || value.stage === 'blocked' || value.stage === 'no_launch')
     && isNumber(value.simulation_time) && value.simulation_time >= 0
     && (value.status === 'completed' || value.status === 'blocked' || value.status === 'not_started')
     && (value.reason === null || isString(value.reason)) && isNumber(value.amount_cents)

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { OpenAIPlanner } from './OpenAIPlanner.tsx';
 import type { FormEvent } from 'react';
 import { ArrowRight, Building2, FileText, Landmark, RotateCcw, Users, X } from 'lucide-react';
 import { loadCouncilState, loadCouncilTrace, saveOrganization, saveStakeholderInput, submitProposal } from './council.ts';
@@ -7,11 +8,13 @@ import type {
   ProposalRevisionSummary, StakeholderInputCommand, StakeholderInputRecord,
 } from './council.ts';
 import type { CouncilFoodTrace } from './interactables.ts';
+import { InfrastructurePlanner } from './InfrastructurePlanner.tsx';
+import type { CouncilRunRef } from './runRef.ts';
 
 type LoadStatus = { kind: 'loading' } | { kind: 'ready' } | { kind: 'error'; message: string };
 type PanelTab = 'proposal' | 'evidence' | 'simulation';
 type BusyAction = 'refresh' | 'proposal' | 'organization' | 'stakeholder' | null;
-type CouncilPanelProps = { id: string; open: boolean; onClose: () => void };
+type CouncilPanelProps = { id: string; open: boolean; onClose: () => void; onPlayRun?: (run: CouncilRunRef) => void };
 type OrganizationDraft = {
   organization_id: string; name: string; role: OrganizationRole; evidence_state: EvidenceState;
   operating_status: OrganizationRecord['operating_status']; authority_status: OrganizationRecord['authority_status'];
@@ -149,7 +152,7 @@ function groupLabel(group: StakeholderInputRecord['stakeholder_group']): string 
 }
 function shortHash(value: string): string { return value.slice(0, 12); }
 
-export function CouncilPanel({ id, open, onClose }: CouncilPanelProps) {
+export function CouncilPanel({ id, open, onClose, onPlayRun }: CouncilPanelProps) {
   const [loadStatus, setLoadStatus] = useState<LoadStatus>({ kind: 'loading' });
   const [state, setState] = useState<CouncilState | null>(null);
   const [busy, setBusy] = useState<BusyAction>(null);
@@ -683,6 +686,12 @@ export function CouncilPanel({ id, open, onClose }: CouncilPanelProps) {
             </section>}
 
             {activeTab === 'simulation' && <section className="council-page">
+              <OpenAIPlanner key={'openai-' + (proposal?.id ?? 'empty')} state={state} onChange={setState} disabled={busy !== null} />
+              <InfrastructurePlanner key={proposal?.id ?? 'empty'} state={state} onChange={next => {
+                const newRun = next.runs.find(run => !state.runs.some(previous => previous.id === run.id));
+                setState(next);
+                if (newRun) onPlayRun?.({ kind: 'council', run_id: newRun.id, arm: 'intervention' });
+              }} disabled={busy !== null} />
               {!latestRunId && <div className="council-empty">No simulation is saved for this proposal yet.</div>}
               {latestRunId && <>
                 {traceStatus === 'loading' && <div className="council-empty" role="status">Loading the latest run…</div>}
@@ -692,6 +701,8 @@ export function CouncilPanel({ id, open, onClose }: CouncilPanelProps) {
                     {latestRun.status === 'complete' ? 'Complete' : 'Blocked'}
                   </span>
                   <span>{latestRun.population.toLocaleString()} residents</span><span>Seed {latestRun.seed}</span>
+                  {onPlayRun && <button type="button" className="council-primary" onClick={() =>
+                    onPlayRun({ kind: 'council', run_id: latestRun.id, arm: 'intervention' })}>Watch rollout on map</button>}
                   <details className="council-record-details">
                     <summary>Run ID and inputs</summary>
                     <p>{latestRun.id}</p><p>Input hash {shortHash(latestRun.inputs_sha256)}</p>

@@ -5,14 +5,15 @@ import { ArrowDownLeft, ArrowRight, BarChart3, ChevronRight, Compass, Expand, Ey
 import { loadDistrict, loadIslands } from './district.ts';
 import type { District } from './district.ts';
 import type { SceneTick, TorontoScene } from './scene.ts';
-import { foodView } from './interactables.ts';
+import { firstPedestrianDeparture, foodView } from './interactables.ts';
 import type { FoodTrace } from './interactables.ts';
 import { at, HouseholdDetails } from './FoodDetails.tsx';
 import { isDashboardCommand, LIVE_RUN_CHANNEL } from './liveRun.ts';
 import { parseRunRef, sameRunRef, serializeRunRef } from './runRef.ts';
 import type { RunRef } from './runRef.ts';
-import { loadRunTrace } from './runTrace.ts';
+import { closePersistentRun, nextPersistentDay, startPersistentRun } from './persistentRun.ts';
 import { CouncilPanel } from './CouncilPanel.tsx';
+import { RolloutProjects } from './RolloutProjects.tsx';
 
 const emptyTick: SceneTick = { seconds: 0, walking: 0, resting: 0, selected: null };
 function distance(meters: number): string { return meters >= 1000 ? (meters / 1000).toFixed(1) + ' km' : Math.round(meters) + ' m'; }
@@ -59,24 +60,31 @@ export function App() {
   const [councilOpen, setCouncilOpen] = useState(false);
   const [busy, setBusy] = useState(false), [runError, setRunError] = useState<string | null>(null);
   const traceRequest = useRef(0);
+  const sessionTrace = useRef<FoodTrace | null>(null);
   const [ready, setReady] = useState(false), [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(emptyTick), [selected, setSelected] = useState<number | null>(null);
   const [paused, setPaused] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches), [speed, setSpeed] = useState(10), [population, setPopulation] = useState(initialPopulation);
   const [uiVisible, setUiVisible] = useState(true);
   useEffect(() => { activeRunRef.current = runRef; }, [runRef]);
   useEffect(() => {
+    const close = (event: PageTransitionEvent) => { if (!event.persisted) closePersistentRun(sessionTrace.current); };
+    window.addEventListener('pagehide', close);
+    return () => window.removeEventListener('pagehide', close);
+  }, []);
+  useEffect(() => {
     let active = true;
     async function start() {
       const requestedRun = initialRunRef();
       try {
         const [map, islands, module] = await Promise.all([loadDistrict(), loadIslands(), import('./scene.ts')]);
-        const food = await loadRunTrace(requestedRun);
-        if (!active || !container.current) return;
+        const food = await startPersistentRun(requestedRun);
+        if (!active || !container.current) { closePersistentRun(food); return; }
+        sessionTrace.current = food;
         const view = new module.TorontoScene(container.current, map, islands, setTick,
           id => { setSelected(id); if (id !== null) setSiteId(null); }, food, setSiteId, requestedRun);
         const params = new URLSearchParams(window.location.search);
         const requestedTime = params.has('time') ? Number(params.get('time')) : NaN;
-        const startAt = Number.isFinite(requestedTime) ? Math.max(0, Math.min(requestedTime, food.horizon_seconds)) : 0;
+        const startAt = Number.isFinite(requestedTime) ? Math.max(0, Math.min(requestedTime, food.horizon_seconds)) : firstPedestrianDeparture(food);
         view.seek(startAt);
         const requestedResident = params.has('resident') ? Number(params.get('resident')) : NaN;
         if (Number.isInteger(requestedResident) && requestedResident >= 0 && requestedResident < food.households.length) view.select(requestedResident);
@@ -93,7 +101,7 @@ export function App() {
       }
     }
     void start();
-    return () => { active = false; traceRequest.current++; engine.current?.dispose(); engine.current = null; };
+    return () => { active = false; traceRequest.current++; closePersistentRun(sessionTrace.current); sessionTrace.current = null; engine.current?.dispose(); engine.current = null; };
   }, []);
   useEffect(() => {
     if (typeof BroadcastChannel === 'undefined') return;
@@ -117,7 +125,7 @@ export function App() {
           || dialog.current?.open) return;
       if (event.code === 'Space' && !(event.target instanceof HTMLButtonElement)) { event.preventDefault(); setPaused(p => !p); }
       if (event.key.toLowerCase() === 'h') setUiVisible(v => !v);
-      if (event.key.toLowerCase() === 'r') engine.current?.reset();
+      if (event.key.toLowerCase() === 'r') void loadRunRef(activeRunRef.current);
       if (event.key === 'Escape') engine.current?.select(null);
     }
     const element = container.current;
@@ -127,20 +135,40 @@ export function App() {
     window.addEventListener('keydown', keyboard); element?.addEventListener('scene-error', contextError);
     return () => { window.removeEventListener('keydown', keyboard); element?.removeEventListener('scene-error', contextError); };
   }, []);
-  async function loadRunRef(nextRunRef: RunRef) {
+  async function loadRunRef(nextRunRef: RunRef, requestedStart?: number) {
     const request = ++traceRequest.current;
     activeRunRef.current = nextRunRef;
     setBusy(true); setRunError(null);
     try {
-      const next = await loadRunTrace(nextRunRef);
-      if (request !== traceRequest.current || !engine.current) return;
-      engine.current.setFoodTrace(next, nextRunRef); setTick(emptyTick); setTrace(next); setRunRef(nextRunRef);
+      const next = await startPersistentRun(nextRunRef);
+      if (request !== traceRequest.current || !engine.current) { closePersistentRun(next); return; }
+      closePersistentRun(sessionTrace.current); sessionTrace.current = next;
+      const startAt = requestedStart === undefined ? firstPedestrianDeparture(next)
+        : Math.max(0, Math.min(next.horizon_seconds, requestedStart));
+      engine.current.setFoodTrace(next, nextRunRef); engine.current.seek(startAt);
+      setTick({ ...emptyTick, seconds: startAt }); setTrace(next); setRunRef(nextRunRef);
       setPopulation(next.population); setPolicy(next.policy); setSiteId(null);
-      updateRunUrl(nextRunRef, 0);
+      updateRunUrl(nextRunRef, startAt);
     } catch (e) {
       if (request === traceRequest.current) setRunError(e instanceof Error ? e.message : 'The scenario could not load.');
     } finally { if (request === traceRequest.current) setBusy(false); }
   }
+  useEffect(() => {
+    if (!trace?.live_session_id || tick.seconds < trace.horizon_seconds || busy || paused) return;
+    const request = ++traceRequest.current;
+    setBusy(true); setRunError(null);
+    void nextPersistentDay(trace).then(next => {
+      if (request !== traceRequest.current || !engine.current) return;
+      engine.current.continueFoodTrace(next);
+      sessionTrace.current = next;
+      setTrace(next); setTick({ ...emptyTick, seconds: 0 });
+      updateRunUrl(activeRunRef.current, 0);
+    }).catch(reason => {
+      if (request !== traceRequest.current) return;
+      setPaused(true);
+      setRunError(`${reason instanceof Error ? reason.message : 'The next day could not load.'} Press play to retry, or restart the simulation.`);
+    }).finally(() => { if (request === traceRequest.current) setBusy(false); });
+  }, [trace, tick.seconds, busy, paused]);
   useEffect(() => {
     if (!trace || busy || !liveChannel.current) return;
     const publish = () => {
@@ -153,9 +181,11 @@ export function App() {
         seed: trace.seed,
         input_snapshot_id: trace.data_snapshot?.content.snapshot_id ?? null,
         source_snapshot_id: trace.data_snapshot?.content.source_snapshot_id ?? null,
+        live_trace_url: trace.live_trace_url,
+        live_day: trace.live_day,
         seconds: Math.max(0, Math.min(tick.seconds, trace.horizon_seconds)),
         horizon_seconds: trace.horizon_seconds,
-        paused: paused || busy || tick.seconds >= trace.horizon_seconds,
+        paused: paused || busy || (!trace.live_session_id && tick.seconds >= trace.horizon_seconds),
         speed,
         published_at: Date.now(),
       });
@@ -196,12 +226,16 @@ export function App() {
             <button className="quiet-button hide-button" onClick={() => setUiVisible(false)}><Expand size={15} /> Hide interface <kbd>H</kbd></button>
           </nav>
         </header>
-        <section className="intro food-intro" aria-label="Toronto environment">
+        {trace?.policy !== 'council' && <section className="intro food-intro" aria-label="Toronto environment">
           <div className="eyebrow"><span /> THE ENVIRONMENT &nbsp; / &nbsp; 01</div>
           <h1>Toronto,<br /><em>in motion.</em></h1>
           <p>A familiar skyline.<br />Everyday journeys, quietly unfolding.</p>
           <span className="scope-chip"><Footprints size={12} /> A pedestrian world</span>
-        </section>
+        </section>}
+        {trace && <RolloutProjects trace={trace} seconds={tick.seconds} engine={engine}
+          onSeek={seconds => { setPaused(true); engine.current?.seek(seconds); setTick(current => ({ ...current, seconds })); updateRunUrl(runRef, seconds); }}
+          onReplay={() => { engine.current?.seek(0); setTick(current => ({ ...current, seconds: 0 })); setPaused(false); updateRunUrl(runRef, 0); }}
+          onSwitchArm={arm => { if (runRef.kind === 'council') void loadRunRef({ ...runRef, arm }, tick.seconds); }} />}
         {selectedSite && <section className="site-dashboard-link glass" aria-label="Selected food site">
           <div><span className="eyebrow">FOOD SITE SELECTED</span><b>{selectedSite.name}</b></div>
           <a target="_blank" rel="noreferrer" href={'/dashboard?view=sites&site=' + encodeURIComponent(selectedSite.id) + '&population=' + population + '&policy=' + policy + '&time=' + Math.floor(tick.seconds)}>Open site record <ArrowRight size={14} /></a>
@@ -209,7 +243,8 @@ export function App() {
         </section>}
         {busy && <div className="food-loading" role="status">Loading food scenario…</div>}
         {runError && <div className="food-run-error" role="alert">{runError}</div>}
-        <CouncilPanel id="council-panel" open={councilOpen} onClose={() => setCouncilOpen(false)} />
+        <CouncilPanel id="council-panel" open={councilOpen} onClose={() => setCouncilOpen(false)}
+          onPlayRun={next => { setCouncilOpen(false); setPaused(false); void loadRunRef(next, 0); }} />
         {resident && <section className="resident-card glass" aria-label="Selected resident">
           <div className="resident-heading"><span className="eyebrow">ONE OF THE SIX</span><button className="small-icon" onClick={() => engine.current?.select(null)} aria-label="Close resident details"><X size={15} /></button></div>
           <div className="resident-profile"><div className="resident-portrait" style={residentStyle}><i /><b /></div><div><h2>{resident.name}</h2><span>Synthetic resident · #{String(resident.id + 1).padStart(4, '0')}</span></div></div>
@@ -225,9 +260,9 @@ export function App() {
           <div><button aria-label="Zoom in" onClick={() => engine.current?.zoom(1)}><Plus size={19} /></button><button aria-label="Zoom out" onClick={() => engine.current?.zoom(-1)}><Minus size={19} /></button></div>
         </div>
         <section className="playback glass" aria-label="Simulation playback">
-          <button className="reset-button" aria-label="Restart pedestrian simulation" title="Restart · R" disabled={!ready} onClick={() => engine.current?.reset()}><RotateCcw size={17} /></button>
+          <button className="reset-button" aria-label="Restart pedestrian simulation" title="Restart · R" disabled={!ready || busy} onClick={() => { void loadRunRef(activeRunRef.current); }}><RotateCcw size={17} /></button>
           <button className="play-button" aria-label={paused ? 'Resume simulation' : 'Pause simulation'} disabled={!ready} onClick={() => setPaused(v => !v)}>{paused ? <Play size={19} fill="currentColor" /> : <Pause size={19} fill="currentColor" />}</button>
-          <div className="time-display"><span>{trace && tick.seconds >= trace.horizon_seconds ? 'DAY COMPLETE' : paused ? 'SIMULATION PAUSED' : 'FOOD ACCESS DAY'}</span><time data-testid="simulation-time">{at(tick.seconds, trace?.start_time, trace?.timezone)}</time></div>
+          <div className="time-display"><span>{paused ? 'SIMULATION PAUSED' : trace?.live_session_id ? `${trace.local_date} · DAY ${(trace.live_day ?? 0) + 1}` : trace && tick.seconds >= trace.horizon_seconds ? 'RUN COMPLETE' : 'COUNCIL REPLAY'}</span><time data-testid="simulation-time">{at(tick.seconds, trace?.start_time, trace?.timezone)}</time></div>
           <div className="playback-divider" />
           <div className="speed-controls" aria-label="Simulation speed">{[1, 10, 30, 120].map(value => <button key={value} className={speed === value ? 'selected' : ''} aria-pressed={speed === value} onClick={() => setSpeed(value)}>{value}×</button>)}</div>
           <div className="activity-pill"><span /><b data-testid="walking-count">{tick.walking.toLocaleString()}</b> walking</div>
@@ -242,7 +277,7 @@ export function App() {
       <dialog ref={dialog} className="about-dialog" onClick={event => { if (event.target === event.currentTarget) dialog.current?.close(); }}>
         <button className="dialog-close icon-button" aria-label="Close about environment" onClick={() => dialog.current?.close()}><X size={19} /></button>
         <span className="eyebrow">THE SIMS 6IX / FIELD NOTES</span><h2>A real place.<br /><em>A little imagination.</em></h2>
-        <p>This environment replays a six-hour food-access day settled in Python. Select a pedestrian to inspect household food and cash, or open the run dashboard to inspect site stock and service.</p>
+        <p>The simulation continues across local calendar days while this page is open, including in a background tab. Python carries cash, food and prices into the next day. Daily trips and service capacity renew; income and supply replenishment are not yet modeled. Council comparisons remain bounded replays. Select a pedestrian to inspect household food and cash, or open the run dashboard to inspect today's stock and service.</p>
         <div className="source-fact"><MapPin size={19} /><span><strong>The city comes from the map.</strong>Building footprints, streets, parks, railways, and shoreline are a frozen OpenStreetMap snapshot. {(mappedHeights).toLocaleString()} buildings have mapped height or floor-count tags. Other heights are estimates.</span></div>
         <div className="source-fact"><Trees size={19} /><span><strong>The details are stylized.</strong>CN Tower, Rogers Centre, facades, trees, and street details are illustrative interpretations. Road traffic is decorative and does not show measured vehicle counts or congestion. Derived sidewalk offsets and intersection links form the walking network.</span></div>
         <div className="source-fact"><Footprints size={19} /><span><strong>The residents are synthetic.</strong>Seeded itineraries follow the connected map. Their names, routines, and movement demonstrate city life. They are not observed Toronto travel data or live AI decisions.</span></div>

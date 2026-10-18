@@ -84,6 +84,8 @@ class MunicipalSiteSchedule:
     close_second: int
     blocker_reasons: tuple[str, ...] = ()
     organization_refs: tuple[tuple[str, str, str, str], ...] = ()
+    capacity_change_second: int | None = None
+    target_capacity: int | None = None
 
 
 def _organization_refs_for(schedule: MunicipalSiteSchedule | None,
@@ -193,7 +195,9 @@ def run(district: dict, population: int = 2400, seed: int = 2026,
         start_time: str = "2026-10-17T08:30:00",
         timezone_name: str = "America/Toronto",
         local_date: str | None = None,
-        end_time: str | None = None) -> dict:
+        end_time: str | None = None,
+        carry: dict | None = None,
+        checkpoint_out: dict | None = None) -> dict:
     """Return a deterministic event trace and scene projection with a no-policy default."""
     core.require_int(population, "population")
     core.require_int(seed, "seed")
@@ -375,6 +379,11 @@ def run(district: dict, population: int = 2400, seed: int = 2026,
             organization_refs=_organization_refs_for(municipal_site, ("site_operator",)),
         ))
     by_site = {s.id: s for s in sites}
+    if carry is not None:
+        if municipal_site is not None:
+            raise ValueError("bounded Council runs do not support daily continuation")
+        for s in sites:
+            s.price_cents_per_100g = carry["prices"][s.id]
     households = []
     rng = random.Random(seed)
     for resident in range(population):
@@ -394,6 +403,11 @@ def run(district: dict, population: int = 2400, seed: int = 2026,
                                departure=activity_start_second + rng.randint(60, 7200)))
 
     # Opening endowments enter through a credit-enabled external funding account.
+    if carry is not None:
+        for h in households:
+            h["opening_cents"] = carry["cash"][h["id"]]
+            h["opening_grams"] = sum(grams for owner, place, grams in carry["food"]
+                                     if owner == h["id"] and place == f"home-{h['id']}")
     owners = [("external", "external", True), ("city", "municipality", False),
               ("supplier", "external", False)]
     owners += [(s.id, "retailer" if s.type == "retailer" else "school" if s.type == "school" else "hub", False) for s in sites]
@@ -402,13 +416,18 @@ def run(district: dict, population: int = 2400, seed: int = 2026,
         commit(core.OpenAccount, 0, core.PHASE_POLICY, account_id=owner, owner_id=owner, kind=kind, allows_credit=credit)
     opening_cash = {"city": 100000, "supplier": 0, **{s.id: 30000 if s.type == "retailer" else 0 for s in sites},
                     **{h["id"]: h["opening_cents"] for h in households}}
+    if carry is not None:
+        # Rebase the daily ledger from the preceding close, without new endowments.
+        opening_cash = {owner: cents for owner, cents in carry["cash"].items() if owner != "external"}
     for owner, cents in opening_cash.items():
         if cents:
             commit(core.TransferCash, 0, core.PHASE_POLICY, from_account_id="external", to_account_id=owner,
-                   cents=cents, memo="illustrative opening endowment")
+                   cents=cents, memo="daily checkpoint carry-in" if carry is not None else "illustrative opening endowment")
     food = [(s.id, s.id, s.opening_grams) for s in sites]
     food += [(h["id"], f"home-{h['id']}", h["opening_grams"]) for h in households]
     food += [("supplier", "supplier", population * 200)]
+    if carry is not None:
+        food = carry["food"]
     for index, (owner, place, grams) in enumerate(food):
         if grams:
             commit(core.IntroduceLot, 0, core.PHASE_POLICY, lot_id=f"opening-{index}", product_id=PRODUCT,
@@ -479,6 +498,7 @@ def run(district: dict, population: int = 2400, seed: int = 2026,
             "commissioning": ("site_operator",),
             "opening": ("site_operator",),
             "closure": ("site_operator",),
+            "capacity_change": ("site_operator",),
             "blocked": ("city_funder", "site_host", "site_operator", "supplier_distributor"),
             "no_launch": ("city_funder", "site_host", "site_operator", "supplier_distributor"),
         }
@@ -522,7 +542,8 @@ def run(district: dict, population: int = 2400, seed: int = 2026,
     schedule(activity_start_second + 6000, core.PHASE_SETTLE, "delivery", payload=("retail-west", population * 60 // 100 * 100))
     schedule(activity_start_second + 9000, core.PHASE_POLICY, "price", payload=("retail-west", 65))
     if emergency:
-        schedule(activity_start_second + 3600, core.PHASE_POLICY, "activate")
+        if carry is None:
+            schedule(activity_start_second + 3600, core.PHASE_POLICY, "activate")
         schedule(activity_start_second + 3660, core.PHASE_SETTLE, "delivery", payload=("emergency", population * 100))
         schedule(activity_start_second + 18000, core.PHASE_POLICY, "shutdown")
     if municipal_site is not None:
@@ -544,6 +565,12 @@ def run(district: dict, population: int = 2400, seed: int = 2026,
             schedule(activity_start_second + municipal_site.commissioning_second, core.PHASE_POLICY, "council_commissioning")
             schedule(activity_start_second + municipal_site.open_second, core.PHASE_POLICY, "council_open")
             schedule(activity_start_second + municipal_site.close_second, core.PHASE_POLICY, "council_close")
+            if municipal_site.capacity_change_second is not None:
+                if (municipal_site.target_capacity is None or municipal_site.target_capacity < 0
+                        or not municipal_site.open_second < municipal_site.capacity_change_second < municipal_site.close_second):
+                    raise ValueError("capacity change requires a nonnegative target and a tick strictly inside operating hours")
+                schedule(activity_start_second + municipal_site.capacity_change_second,
+                         core.PHASE_POLICY, "council_capacity_change")
 
     while queue:
         second, phase, _, _, kind, h, payload = heapq.heappop(queue)
@@ -630,6 +657,15 @@ def run(district: dict, population: int = 2400, seed: int = 2026,
             s.capacity = municipal_site.service_capacity
             emit_rollout("opening", second, "completed", s=s,
                          reason="hypothetical service opened under the approved scenario assumption")
+        elif kind == "council_capacity_change":
+            s = by_site[municipal_site.site_id]
+            if council_blocker or not council_commissioned:
+                emit_rollout("capacity_change", second, "not_started",
+                             council_blocker or "site commissioning did not complete", s=s)
+                continue
+            s.capacity = municipal_site.target_capacity
+            emit_rollout("capacity_change", second, "completed", s=s,
+                         reason="approved absolute visit limit; prior service, stock and sunk procurement are retained")
         elif kind == "council_close":
             s = by_site[municipal_site.site_id]
             if council_blocker:
@@ -839,6 +875,12 @@ def run(district: dict, population: int = 2400, seed: int = 2026,
             "content": site_snapshot,
             "content_sha256": site_snapshot_sha256,
         }
+    if checkpoint_out is not None:
+        checkpoint_out.update(
+            cash={a.owner_id: a.settled_cents for a in state.accounts},
+            food=[(lot.owner_id, lot.place_id, lot.grams) for lot in state.lots if lot.grams],
+            prices={s.id: s.price_cents_per_100g for s in sites},
+        )
     return result
 
 
@@ -847,7 +889,8 @@ def run_day(district: dict, start_date: str, population: int = 2400, seed: int =
             site_snapshot: dict | None = None, site_snapshot_sha256: str | None = None,
             municipal_site: MunicipalSiteSchedule | None = None,
             council_run_ref: dict | None = None,
-            timezone_name: str = "America/Toronto") -> dict:
+            timezone_name: str = "America/Toronto", *,
+            carry: dict | None = None, checkpoint_out: dict | None = None) -> dict:
     """Execute one explicit local calendar day with the six-hour activity window intact."""
     try:
         calendar_date = date.fromisoformat(start_date)
@@ -875,4 +918,5 @@ def run_day(district: dict, start_date: str, population: int = 2400, seed: int =
         timezone_name=timezone_name,
         local_date=calendar_date.isoformat(),
         end_time=following_midnight.isoformat(timespec="seconds"),
+        carry=carry, checkpoint_out=checkpoint_out,
     )
