@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { ArrowDownLeft, ArrowRight, BarChart3, ChevronRight, Compass, Expand, Eye, Footprints, Info, Landmark,
+import { ArrowDownLeft, ArrowRight, BarChart3, ChevronRight, Compass, Expand, Eye, Footprints, Landmark,
   MapPin, Pause, Play, Plus, Minus, RotateCcw, Trees, VolumeX, X } from 'lucide-react';
 import { loadDistrict, loadIslands } from './district.ts';
 import type { District } from './district.ts';
@@ -181,8 +181,12 @@ export function App() {
       {error && <div className="error-screen" role="alert"><MapPin size={28} /><h1>Let’s get the city back.</h1><p>{error}</p><button className="primary-button" onClick={() => window.location.reload()}>Reload environment <RotateCcw size={15} /></button></div>}
       <div className="interface" inert={!uiVisible}>
         <header className="topbar">
-          <a className="brand" href="/" aria-label="The Sims 6ix home"><span className="brand-mark"><i /></span><span>the sims <b>6ix</b><small>A LIVING TORONTO</small></span></a>
-          <div className="location"><span className="location-dot" /><span>DOWNTOWN TORONTO<small>43.6500° N &nbsp; 79.3850° W</small></span></div>
+          <div className="map-location-card">
+            <a className="brand" href="/" aria-label="The Sims 6ix home"><span className="brand-mark"><i /></span><span>the sims <b>6ix</b><small>A LIVING TORONTO</small></span></a>
+            <button className="location" onClick={() => engine.current?.resetCamera()} title="Recenter on Downtown Toronto" aria-label="Recenter on Downtown Toronto">
+              <MapPin size={18} /><span>DOWNTOWN TORONTO<small>TORONTO, ON · 43.6500° N · 79.3850° W</small></span><Compass size={17} />
+            </button>
+          </div>
           <nav className="header-actions" aria-label="Environment tools">
             <a className="quiet-button analytics-link" aria-label="Open run dashboard" target="_blank" rel="noreferrer"
               href={'/dashboard?' + (runRef.kind === 'council'
@@ -192,7 +196,6 @@ export function App() {
               <BarChart3 size={15} /> Run dashboard <ArrowRight size={14} /></a>
             <button className="quiet-button council-toggle" aria-expanded={councilOpen} aria-controls="council-panel"
               onClick={() => setCouncilOpen(open => !open)}><Landmark size={15} /> Council</button>
-            <button className="icon-button info-button" onClick={() => dialog.current?.showModal()} aria-label="About the environment"><Info size={18} /></button>
             <button className="quiet-button hide-button" onClick={() => setUiVisible(false)}><Expand size={15} /> Hide interface <kbd>H</kbd></button>
           </nav>
         </header>

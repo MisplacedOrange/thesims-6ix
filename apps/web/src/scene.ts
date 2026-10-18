@@ -662,8 +662,6 @@ export class TorontoScene {
       }
       stadium.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 32, 0.65, 4, false), concrete));
     }
-    const waterName = document.createElement('div');
-    waterName.className = 'lake-name'; waterName.textContent = 'L A K E  O N T A R I O'; this.container.appendChild(waterName);
   }
 
   private buildPeople(): void {
