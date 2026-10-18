@@ -31,6 +31,8 @@ Execution remains bounded by the versioned action registry described below. The 
 
 This separates open proposal intake from supported simulation coverage. Acceptance of a Markdown proposal does not guarantee that every requested effect can already be modeled.
 
+Food-bank, pantry, meal-program, and other food-support proposals may target either a new service site or an existing source-listed location/program. The City's food-support layer is mixed: preserve its `PROGTYPE` and source record IDs, and do not infer current operation, eligibility, hours, stock, capacity, or a unique operator from the mapped point alone. Existing partner-run services enter an executable plan only when their operating status is verified or explicitly assumed and the scenario records an agreement authorizing the proposed funding, procurement, resource assignment, expansion, reduction, or stop. Otherwise the location remains planning context and the requested action is unschedulable.
+
 ## Planner interface
 
 Expose a small Python-side tool boundary to the planner:
@@ -51,6 +53,7 @@ The read-only snapshot should be sufficient to make and validate a plan without 
 
 - The run ID, logical time, current revision, and immutable world/evidence snapshot hashes.
 - Eligible candidate site IDs and their relevant constraints, provenance, and evidence status.
+- Existing food-support location/program record IDs, source `PROGTYPE`, verified or unknown operating status, and any authority agreement and scope that permits intervention.
 - Existing and already-planned services, their current status, capacity, dependencies, and schedules.
 - Available and committed budgets, relevant staffing/equipment/supply limits, and the planning horizon.
 - Supported action types and units, plus the proposal version and required outcome measures.
@@ -63,6 +66,7 @@ Each plan version should carry:
 
 - Plan ID, schema version, proposal ID/version, run ID, base world revision, and evidence snapshot hash.
 - Stages with stable IDs, typed actions, targets, dependencies, earliest/latest windows, duration assumptions, and prerequisites.
+- Target references that distinguish a source-listed location/program record, a modeled physical facility, an operator, and a contracted service scope; retain source IDs and do not collapse records without a reviewed crosswalk.
 - Resource requests and estimates for funding, staffing, equipment, storage, and supply, with units and evidence state.
 - Capacity milestones or a piecewise capacity ramp, including the service unit (for example, meals/day or visits/day).
 - Source IDs, assumptions, unknowns, expected outcome-measure IDs, risks, and delay/reduction/stop conditions.
@@ -96,6 +100,8 @@ Use fixed durations for tightly controlled comparisons. When uncertainty is part
 
 Planning, procurement, or construction status can appear on the map and timeline without providing service. Only a committed operational milestone changes modeled capacity or makes a destination available to pedestrian choice generation. A capacity ramp is a sequence of committed milestones; for example, commissioning can open a site at partial capacity, followed by later increases when staffing and supply conditions pass.
 
+Existing food-support points are baseline location records, not proof of operational service. A verified, authorized provider may already operate in the baseline; a proposed grant or service expansion is a separate versioned scope with its own funding, supply, staffing, and capacity events. A mapped point alone must not make food available to residents. Reducing or stopping a partner intervention ends only the modeled agreement scope unless the scenario explicitly represents a broader authorized change.
+
 The visual layer may show candidate, planned, in-progress, commissioning, operating, delayed, or stopped status. Its appearance is a projection of simulation state. A visual construction animation by itself does not imply a real modeled capacity or cost change.
 
 Costs should be treated consistently with the economic kernel. Plan estimates and reservations are not settled expenditures. Record public or operator costs when their corresponding funding, procurement, construction, or operating events commit, using explicit accounts and units. Prevent a milestone from partially changing capacity or money if its transaction fails.
@@ -119,6 +125,7 @@ Daily resident decisions continue during this schedule. A rollout comparison the
 The browser review view should connect the plan to the city and its evidence:
 
 - A map overlay for candidate sites and planned/in-progress/operational stages.
+- Existing food-support locations and program types, with candidate versus verified status and the authorized intervention scope visible for any partner-run service.
 - A timeline showing dependencies, stage windows, current simulator time, and capacity ramps.
 - Costs, resources, expected measures, and eligibility/feasibility results in declared units.
 - Source links, assumptions, unknowns, disagreements, validation errors, and warnings beside the relevant stage.
@@ -134,9 +141,9 @@ Checkpoints must preserve active stage state, the pending milestone queue, reali
 
 ## Implementation sequence and validation gates
 
-1. **Define the action registry and plan schema.** Start with one service-site action and stable site IDs. Specify units, allowed states, preconditions, and economic effects.
+1. **Define the action registry and plan schema.** Start with one service-site action and stable site IDs. Specify units, allowed states, preconditions, and economic effects. Preserve food-support source/program IDs and `PROGTYPE`; require explicit agreement scope before actions target a partner-run program.
 2. **Build the logical-time scheduler.** Prove that a scheduled event fires at its simulator time in a stable order, independent of browser rendering and playback speed.
-3. **Implement one end-to-end staged site.** Verify that approval schedules work, pre-opening time has no service capacity, commissioning changes capacity only after checks, and the ramp follows the declared milestones.
+3. **Implement one end-to-end staged site.** Verify that approval schedules work, pre-opening time has no service capacity, commissioning changes capacity only after checks, and the ramp follows the declared milestones. After this proof, exercise one existing food-support program under an explicit scenario agreement; verify that funding or a mapped point alone does not create stock or service capacity.
 4. **Exercise delay and failure cases.** Verify missing funding, unavailable staffing/supply, stale revisions, reduction, cancellation, checkpoint/resume, and replay. Confirm that failures leave no partial economic or capacity changes.
 5. **Add the review timeline and map projection.** Ensure displayed state changes follow committed events and carry their source and plan version.
 6. **Compare baseline and rollout.** Measure outcomes before and after opening, include delayed/reduced/no-launch cases, and report the modeled population, time windows, units, and uncertainty.

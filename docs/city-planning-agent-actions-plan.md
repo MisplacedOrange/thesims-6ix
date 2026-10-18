@@ -24,6 +24,8 @@ The repository has a bounded Python food-access simulation and browser playback 
 
 The [economic command types](../sim/core/commands.py) already express transfers, reservations, purchases, food movements, processing, and consumption. The [kernel](../sim/core/kernel.py) returns accepted transitions or rejections. These are useful foundations, but they do not provide durable atomic commits spanning infrastructure, schedules, and economic state. The proposed facility actions, mandates, resource calendars, and adaptive planning loop remain future work.
 
+The [`sim/data` source registry](../sim/data/sources.json) includes City of Toronto food-support program locations. Treat retrieved records as candidate locations: the layer mixes food banks with meal programs, food baskets, child nutrition, food drop-offs, and other services. A listed point does not establish that a program is currently operating or reveal its hours, eligibility, stock, or capacity; candidate locations are not yet active service state in a simulation run.
+
 ## Responsibilities and authority
 
 Keep three decision layers distinct:
@@ -35,6 +37,8 @@ Keep three decision layers distinct:
 | Python simulation | Validate commands, resolve contention, advance time, commit effects, and calculate outcomes | Sole writer of infrastructure, resources, policy state, and accounts |
 
 A planning agent can cause a supplier payment or site opening through an accepted command. It cannot directly edit balances, declare a prerequisite satisfied, or make an unsupported mechanism executable.
+
+Existing community food-support locations may appear in planning snapshots and may be targets of a plan. Their presence in a map layer does not give the simulated City or its agents authority over the operator. Actions that fund, procure for, staff, expand, reduce, or stop a partner-run program require an explicit scenario-authorized grant, contract, or other recorded agreement that defines the operator, program, site, permitted scope, resources, term, and limits. Without that authority, agents may assess the location as context but may not change its service.
 
 Begin with one rule-based planning policy using this boundary. Department roles can later submit coordinated work packages through the same coordinator; separate agents are not required to prove the execution mechanism.
 
@@ -66,6 +70,8 @@ Parameter values may come from observed inputs, announced commitments, explicit 
 
 An eligible location and a new facility are different entities. A facility may receive a new stable scenario ID at a validated location. Source geography IDs remain unchanged. A genuinely new location or spatial footprint requires a supported geometry and access-validation operation; it cannot be fabricated as an existing mapped feature.
 
+For food-support records, preserve the source ID, source record ID, name, coordinates, `PROGTYPE`, retrieval time, evidence state, and source URL. Treat each row as a source-listed location/program record, not automatically as a unique operator or a verified operating facility. Link a modeled facility and one or more program records only when a reviewed crosswalk supports the relationship; do not merge records solely because their names or addresses look similar. Keep unknown operating status, hours, eligibility, inventory, and capacity explicit. A program can be modeled as operational only from verified inputs or a separately labeled scenario assumption.
+
 ## Proposed action catalog
 
 These are candidate domain operations. Each needs a versioned schema, units, preconditions, resource effects, timing, cancellation behavior, and committed events before use. They are not implemented tool names.
@@ -73,12 +79,14 @@ These are candidate domain operations. Each needs a versioned schema, units, pre
 | Action | Required decisions | Infrastructure or service effect | Economic effect |
 | --- | --- | --- | --- |
 | `establish_service_site` | Eligible location, facility/operator type, access connection, schedule, funding, supply, and operating requirements | Creates a planned facility; later milestones make it usable | Reserves commitments and settles implementation and operating payments when due |
-| `expand_facility` | Existing facility, equipment/storage/service increment, installation requirements, and capacity definition | Adds installed capability after readiness checks | Capital costs and changed operating obligations |
-| `fund_program` | Source account, recipient/program, amount, period, eligibility, and conditions | Authorizes a defined service scope; does not itself create stock or readiness | Appropriation/commitment and actual transfer remain distinct |
+| `expand_facility` | Existing municipal facility or agreement-authorized partner facility, equipment/storage/service increment, installation requirements, and capacity definition | Adds installed capability after readiness checks | Capital costs and changed operating obligations |
+| `fund_program` | Source account, recipient/operator and program, authority instrument or agreement, amount, period, eligibility, and conditions | Authorizes a defined municipal or contracted service scope; does not itself create stock or readiness | Appropriation/commitment and actual transfer remain distinct |
 | `set_municipal_price_policy` | Municipal operator, products/services, pricing rule, effective period, and subsidy ceiling | Changes the public operator's offer-generation rule | Alters settled receipts and any explicitly funded discount |
-| `arrange_procurement` | Supplier, product, quantity, price/price rule, delivery schedule, storage, and failure terms | Creates a supply commitment; stock becomes available only after modeled delivery | Reserves funds and settles according to contract terms |
-| `allocate_operating_resources` | Facility, staff/equipment pool, quantities, schedule, and costs | Allocates declared resources and affects available service capacity | Records modeled wages, rental, or other operating payments |
-| `reduce_or_close_service` | Target, effective time, reason, pending users/contracts, and shutdown rules | Reduces or removes available capacity without deleting history | Releases eligible reservations; retains sunk costs and remaining liabilities |
+| `arrange_procurement` | Supplier, product, quantity, price/price rule, delivery schedule, storage, failure terms, and the municipal or partner program authorized to receive it | Creates a supply commitment; stock becomes available only after modeled delivery | Reserves funds and settles according to contract terms |
+| `allocate_operating_resources` | Facility/program, staff/equipment pool, quantities, schedule, costs, and authority to assign resources | Allocates declared resources and affects available service capacity | Records modeled wages, rental, or other operating payments |
+| `reduce_or_close_service` | City-run service or explicitly contracted program scope, effective time, reason, pending users/contracts, and shutdown rules | Reduces or removes the authorized service capacity without deleting location or history | Releases eligible reservations; retains sunk costs and remaining liabilities |
+
+For an existing food-support provider, agents can build a scoped work package from these actions: fund an authorized program, procure food or supplies for it, assign authorized operating resources, and expand only verified facility capability. A reduction or stop applies to the City-funded or contracted scope; it cannot close or alter the provider's wider service. `establish_service_site` is for a new modeled facility or service. When a new program is planned at an existing mapped location, give the program its own scenario ID and link it to the existing location record rather than duplicating the physical place.
 
 Route construction, new crossings, taxation, borrowing, private-market price controls, and new production technologies require separate mechanisms. They are not automatically enabled by this catalog. A mandate authorizes supported operations; it does not implement missing ones.
 
@@ -89,6 +97,7 @@ For each action, document whether it requests an absolute value or an increment,
 An operational facility needs more than a visual marker:
 
 - Facility ID, eligible spatial location, access connection, and operator ID.
+- For a food-support location, source location/program record IDs, preserved `PROGTYPE`, evidence state, and any reviewed link between the physical facility, operator, and programs.
 - Economic accounts, funding commitments, and implementation status.
 - Installed equipment, storage, and physical capacity.
 - Assigned staffing and equipment, hours, eligibility, and service rules.
@@ -146,7 +155,7 @@ Private operators retain their own modeled behavior. A city planner can change c
 
 ## Planning observations and adaptation
 
-At declared decision times, provide a frozen snapshot of eligible sites, active/planned infrastructure, funds and commitments, resource availability, supported actions, and computed outcomes. Expose only the information available under the experiment's observation policy; private household details and future shocks are not automatically visible.
+At declared decision times, provide a frozen snapshot of eligible sites, active/planned infrastructure, funds and commitments, resource availability, supported actions, and computed outcomes. For food-support locations, include source/program IDs, `PROGTYPE`, evidence and operating-status fields, plus any agreement that grants authority to act; unknown status or capacity must remain unknown. Expose only the information available under the experiment's observation policy; private household details and future shocks are not automatically visible.
 
 Useful aggregates include modeled food shortfall, completed and failed trips, reasons for no feasible choice, travel and queue times, capacity utilization, stockouts, deliveries, household expenditure, operator receipts, and public cost. Include group counts and distributions by permitted area, income, size, and mobility strata. Distinguish attempted visits, unique households, eligible populations, and portions served. Unobserved demand must remain unknown where non-attempts are not recorded.
 
