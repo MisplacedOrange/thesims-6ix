@@ -4,3 +4,4 @@
 # These raw bytes are pinned by the immutable input manifest on every OS.
 sim/core/data/*.json text eol=lf
 sim/district/data/*.json text eol=lf
+sim/data/snapshots/*.json text eol=lf

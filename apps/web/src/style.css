@@ -118,198 +118,114 @@
 @media(max-width:800px){.intro>p{display:none}.meet-button{top:auto;bottom:198px}.interface:has(.resident-card) .meet-button{display:none}}
 
 .council-toggle{white-space:nowrap}
-.settings-panel.council-covered{visibility:hidden;pointer-events:none}
-.council-panel{position:absolute;z-index:18;top:91px;right:36px;display:flex;flex-direction:column;gap:13px;width:min(455px,calc(100vw - 72px));max-height:calc(100dvh - 155px);overflow:auto;scrollbar-width:thin;scrollbar-color:#a7b89b transparent;padding:17px 18px;border-radius:13px;color:#304b38;font-size:11px;line-height:1.55}
-.council-panel[hidden]{display:none}
-.council-panel-header{position:sticky;top:-17px;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-17px -18px 0;padding:15px 18px 11px;border-bottom:1px solid #cbd8c1;background:#f7f8eef2;backdrop-filter:blur(14px)}
-.council-panel-header h2{margin:3px 0 0;font:600 19px/1.15 'Manrope',sans-serif;letter-spacing:-.35px;color:#294632}
-.council-overline{color:#7f916e;font-size:7px;font-weight:750;letter-spacing:1.35px;text-transform:uppercase}
-.council-panel-actions{display:flex;align-items:center;gap:8px}
-.council-panel-actions>button:not(.small-icon){padding:7px 10px;border:1px solid #c8d6be;border-radius:5px;background:#edf2e6;color:#426246;font-size:9px}
-.council-session-meta{display:flex;justify-content:space-between;gap:12px;color:#819177;font-size:8px;overflow-wrap:anywhere}
-.council-section{padding-top:12px;border-top:1px solid #ced9c5}
-.council-section-title{display:flex;align-items:center;gap:9px;margin-bottom:10px}
-.council-section-title>span{display:grid;place-items:center;width:21px;height:21px;border-radius:50%;background:#e5edda;color:#67815a;font-size:8px;font-weight:700}
-.council-section-title h3{margin:0;color:#304b38;font:600 13px 'Manrope',sans-serif}
-.council-field{display:grid;gap:5px;margin:8px 0;color:#6c8064;font-size:8px;font-weight:700;letter-spacing:.35px}
-.council-field textarea,.council-field select,.council-field input{width:100%;min-width:0;padding:8px 9px;border:1px solid #cbd8c2;border-radius:5px;background:#fffef8;color:#334c39;font:400 10px/1.5 'DM Sans',sans-serif;letter-spacing:0}
-.council-field textarea{resize:vertical;min-height:38px}
-.council-field textarea::placeholder{color:#91a087}
-.council-panel :is(button,a,input,select,textarea):focus-visible{outline:2px solid #538a6d;outline-offset:2px}
-.council-form-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px}
-.council-form-footer>small,.council-muted{color:#82917a;font-size:8px;line-height:1.55}
-.council-primary,.council-secondary,.council-danger,.council-approve{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:32px;padding:8px 10px;border:1px solid #bfd0b4;border-radius:5px;background:#e9f0df;color:#3d6043;font-size:9px;font-weight:650}
-.council-primary,.council-approve{border-color:#608365;background:#537d61;color:#fffef6}
-.council-danger{border-color:#d9c8b6;background:#f5ede2;color:#8f6042}
-.council-secondary:hover{background:#dce8d2}.council-primary:hover,.council-approve:hover{background:#416c51}
-.council-panel button:disabled{cursor:not-allowed;opacity:.45}
-.council-revision-browser{margin-top:12px;padding:10px;border:1px solid #d3ddcc;border-radius:6px;background:#f0f3e9}
-.council-markdown-preview{max-height:150px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;padding:8px;border-radius:4px;background:#fffef8;color:#435640;font:9px/1.65 'DM Sans',sans-serif}
-.council-analysis{margin-top:11px}
-.council-analysis>summary,.council-saved-record>summary,.council-world-inputs>summary,.council-history>summary{cursor:pointer;color:#526d4d;font-size:9px;font-weight:700}
-.council-span-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
-.council-span-group{min-width:0;padding:9px;border:1px solid #d8e0d1;border-radius:5px;background:#f8f9f1}
-.council-span-group h4,.council-source-context h4,.council-run-history>h4{display:flex;justify-content:space-between;gap:6px;margin:0 0 6px;color:#496445;font-size:8px;font-weight:750;text-transform:uppercase;letter-spacing:.65px}
-.council-span-group h4 span{color:#9aa891;font-variant-numeric:tabular-nums}
-.council-span-group ul,.council-callout ul,.council-run-record ul{padding-left:15px;margin:5px 0}
-.council-span-group li{margin:7px 0 0}
-.council-span-group li small{color:#8d9b84;font-size:7px}
-.council-span-group li p{margin:2px 0 0;color:#405a43;font-size:9px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
-.council-source-context{margin-top:9px;padding:9px;border-top:1px solid #d4decf;background:#f4f6ed}
-.council-source-context p,.council-source-context li{margin:3px 0;color:#74866c;font-size:8px;overflow-wrap:anywhere}
-.council-citations{margin-top:9px}
-.council-citations ul{padding:0;list-style:none}
-.council-citations li{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;border-top:1px solid #dce4d6;padding:6px 0}
-.council-citations a{color:#47734c;text-decoration:underline;overflow-wrap:anywhere}
-.council-citations li span{color:#9a704b;font-size:7px}
-.council-saved-record,.council-world-inputs,.council-history{margin:8px 0;padding:9px;border:1px solid #d3ddcc;border-radius:5px;background:#f6f8ef}
-.council-panel dl{margin:7px 0}
-.council-panel dl>div{display:grid;grid-template-columns:minmax(90px,.7fr) minmax(0,1.3fr);gap:8px;padding:4px 0;border-bottom:1px solid #e2e8dd}
-.council-panel dt{color:#809078;font-size:8px}
-.council-panel dd{margin:0;color:#3c573f;font-size:8px;overflow-wrap:anywhere;text-align:right}
-.council-record{margin-top:12px;padding:11px;border:1px solid #cbd8c2;border-radius:6px;background:#f4f7ed}
-.council-record-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
-.council-record-heading h4{margin:2px 0 0;color:#324c38;font:600 12px 'Manrope',sans-serif}
-.council-hash{color:#829178;font-size:7px;font-variant-numeric:tabular-nums}
-.council-parameters{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
-.council-parameters>div{grid-template-columns:1fr!important}
-.council-parameters dt{font-size:7px!important}
-.council-parameters dd{text-align:left!important;font-size:8px!important}
-.council-focus-button{display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:5px;background:#e3ecd8;color:#426148;font-size:9px;font-weight:650}
-.council-projection-note,.council-location-note,.council-assumption{margin:7px 0;color:#74866c;font-size:8px;line-height:1.55}
-.council-assumption{padding:7px;border-left:2px solid #91a974;background:#edf2e6}
-.council-assumption strong{display:block;color:#61754f;font-size:7px;text-transform:uppercase;letter-spacing:.65px}
-.council-parameter-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
-.council-number-field{margin:5px 0}
-.council-number-field input{padding:7px}
-.council-callout{margin:8px 0;padding:9px 10px;border-left:3px solid #a7815a;border-radius:3px;background:#f4eee2;color:#765c44;font-size:9px;line-height:1.55}
-.council-advice-list{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:9px}
-.council-advice{padding:8px;border:1px solid #d4dfce;border-radius:5px;background:#fafbf5}
-.council-advice>span{color:#69805c;font-size:7px;font-weight:750;text-transform:uppercase;letter-spacing:.55px}
-.council-advice p{margin:4px 0;color:#455e46;font-size:8px;line-height:1.5}
-.council-advice small{color:#9b8b70;font-size:7px}
-.council-advice.advice-caution{border-color:#e3d6b7;background:#faf7e8}
-.council-advice.advice-blocked{border-color:#dfc8b9;background:#fbf0e8}
-.council-confirmation{display:flex;align-items:flex-start;gap:8px;margin:8px 0;padding:9px;border:1px solid #d7bc97;border-radius:5px;background:#faf4e8;color:#795d3e;font-size:9px}
-.council-confirmation input{margin-top:2px;accent-color:#6a8655}
-.council-decision-actions{display:flex;flex-wrap:wrap;gap:6px;margin:9px 0}
-.council-run-action{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px;border-radius:5px;background:#eaf0e3}
-.council-run-action p{margin:0;color:#617555;font-size:8px}
-.council-history ol{padding-left:19px}
-.council-history li{margin:8px 0;color:#596e51;font-size:8px}
-.council-history li p{margin:3px 0;color:#496047;font-size:9px}
-.council-history li small{display:block;color:#829078;font-size:7px;overflow-wrap:anywhere}
-.council-run-history{margin-top:10px}
-.council-run-record{margin:7px 0;padding:9px;border:1px solid #d4dfce;border-radius:5px;background:#f8f9f2}
-.council-run-record>div:first-child{display:flex;align-items:center;gap:8px;min-width:0}
-.council-run-record>div:first-child>b{overflow-wrap:anywhere;color:#4b6247;font-size:8px}
-.council-run-status{flex:none;padding:3px 6px;border-radius:10px;background:#e6eddb;color:#55724b;font-size:7px;font-weight:750;text-transform:uppercase}
-.council-run-status.status-blocked{background:#f2e6d9;color:#956748}
-.council-run-record p,.council-run-record li{color:#77876f;font-size:8px;overflow-wrap:anywhere}
-.council-run-actions{display:flex;gap:6px}
-.council-run-actions button{padding:7px 9px;border:1px solid #cbd8c2;border-radius:4px;background:#edf2e7;color:#456648;font-size:8px}
-.council-marker-status{padding:7px 9px;border-radius:5px;background:#edf3e5;color:#58754d;font-size:8px}
-.council-state-message,.council-unavailable{padding:10px;border-radius:6px;background:#f6f8ef;color:#60745a;font-size:10px}
-.council-unavailable{border-left:3px solid #b58b63;background:#f7f0e7;color:#765f48}
-.council-unavailable strong{font:600 12px 'Manrope',sans-serif}
-.council-unavailable p{font-size:9px;line-height:1.55}
-.council-unavailable button{padding:7px 10px;border-radius:4px;background:#ebe8d8;color:#576d4c;font-size:9px}
-.council-command-error{padding:8px 9px;border-left:3px solid #ab6e53;background:#f6e9de;color:#86543d;font-size:9px;overflow-wrap:anywhere}
-@media(max-width:1100px) and (min-width:801px){.council-panel{right:25px;width:min(420px,calc(100vw - 50px));max-height:calc(100dvh - 135px)}.settings-panel.council-covered{display:none}}
-@media(max-width:800px){
-  .header-actions{gap:6px}
-  .analytics-link,.council-toggle{justify-content:center;width:34px;height:34px;padding:0;font-size:0;gap:0}
-  .analytics-link svg:last-child{display:none}
-  .council-panel{left:12px;right:12px;top:73px;bottom:136px;width:auto;max-height:none;padding:13px 14px;border-radius:11px;z-index:22}
-  .council-panel-header{top:-13px;margin:-13px -14px 0;padding:11px 14px 9px}
-  .settings-panel.council-covered{display:none}
-  .interface:has(.council-panel:not([hidden])) .meet-button,.interface:has(.council-panel:not([hidden])) .resident-card{display:none}
-  .council-span-grid,.council-parameter-grid,.council-advice-list{grid-template-columns:1fr 1fr}
-  .council-panel-header h2{font-size:17px}
-}
-@media(max-width:390px){
-  .council-span-grid,.council-parameter-grid,.council-advice-list{grid-template-columns:1fr}
-  .council-panel{left:9px;right:9px;bottom:132px;padding:11px}
-  .council-panel-header{top:-11px;margin:-11px -11px 0;padding:10px 11px 8px}
-  .council-decision-actions>*{flex:1}
-}
-.council-panel{font-size:13px;line-height:1.6}
-.council-overline{font-size:9px}
-.council-panel-header h2{font-size:20px}
-.council-session-meta{font-size:10px}
-.council-section-title>span{width:24px;height:24px;font-size:10px}
-.council-section-title h3{font-size:16px}
-.council-field{font-size:11px;letter-spacing:.1px}
-.council-field textarea,.council-field select,.council-field input{font-size:13px}
-.council-field textarea{min-height:56px}
-.council-form-footer>small,.council-muted{font-size:10px}
-.council-primary,.council-secondary,.council-danger,.council-approve{min-height:38px;padding:9px 12px;font-size:12px}
-.council-revision-browser,.council-saved-record,.council-world-inputs,.council-history,.council-record{background:transparent}
-.council-markdown-preview{max-height:190px;font-size:12px}
-.council-analysis>summary,.council-saved-record>summary,.council-world-inputs>summary,.council-history>summary{font-size:12px}
-.council-span-group{padding:8px 0;border:0;border-top:1px solid #d8e0d1;border-radius:0;background:transparent}
-.council-span-group h4,.council-source-context h4,.council-run-history>h4{font-size:10px}
-.council-span-group li small{font-size:10px}
-.council-span-group li p{font-size:12px;line-height:1.55}
-.council-source-context{background:transparent}
-.council-source-context p,.council-source-context li{font-size:10px}
-.council-citations li span{font-size:10px}
-.council-panel dt{font-size:10px}
-.council-panel dd{font-size:11px}
-.council-record-heading h4{font-size:15px}
-.council-hash{font-size:10px}
-.council-parameters dt{font-size:10px!important}
-.council-parameters dd{font-size:11px!important}
-.council-focus-button{min-height:36px;font-size:11px}
-.council-projection-note,.council-location-note,.council-assumption{font-size:10px}
-.council-assumption strong{font-size:9px}
-.council-callout{font-size:11px}
-.council-advice{padding:9px 2px;border:0;border-top:1px solid #d4dfce;border-radius:0;background:transparent}
-.council-advice>span{font-size:9px}
-.council-advice p{font-size:11px;line-height:1.55}
-.council-advice small{font-size:10px}
-.council-confirmation{font-size:11px}
-.council-run-action p{font-size:10px}
-.council-history li{font-size:10px}
-.council-history li p{font-size:11px}
-.council-history li small{font-size:10px}
-.council-run-record{background:transparent}
-.council-run-status{font-size:9px}
-.council-run-record p,.council-run-record li{font-size:10px}
-.council-run-actions button{min-height:36px;font-size:10px}
-.council-marker-status,.council-state-message{font-size:11px}
-.council-unavailable strong{font-size:14px}
-.council-unavailable p{font-size:11px}
-.council-unavailable button{min-height:36px;font-size:11px}
-.council-command-error,.council-validation{padding:8px 9px;border-left:3px solid #ab6e53;background:#f6e9de;color:#86543d;font-size:11px;overflow-wrap:anywhere}
-.council-rollout-meta{margin:-5px 0 4px;color:#708168;font-size:11px;overflow-wrap:anywhere}
-.council-rollout-list{margin:0;padding-left:22px}
-.council-rollout-list li{padding:9px 5px;border-bottom:1px solid #d4dfce;color:#455e46}
-.council-rollout-list li.rollout-blocked,.council-rollout-list li.rollout-pending{border-left:2px solid #c8d5bf}
-.council-rollout-list li.rollout-blocked{border-left-color:#ae7958}
-.council-rollout-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
-.council-rollout-heading b{font-size:12px}
-.council-rollout-heading span{color:#708168;font-size:10px;text-align:right}
-.council-rollout-list li p{margin:5px 0;color:#6a7d60;font-size:11px;line-height:1.5;overflow-wrap:anywhere}
-.council-rollout-list li button{min-height:32px;padding:6px 9px;border:1px solid #cbd8c2;border-radius:4px;background:#edf2e7;color:#456648;font-size:10px}
-@media(max-width:800px){.council-panel{font-size:12px}.council-run-action{align-items:flex-start;flex-direction:column}.council-rollout-heading{align-items:flex-start;flex-direction:column;gap:2px}}
-@media(min-width:801px){.council-panel{max-height:calc(100dvh - 225px)}}
-@media(max-width:800px){.header-actions a.analytics-link{font-size:0}}
-.council-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 10px}
-.council-entry-form,.council-subform{margin:8px 0;padding:8px;border:1px solid #d3ddcc;border-radius:5px;background:#f6f8ef}
-.council-entry-form>summary,.council-subform>summary{cursor:pointer;color:#436246;font-size:9px;font-weight:700}
-.council-subform{background:#eef2e8}
-.council-record-list{display:grid;gap:8px;margin:8px 0}
-.council-record-card{margin:7px 0;padding:9px;border:1px solid #d3ddcc;border-radius:5px;background:#f7f8f1;overflow-wrap:anywhere}
-.council-record-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:9px;color:#304b38}
-.council-record-heading>span{color:#819176;font-size:8px;text-align:right}
-.council-record-card dl{margin:6px 0}
-.council-record-card dl>div{grid-template-columns:minmax(70px,.7fr) minmax(0,1.3fr)}
-.council-record-card dt,.council-record-card dd{font-size:8px}
-.council-record-card dd{text-align:left}
-.council-record-card a{color:#47734c;text-decoration:underline;overflow-wrap:anywhere}
-.council-record-note,.council-event-card p,.council-event-card small{display:block;margin:5px 0;color:#6d8064;font-size:8px;line-height:1.5;overflow-wrap:anywhere}
-.council-record-card .council-secondary{min-height:27px;padding:5px 8px;font-size:8px}
-.council-event-card{padding:7px 9px}
-.council-form-footer>div{display:flex;flex-shrink:0;gap:6px}
-@media(max-width:800px){.council-form-grid{grid-template-columns:1fr}.council-form-footer{align-items:flex-start;flex-direction:column}.council-form-footer>div{align-self:flex-end}}
+.council-overlay{position:fixed;inset:0;z-index:40;display:grid;place-items:center;padding:28px;background:rgba(18,34,27,.48);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.council-overlay[hidden]{display:none}
+.council-workspace{display:grid;grid-template-columns:230px minmax(0,1fr);width:min(1020px,calc(100vw - 56px));height:min(740px,calc(100dvh - 56px));overflow:hidden;border:1px solid rgba(255,255,255,.7);border-radius:20px;background:#f9faf6;color:#24352a;box-shadow:0 28px 90px rgba(13,30,22,.28)}
+.council-sidebar{display:flex;flex-direction:column;min-width:0;padding:24px 14px 18px;background:#f0f3ed;border-right:1px solid #e0e6dd}
+.council-brand{display:flex;align-items:center;gap:11px;padding:0 10px 24px}
+.council-brand-mark{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:#e1eadf;color:#47654a}
+.council-brand>div>span{display:block;color:#859183;font-size:9px;font-weight:700;letter-spacing:1.2px}
+.council-brand h2{margin:2px 0 0;font:650 17px/1.2 'Manrope',sans-serif;letter-spacing:-.3px;color:#293d30}
+.council-tabs{display:grid;gap:4px}
+.council-tabs button{display:flex;align-items:center;gap:11px;min-height:42px;padding:0 11px;border-radius:9px;background:transparent;color:#68766a;text-align:left;font-size:13px}
+.council-tabs button:hover{background:#e9eee6}
+.council-tabs button.active{background:#fff;color:#294531;box-shadow:0 1px 3px rgba(35,59,41,.08)}
+.council-tabs button small{margin-left:auto;color:#829081;font-size:11px;font-variant-numeric:tabular-nums}
+.council-main{display:grid;grid-template-rows:auto minmax(0,1fr);min-width:0;min-height:0}
+.council-main-header{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:21px 30px 17px;border-bottom:1px solid #e7ebe4;background:rgba(251,252,249,.96)}
+.council-main-header h3{margin:5px 0 0;font:600 23px/1.2 'Manrope',sans-serif;letter-spacing:-.6px;color:#293d30}
+.council-header-actions{display:flex;align-items:center;gap:7px}
+.council-icon-button{display:grid;place-items:center;width:36px;height:36px;border:1px solid #e1e6df;border-radius:50%;background:#fff;color:#667368}
+.council-icon-button:hover{background:#f0f4ed;color:#294531}
+.council-content{min-width:0;min-height:0;overflow:auto;padding:28px 30px 36px;scrollbar-width:thin;scrollbar-color:#c5cec3 transparent}
+.council-page{max-width:680px;margin:0 auto}
+.council-example{display:flex;align-items:center;justify-content:space-between;width:100%;margin:0 0 17px;padding:12px 14px;border:1px solid #e0e8dc;border-radius:10px;background:#f2f6ef;color:#47634a;text-align:left;font-size:13px;font-weight:550}
+.council-example:hover{background:#e9f0e5}
+.council-proposal-form{padding:20px;border:1px solid #e2e8df;border-radius:14px;background:#fff;box-shadow:0 4px 16px rgba(38,58,39,.04)}
+.council-label{display:grid;gap:7px;margin:12px 0 7px;color:#46564a;font-size:12px;font-weight:600}
+.council-proposal-form>.council-label{margin-top:0}
+.council-label input,.council-label select,.council-label textarea,.council-proposal-form>textarea,.council-inline-form>input,.council-inline-form>textarea{width:100%;min-width:0;padding:11px 12px;border:1px solid #dce3da;border-radius:9px;background:#fff;color:#293d30;font:400 14px/1.5 'DM Sans',sans-serif;letter-spacing:0}
+.council-label input:focus,.council-label select:focus,.council-label textarea:focus,.council-proposal-form>textarea:focus,.council-inline-form>input:focus,.council-inline-form>textarea:focus{outline:2px solid #7b9b7d;outline-offset:1px}
+.council-label textarea,.council-proposal-form>textarea,.council-inline-form>textarea{min-height:108px;resize:vertical}
+.council-label input::placeholder,.council-label textarea::placeholder,.council-proposal-form>textarea::placeholder,.council-inline-form input::placeholder,.council-inline-form textarea::placeholder{color:#9ba59a}
+.council-form-actions{display:flex;align-items:center;justify-content:flex-end;gap:14px;margin-top:16px}
+.council-primary,.council-secondary{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:38px;padding:9px 14px;border:1px solid transparent;border-radius:9px;font-size:13px;font-weight:600;white-space:nowrap}
+.council-primary{background:#42664a;color:#fff}
+.council-primary:hover{background:#36583d}
+.council-secondary{border-color:#dfe5dc;background:#fff;color:#4d6250}
+.council-secondary:hover{background:#f1f5ee}
+.council-primary:disabled,.council-secondary:disabled{cursor:not-allowed;opacity:.48}
+.council-details{margin-top:20px;border-top:1px solid #e5eae3}
+.council-details>summary,.council-revision>summary,.council-record-details>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;cursor:pointer;list-style:none;color:#536255;font-size:13px;font-weight:550}
+.council-details>summary::-webkit-details-marker,.council-revision>summary::-webkit-details-marker,.council-record-details>summary::-webkit-details-marker{display:none}
+.council-details>summary:after,.council-revision>summary:after,.council-record-details>summary:after{content:'+';color:#819080;font-size:17px;font-weight:400}
+.council-details[open]>summary:after,.council-revision[open]>summary:after,.council-record-details[open]>summary:after{content:'−'}
+.council-source-summary{display:grid;gap:6px;padding:3px 0 13px;color:#718071;font-size:12px}
+.council-source-summary strong{color:#405342}
+.council-source-summary ul{margin:4px 0;padding-left:19px;line-height:1.5}
+.council-citations{display:flex;flex-wrap:wrap;gap:8px}
+.council-citations a{color:#507353;text-decoration:underline;text-underline-offset:2px}
+.council-revisions{border-top:1px solid #e8ece6}
+.council-revision{border-bottom:1px solid #e8ece6}
+.council-revision>summary{min-height:38px;font-size:12px}
+.council-revision-meta{padding:0 0 8px;color:#899389;font-size:10px;font-variant-numeric:tabular-nums}
+.council-revision pre{max-height:180px;overflow:auto;margin:0 0 10px;padding:12px;border-radius:8px;background:#f2f5ef;color:#4e5c50;font:11px/1.55 'DM Sans',sans-serif;white-space:pre-wrap;overflow-wrap:anywhere}
+.council-secondary{margin-bottom:10px}
+.council-record-section{margin:0 0 26px}
+.council-record-section+.council-record-section{padding-top:24px;border-top:1px solid #e5eae3}
+.council-record-section-header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.council-record-section-header>div{display:flex;align-items:center;gap:9px;color:#56705a}
+.council-record-section-header h5{margin:0;color:#344a38;font:600 16px 'Manrope',sans-serif}
+.council-record-section-header>div>span{display:grid;place-items:center;min-width:22px;height:22px;padding:0 5px;border-radius:12px;background:#edf2ea;color:#728071;font-size:11px}
+.council-record-section-header>.council-secondary{margin:0}
+.council-inline-form{margin:14px 0;padding:17px;border:1px solid #e1e8de;border-radius:12px;background:#fff}
+.council-inline-form>.council-label:first-child{margin-top:0}
+.council-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px}
+.council-optional-details{margin:12px 0;border-top:1px solid #edf0eb}
+.council-optional-details>summary{min-height:39px;font-size:12px}
+.council-record-list{display:grid;gap:9px;margin-top:12px}
+.council-record-card{padding:13px 15px;border:1px solid #e3e8e1;border-radius:11px;background:#fff}
+.council-record-card-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.council-record-card-heading>div{display:grid;gap:3px;min-width:0}
+.council-record-card-heading strong{color:#354a39;font-size:13px;font-weight:600;overflow-wrap:anywhere}
+.council-record-card-heading span,.council-record-tag{color:#7c897d;font-size:11px}
+.council-record-card>p{margin:9px 0 0;color:#566458;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.council-text-button{padding:4px 6px;background:transparent;color:#58715a;font-size:12px}
+.council-text-button:hover{text-decoration:underline;text-underline-offset:3px}
+.council-record-details{margin-top:6px}
+.council-record-details>summary{min-height:33px;font-size:11px}
+.council-record-details dl{margin:0;padding-bottom:8px}
+.council-record-details dl>div{display:grid;grid-template-columns:minmax(105px,.6fr) minmax(0,1.4fr);gap:12px;padding:6px 0;border-bottom:1px solid #edf0eb}
+.council-record-details dt{color:#8a958a;font-size:11px}
+.council-record-details dd{margin:0;color:#4c5c4e;font-size:11px;overflow-wrap:anywhere}
+.council-record-details a{color:#507353;text-decoration:underline;text-underline-offset:2px}
+.council-record-details p,.council-record-details li{color:#667568;font-size:11px;line-height:1.5;overflow-wrap:anywhere}
+.council-record-details ol,.council-record-details ul{padding-left:18px}
+.council-empty-inline{margin:8px 0;color:#909a90;font-size:12px}
+.council-empty{padding:19px;border:1px dashed #d7dfd4;border-radius:11px;background:#fbfcf9;color:#788578;font-size:13px}
+.council-error{padding:14px;border:1px solid #ead7c8;border-radius:10px;background:#fbf3ed;color:#765e4d}
+.council-error strong{font-size:13px}
+.council-error p{margin:5px 0 12px;color:#816b5b;font-size:12px;overflow-wrap:anywhere}
+.council-error button{padding:8px 12px;border-radius:8px;background:#efe6dc;color:#6e594b;font-size:12px}
+.council-status{display:inline-flex;align-items:center;padding:5px 9px;border-radius:99px;font-size:11px;font-weight:600}
+.council-status.complete{background:#e8f0e6;color:#45684c}
+.council-status.blocked{background:#f5ebe5;color:#93654e}
+.council-run-summary{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin:0 0 18px;padding:13px 14px;border:1px solid #e2e8df;border-radius:11px;background:#fff;color:#69766a;font-size:12px}
+.council-run-summary>.council-record-details{flex-basis:100%;border-top:1px solid #edf0eb}
+.council-blockers{margin-bottom:14px;padding:12px 14px;border-left:3px solid #b67e5e;background:#faf3ed;color:#765b48;font-size:12px}
+.council-blockers ul{margin:6px 0;padding-left:19px}
+.council-timeline{margin:0;padding:0;list-style:none}
+.council-timeline li{position:relative;margin:0;padding:0 0 22px 25px;border-left:1px solid #dce4d9}
+.council-timeline li:before{content:'';position:absolute;top:4px;left:-5px;width:9px;height:9px;border-radius:50%;background:#779478}
+.council-timeline li.blocked:before{background:#bd7c58}
+.council-timeline-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.council-timeline-heading strong{color:#415243;font-size:13px;font-weight:600;text-transform:capitalize}
+.council-timeline-heading span{color:#879287;font-size:11px;text-transform:capitalize}
+.council-timeline li>p{margin:5px 0;color:#6e7c70;font-size:12px;line-height:1.5}
+.council-timeline .council-record-details{border-top:1px solid #e7ebe5}
+.council-command-error{margin:0 0 14px}
+@media(max-width:900px){.council-workspace{grid-template-columns:190px minmax(0,1fr);width:calc(100vw - 28px);height:calc(100dvh - 28px)}.council-main-header{padding:18px 22px 15px}.council-content{padding:22px}}
+@media(max-width:800px){.header-actions{gap:6px}.analytics-link,.council-toggle{justify-content:center;width:34px;height:34px;padding:0;font-size:0;gap:0}.analytics-link svg:last-child{display:none}}
+@media(max-width:700px){.council-overlay{padding:10px}.council-workspace{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr);width:100%;height:100%;border-radius:15px}.council-sidebar{padding:12px 14px 8px;border-right:0;border-bottom:1px solid #e0e6dd}.council-brand{padding:0 2px 9px}.council-brand-mark{width:30px;height:30px}.council-brand h2{font-size:15px}.council-tabs{display:flex;gap:4px}.council-tabs button{justify-content:center;gap:6px;flex:1;min-height:36px;padding:0 8px;font-size:12px}.council-tabs button svg{width:14px;height:14px}.council-tabs button small{margin-left:0}.council-main-header{padding:14px 17px 12px}.council-main-header h3{font-size:19px}.council-content{padding:18px 16px 24px}.council-proposal-form{padding:15px}.council-form-grid{grid-template-columns:1fr}}
+@media(max-width:390px){.council-tabs button{gap:4px;font-size:11px}.council-tabs button svg{display:none}.council-record-section-header{align-items:flex-start}.council-record-section-header h5{font-size:14px}.council-run-summary{align-items:flex-start;flex-direction:column}}
+

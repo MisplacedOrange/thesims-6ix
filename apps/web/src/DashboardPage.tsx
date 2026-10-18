@@ -12,15 +12,13 @@ import { loadRunTrace } from './runTrace.ts';
 type DashboardSection = 'overview' | 'interactions' | 'sites' | 'households';
 type GroupDimension = 'income_band' | 'area' | 'mobility' | 'size';
 const sections: { id: DashboardSection; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'interactions', label: 'Interaction log' },
-  { id: 'sites', label: 'Sites & services' },
+  { id: 'overview', label: 'Summary' },
+  { id: 'interactions', label: 'Events' },
+  { id: 'sites', label: 'Sites' },
   { id: 'households', label: 'Households' },
 ];
-const sectionFromQuery = (): DashboardSection => {
-  const value = new URLSearchParams(window.location.search).get('view');
-  return sections.some(section => section.id === value) ? value as DashboardSection : 'overview';
-};
+const isDashboardSection = (value: string | null): value is DashboardSection =>
+  sections.some(section => section.id === value);
 const populationFromQuery = () => {
   const value = Number(new URLSearchParams(window.location.search).get('population'));
   return [200, 600, 1200, 2400].includes(value) ? value : 2400;
@@ -45,6 +43,48 @@ const timeFromQuery = (horizon: number) => {
   return Number.isFinite(value) && value >= 0 ? Math.min(value, horizon) : horizon;
 };
 
+function dateTimeAt(seconds: number, startTime: string, timezone = 'America/Toronto') {
+  const hasOffset = /(?:Z|[+-]\d{2}:\d{2})$/.test(startTime);
+  if (hasOffset) {
+    const date = new Date(Date.parse(startTime) + Math.floor(seconds) * 1000);
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone, year: 'numeric', month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }).format(date);
+  }
+  const start = startTime.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
+  if (!start) return at(seconds, startTime, timezone);
+  const date = new Date(Date.UTC(Number(start[1]), Number(start[2]) - 1, Number(start[3]),
+    Number(start[4]), Number(start[5]), Number(start[6])) + Math.floor(seconds) * 1000);
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).format(date);
+}
+
+function localDateAt(seconds: number, startTime: string, timezone = 'America/Toronto') {
+  const hasOffset = /(?:Z|[+-]\d{2}:\d{2})$/.test(startTime);
+  let date: Date;
+  if (hasOffset) date = new Date(Date.parse(startTime) + Math.floor(seconds) * 1000);
+  else {
+    const start = startTime.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
+    if (!start) return '';
+    date = new Date(Date.UTC(Number(start[1]), Number(start[2]) - 1, Number(start[3]),
+      Number(start[4]), Number(start[5]), Number(start[6])) + Math.floor(seconds) * 1000);
+  }
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: hasOffset ? timezone : 'UTC', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(date);
+  return `${parts.find(part => part.type === 'year')?.value}-${parts.find(part => part.type === 'month')?.value}-${parts.find(part => part.type === 'day')?.value}`;
+}
+
+function timeRangeAt(seconds: number, startTime: string, timezone?: string) {
+  if (localDateAt(0, startTime, timezone) !== localDateAt(seconds, startTime, timezone)) {
+    return `${dateTimeAt(0, startTime, timezone)} — ${dateTimeAt(seconds, startTime, timezone)}`;
+  }
+  return `${at(0, startTime, timezone)} — ${at(seconds, startTime, timezone)}`;
+}
+
 function siteStatus(site: Site, seconds: number, startTime: string, timezone?: string) {
   if (seconds < site.active_from) return 'Scheduled ' + at(site.active_from, startTime, timezone);
   if (seconds < site.opens || seconds >= site.closes) return 'Closed';
@@ -55,17 +95,18 @@ function EventRow({ trace, event, selected, onSelect }: {
   trace: FoodTrace; event: InteractionEvent; selected: boolean; onSelect: (event: InteractionEvent) => void;
 }) {
   const site = trace.sites.find(candidate => candidate.id === event.site_id);
-  const subject = event.household_id ?? event.site_id ?? 'City activity';
+  const subject = event.household_id ? `Household ${event.household_id}`
+    : site ? `Site ${site.name}` : event.site_id ? `Site ${event.site_id}` : 'City activity';
   const amount = event.quantity_grams > 0 ? grams(event.quantity_grams)
-    : event.portions ? event.portions + ' portions' : '—';
+    : event.portions ? event.portions + ' portions' : 'None';
   const status = event.result.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   return <button type="button" className={'terminal-event-row' + (selected ? ' selected' : '')}
     aria-pressed={selected} onClick={() => onSelect(event)}>
-    <time>{at(event.simulation_time, trace.start_time, trace.timezone)}</time>
-    <span className="terminal-event-action"><b>{words(event.action)}</b><small>{subject}{site ? ' / ' + site.name : ''}</small></span>
-    <em className={'terminal-result result-' + status}>{words(event.result)}</em>
-    <span className="terminal-event-amount">{amount}</span>
-    <span className="terminal-event-cash">{event.payment_cents > 0 ? dollars(event.payment_cents) : '—'}</span>
+    <time data-label="Time">{at(event.simulation_time, trace.start_time, trace.timezone)}</time>
+    <span data-label="Action and subject" className="terminal-event-action"><b>{words(event.action)}</b><small>{subject}{event.household_id && site ? ` · Site ${site.name}` : ''}</small></span>
+    <em data-label="Result" className={'terminal-result result-' + status}>{words(event.result)}</em>
+    <span data-label="Quantity" className="terminal-event-amount">{amount}</span>
+    <span data-label="Payment" className="terminal-event-cash">{event.payment_cents > 0 ? dollars(event.payment_cents) : 'None'}</span>
   </button>;
 }
 
@@ -99,7 +140,7 @@ function ChartGrid({ maximum, units, horizon, startTime, timezone }: {
     {[0, 0.5, 1].map(fraction => <text key={fraction} x={chartBox.left + fraction * (chartBox.right - chartBox.left)} y="288" textAnchor={fraction === 0 ? 'start' : fraction === 1 ? 'end' : 'middle'}>
       {at(horizon * fraction, startTime, timezone)}
     </text>)}
-    <text x="8" y="18" className="terminal-axis-unit">{units.toUpperCase()}</text>
+    <text x="8" y="18" className="terminal-axis-unit">{units}</text>
   </>;
 }
 
@@ -113,7 +154,7 @@ function FoodFlowChart({ trace, points, seconds }: { trace: FoodTrace; points: F
   const current = points.at(-1)!;
   const cursorX = chartBox.left + Math.min(1, seconds / Math.max(1, trace.horizon_seconds)) * (chartBox.right - chartBox.left);
   return <div className="terminal-chart">
-    <svg viewBox="0 0 1040 320" role="img" aria-label="Cumulative purchased, received, and consumed produce in kilograms through the live simulation playhead">
+    <svg viewBox="0 0 1040 320" role="img" aria-label="Cumulative produce purchased, received, and consumed over simulation time">
       <ChartGrid maximum={maximumGrams / 1000} units="kg" horizon={trace.horizon_seconds} startTime={trace.start_time} timezone={trace.timezone} />
       {series.map(item => <g key={item.key}>
         <path d={chartPath(points, trace.horizon_seconds, maximumGrams, point => point[item.key])} className="terminal-chart-series" style={{ stroke: item.color }} />
@@ -122,10 +163,8 @@ function FoodFlowChart({ trace, points, seconds }: { trace: FoodTrace; points: F
         </circle>
       </g>)}
       <line x1={cursorX} x2={cursorX} y1={chartBox.top} y2={chartBox.bottom} className="terminal-live-cursor" />
-      <text x="1028" y="18" textAnchor="end" className="terminal-axis-unit">PRODUCE COMPONENT</text>
     </svg>
     <div className="terminal-chart-legend">{series.map(item => <span key={item.key}><i style={{ backgroundColor: item.color }} />{item.label}</span>)}</div>
-    <div className="terminal-chart-footer"><span>COMMITTED HOUSEHOLD FOOD FLOW</span><span>PLAYHEAD {at(seconds, trace.start_time, trace.timezone)}</span></div>
   </div>;
 }
 
@@ -144,7 +183,7 @@ function ServiceActivityChart({ trace, points, seconds }: { trace: FoodTrace; po
   const maximum = Math.max(1, fullCounts.completed, fullCounts.denied, fullCounts.noPurchase);
   const cursorX = chartBox.left + Math.min(1, seconds / Math.max(1, trace.horizon_seconds)) * (chartBox.right - chartBox.left);
   return <div className="terminal-chart">
-    <svg viewBox="0 0 1040 320" role="img" aria-label="Cumulative completed services, service denials, and no-purchase decisions through the live simulation playhead">
+    <svg viewBox="0 0 1040 320" role="img" aria-label="Cumulative completed services, service denials, and no-purchase decisions over simulation time">
       <ChartGrid maximum={maximum} units="events" horizon={trace.horizon_seconds} startTime={trace.start_time} timezone={trace.timezone} />
       {series.map(item => <g key={item.key}>
         <path d={chartPath(points, trace.horizon_seconds, maximum, point => point[item.key])} className="terminal-chart-series" style={{ stroke: item.color }} />
@@ -155,7 +194,6 @@ function ServiceActivityChart({ trace, points, seconds }: { trace: FoodTrace; po
       <line x1={cursorX} x2={cursorX} y1={chartBox.top} y2={chartBox.bottom} className="terminal-live-cursor" />
     </svg>
     <div className="terminal-chart-legend">{series.map(item => <span key={item.key}><i style={{ backgroundColor: item.color }} />{item.label}</span>)}</div>
-    <div className="terminal-chart-footer"><span>EVENT COUNTS / CUMULATIVE</span><span>PLAYHEAD {at(seconds, trace.start_time, trace.timezone)}</span></div>
   </div>;
 }
 
@@ -165,7 +203,7 @@ function SiteStockChart({ trace, points, seconds }: { trace: FoodTrace; points: 
     ...trace.events.map(event => event.site_state?.stock_grams ?? 0)), [trace]);
   const cursorX = chartBox.left + Math.min(1, seconds / Math.max(1, trace.horizon_seconds)) * (chartBox.right - chartBox.left);
   return <div className="terminal-chart">
-    <svg viewBox="0 0 1040 320" role="img" aria-label="Site inventory in kilograms, updated from committed site stock changes">
+    <svg viewBox="0 0 1040 320" role="img" aria-label="Site inventory over simulation time">
       <ChartGrid maximum={maximumGrams / 1000} units="kg" horizon={trace.horizon_seconds} startTime={trace.start_time} timezone={trace.timezone} />
       {trace.sites.map((site, index) => {
         const color = seriesColors[index % seriesColors.length]!;
@@ -180,38 +218,37 @@ function SiteStockChart({ trace, points, seconds }: { trace: FoodTrace; points: 
       <line x1={cursorX} x2={cursorX} y1={chartBox.top} y2={chartBox.bottom} className="terminal-live-cursor" />
     </svg>
     <div className="terminal-chart-legend">{trace.sites.map((site, index) => <span key={site.id}><i style={{ backgroundColor: seriesColors[index % seriesColors.length] }} />{site.name}</span>)}</div>
-    <div className="terminal-chart-footer"><span>MODELED SITE INVENTORY</span><span>PLAYHEAD {at(seconds, trace.start_time, trace.timezone)}</span></div>
   </div>;
 }
 
 function EventDetails({ trace, event, onSite, onHousehold }: {
   trace: FoodTrace; event: InteractionEvent | null; onSite: (id: string) => void; onHousehold: (id: string) => void;
 }) {
-  if (!event) return <aside className="terminal-panel terminal-detail-empty"><span className="terminal-panel-code">EVENT INSPECTOR</span>
-    <p>Select a record to inspect its result, service timing, and related household or site.</p></aside>;
+  if (!event) return <aside className="terminal-panel terminal-detail-empty"><p>Select an event to view its details.</p></aside>;
   const site = trace.sites.find(candidate => candidate.id === event.site_id);
   return <aside className="terminal-panel terminal-event-detail">
-    <div className="terminal-panel-heading"><div><span className="terminal-panel-code">EVENT INSPECTOR / {at(event.simulation_time, trace.start_time, trace.timezone)}</span>
+    <div className="terminal-panel-heading"><div><span className="terminal-panel-code">Event details · {at(event.simulation_time, trace.start_time, trace.timezone)}</span>
       <h3>{words(event.action)}</h3></div><em className={'terminal-result result-' + event.result.toLowerCase().replace(/[^a-z0-9]+/g, '-')}>{words(event.result)}</em></div>
     <dl className="terminal-definitions">
       <div><dt>Event ID</dt><dd>{event.event_id}</dd></div>
       {event.household_id && <div><dt>Household</dt><dd>{event.household_id}</dd></div>}
       {event.site_id && <div><dt>Site</dt><dd>{site?.name ?? event.site_id}</dd></div>}
-      {event.quantity_grams > 0 && <div><dt>Quantity</dt><dd>{grams(event.quantity_grams)}</dd></div>}
-      {event.payment_cents > 0 && <div><dt>Payment</dt><dd>{dollars(event.payment_cents)}</dd></div>}
-      <div><dt>Travel / queue / service</dt><dd>{duration(event.travel_seconds)} / {duration(event.queue_seconds)} / {duration(event.service_seconds)}</dd></div>
+      <div><dt>Quantity</dt><dd>{event.quantity_grams > 0 ? grams(event.quantity_grams) : event.portions ? `${event.portions} portions` : 'None'}</dd></div>
+      <div><dt>Payment</dt><dd>{event.payment_cents > 0 ? dollars(event.payment_cents) : 'None'}</dd></div>
+      <div><dt>Travel time</dt><dd>{duration(event.travel_seconds)}</dd></div>
+      <div><dt>Queue time</dt><dd>{duration(event.queue_seconds)}</dd></div>
+      <div><dt>Service time</dt><dd>{duration(event.service_seconds)}</dd></div>
       {event.denial_or_failure_reason && <div><dt>Reason</dt><dd>{words(event.denial_or_failure_reason)}</dd></div>}
-      <div><dt>Evidence state</dt><dd>{words(event.evidence_state)}</dd></div>
+      <div><dt>Evidence</dt><dd>{words(event.evidence_state)}</dd></div>
     </dl>
     <div className="terminal-detail-links">
-      {event.household_id && <button onClick={() => onHousehold(event.household_id!)}>Open household <ArrowRight size={13} /></button>}
-      {event.site_id && <button onClick={() => onSite(event.site_id!)}>Open site <ArrowRight size={13} /></button>}
+      {event.household_id && <button onClick={() => onHousehold(event.household_id!)}>View household <ArrowRight size={13} /></button>}
+      {event.site_id && <button onClick={() => onSite(event.site_id!)}>View site <ArrowRight size={13} /></button>}
     </div>
   </aside>;
 }
 
 export function DashboardPage() {
-  const [section, setSection] = useState<DashboardSection>(sectionFromQuery);
   const [trace, setTrace] = useState<FoodTrace | null>(null);
   const [runRef, setRunRef] = useState<RunRef>(runRefFromQuery);
   const [policy, setPolicy] = useState<'baseline' | 'emergency' | 'council'>(() => {
@@ -237,10 +274,13 @@ export function DashboardPage() {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(() => new URLSearchParams(window.location.search).get('site'));
   const [selectedHouseholdId, setSelectedHouseholdId] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState<DashboardSection>('overview');
   const [liveState, setLiveState] = useState<LiveRunState | null>(null);
   const [now, setNow] = useState(Date.now());
   const liveChannel = useRef<BroadcastChannel | null>(null);
   const activeRunRef = useRef(runRef);
+  const workspaceRef = useRef<HTMLDivElement | null>(null);
+  const initialNavigationHandled = useRef(false);
   useEffect(() => { activeRunRef.current = runRef; }, [runRef]);
 
   useEffect(() => {
@@ -257,6 +297,41 @@ export function DashboardPage() {
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [runRef, retry]);
+
+  useEffect(() => {
+    if (loading || !trace || initialNavigationHandled.current) return;
+    initialNavigationHandled.current = true;
+    const url = new URL(window.location.href);
+    const hashSection = isDashboardSection(url.hash.slice(1)) ? url.hash.slice(1) as DashboardSection : null;
+    const legacyView = isDashboardSection(url.searchParams.get('view')) ? url.searchParams.get('view') as DashboardSection : null;
+    const target = hashSection ?? legacyView ?? (selectedSiteId ? 'sites' : null);
+    if (url.searchParams.has('view')) url.searchParams.delete('view');
+    if (!target) {
+      window.history.replaceState(null, '', url);
+      return;
+    }
+    setActiveSection(target);
+    url.hash = target;
+    window.history.replaceState(null, '', url);
+    requestAnimationFrame(() => document.getElementById(target)?.scrollIntoView({
+      block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    }));
+  }, [loading, selectedSiteId, trace]);
+
+  useEffect(() => {
+    const workspace = workspaceRef.current;
+    if (!workspace || loading || !trace) return;
+    const observer = new IntersectionObserver(entries => {
+      const current = entries.filter(entry => entry.isIntersecting)
+        .sort((left, right) => left.boundingClientRect.top - right.boundingClientRect.top)[0];
+      if (current && isDashboardSection(current.target.id)) setActiveSection(current.target.id);
+    }, { root: workspace, rootMargin: '-120px 0px -60% 0px', threshold: 0 });
+    sections.forEach(({ id }) => {
+      const target = workspace.querySelector<HTMLElement>(`#${id}`);
+      if (target) observer.observe(target);
+    });
+    return () => observer.disconnect();
+  }, [loading, trace]);
 
   useEffect(() => {
     if (typeof BroadcastChannel === 'undefined') return;
@@ -333,10 +408,14 @@ export function DashboardPage() {
   const siteIds = trace ? [...new Set([...trace.sites.map(site => site.id), ...(view?.events.map(event => event.site_id).filter((id): id is string => id !== null) ?? [])])] : [];
   const sites = trace ? trace.sites.filter(site => siteTypeFilter === 'all' || site.type === siteTypeFilter) : [];
 
-  function chooseSection(next: DashboardSection) {
-    setSection(next);
+  function scrollToSection(next: DashboardSection) {
+    const target = document.getElementById(next);
+    if (!target) return;
+    setActiveSection(next);
+    target.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
     const url = new URL(window.location.href);
-    url.searchParams.set('view', next);
+    url.searchParams.delete('view');
+    url.hash = next;
     window.history.replaceState(null, '', url);
   }
   function chooseRun(nextPopulation: number, nextPolicy: 'baseline' | 'emergency') {
@@ -386,34 +465,25 @@ export function DashboardPage() {
     else url.searchParams.delete('site');
     window.history.replaceState(null, '', url);
   }
-  function selectSite(id: string) { setSelectedSiteId(id); chooseSection('sites'); }
-  function selectHousehold(id: string) { setSelectedHouseholdId(id); chooseSection('households'); }
+  function selectSite(id: string) { setSelectedSiteId(id); scrollToSection('sites'); }
+  function selectHousehold(id: string) { setSelectedHouseholdId(id); scrollToSection('households'); }
   function downloadRun() {
     if (!trace) return;
-    const payload = { run: trace, displayed_through_seconds: playhead, section, filters: { actionFilter, resultFilter, siteFilter } };
+    const payload = { run: trace, displayed_through_seconds: playhead, filters: { actionFilter, resultFilter, siteFilter } };
     const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
     const link = document.createElement('a');
     link.href = url; link.download = 'food-access-' + trace.population + '-' + trace.policy + '-run.json'; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  return <main className="analytics-shell">
-    <aside className="analytics-rail">
-      <a className="analytics-brand" href="/" aria-label="Back to The Sims 6ix simulation">
-        <span className="analytics-brand-mark">6</span><span>THE SIMS <b>6IX</b><small>TORONTO SIMULATION</small></span>
-      </a>
-      <nav className="analytics-nav" aria-label="Analytics sections">
-        {sections.map(item => <button type="button" key={item.id} aria-current={section === item.id ? 'page' : undefined}
-          className={section === item.id ? 'active' : ''} onClick={() => chooseSection(item.id)}>
-          <span>{item.label}</span><i />
-        </button>)}
-      </nav>
-    </aside>
-
-    <div className="analytics-workspace">
+  return <main className="analytics-shell analytics-single-page">
+    <div className="analytics-workspace" ref={workspaceRef}>
       <header className="analytics-topbar">
-        <div className="analytics-top-actions"><span className="readonly-badge" title={liveConnected ? 'Synchronized to the simulation tab' : 'Showing the selected committed trace'}><i />
-            {trace && view && view.seconds >= trace.horizon_seconds ? 'COMPLETE' : liveConnected ? liveState?.paused ? 'PAUSED' : 'SYNCED' : 'LOCAL REPLAY'}</span>
+        <a className="analytics-brand" href="/" aria-label="Back to The Sims 6ix city">
+          <span className="analytics-brand-mark">6</span><span>THE SIMS <b>6IX</b><small>TORONTO SIMULATION</small></span>
+        </a>
+        <div className="analytics-top-actions"><span className="readonly-badge" title={liveConnected ? 'Synchronized with the city simulation' : 'Showing saved run data'}><i />
+            {trace && view && view.seconds >= trace.horizon_seconds ? 'Complete' : liveConnected ? liveState?.paused ? 'Paused' : 'Live' : 'Replay'}</span>
           <a target="_blank" rel="noreferrer" href={cityUrl(runRef, view?.seconds ?? 0, selectedSiteId,
             selectedEvent?.resident_id !== null && selectedEvent ? selectedEvent.resident_id : null)} className="city-link">Open city <ArrowDownLeft size={14} /></a>
         </div>
@@ -421,183 +491,194 @@ export function DashboardPage() {
 
       <div className="analytics-content">
         <section className="analytics-heading">
-          <div><span className="analytics-kicker">FOOD ACCESS</span><h1>Run dashboard</h1>
-            <p>Simulation outcomes and service activity.</p></div>
-          <button className="analytics-export" type="button" onClick={downloadRun} disabled={!trace}><Download size={15} /> Export run data</button>
+          <div><span className="analytics-kicker">FOOD ACCESS</span><h1>Run dashboard</h1></div>
+          <button className="analytics-export" type="button" onClick={downloadRun} disabled={!trace}><Download size={15} /> Export JSON</button>
         </section>
 
         <section className="analytics-commandbar" aria-label="Run selection">
-          <label><span>SCENARIO</span><select value={policy} onChange={event => {
+          <label><span>Scenario</span><select value={policy} onChange={event => {
             if (event.target.value === 'baseline' || event.target.value === 'emergency') chooseRun(population, event.target.value);
           }}>
-            <option value="baseline">Baseline / no intervention</option><option value="emergency">Emergency food site</option>
+            <option value="baseline">Baseline (no intervention)</option><option value="emergency">Emergency food site</option>
             <option value="council" disabled={runRef.kind !== 'council'}>Council run</option>
           </select></label>
-          <label><span>POPULATION</span><select value={population} onChange={event => chooseRun(Number(event.target.value), policy === 'council' ? 'baseline' : policy)}>
+          <label><span>Household agents</span><select value={population} onChange={event => chooseRun(Number(event.target.value), policy === 'council' ? 'baseline' : policy)}>
             {[200, 600, 1200, 2400].map(count => <option value={count} key={count}>{count.toLocaleString()} household agents</option>)}
           </select></label>
         </section>
 
         {runRef.kind === 'council' && <section className="council-arm-control" aria-label="Council run comparison">
-          <div><span className="analytics-kicker">EXACT COUNCIL RUN</span><b>{runRef.run_id}</b>
-            <small>Baseline and intervention are stored arms of this same run.</small></div>
-          <label><span>COMPARISON ARM</span><select value={runRef.arm} onChange={event => {
+          <div><span className="analytics-kicker">Council run</span><b>{runRef.run_id}</b>
+            <small>Both scenarios use the same run.</small></div>
+          <label><span>Scenario arm</span><select value={runRef.arm} onChange={event => {
             if (event.target.value === 'baseline' || event.target.value === 'intervention') chooseCouncilArm(event.target.value);
           }}>
-            <option value="baseline">Paired baseline</option><option value="intervention">Intervention</option>
+            <option value="baseline">Baseline</option><option value="intervention">Intervention</option>
           </select></label>
         </section>}
 
         {loading && <div className="analytics-state" role="status"><span className="loading-diamond"><span /></span><b>Loading committed run data</b><small>Rebuilding the event projection for this run.</small></div>}
         {!loading && error && <div className="analytics-state analytics-error" role="alert"><b>Run data unavailable</b><p>{error}</p>
-          <button type="button" onClick={() => setRetry(value => value + 1)}>Retry load <ArrowRight size={14} /></button></div>}
+          <button type="button" onClick={() => setRetry(value => value + 1)}>Retry <ArrowRight size={14} /></button></div>}
         {!loading && trace && view && <>
           <section className="analytics-time-control">
-            <div><span><Clock3 size={14} /> SIMULATION TIME</span><b>{at(0, trace.start_time, trace.timezone)} — {at(view.seconds, trace.start_time, trace.timezone)}</b></div>
-            <input aria-label="Run time playhead" type="range" min="0" max={trace.horizon_seconds} step="60"
+            <div><span><Clock3 size={14} /> Simulation time</span><b>{timeRangeAt(view.seconds, trace.start_time, trace.timezone)}</b></div>
+            <input aria-label="Simulation time" type="range" min="0" max={trace.horizon_seconds} step="60"
               value={Math.floor(view.seconds)} onChange={event => chooseTime(Number(event.target.value))} />
-            <div className="time-control-scale"><span>{at(0, trace.start_time, trace.timezone)} START</span><span>{at(trace.horizon_seconds, trace.start_time, trace.timezone)} END</span></div>
+            <div className="time-control-scale"><span>Start {dateTimeAt(0, trace.start_time, trace.timezone)}</span><span>End {dateTimeAt(trace.horizon_seconds, trace.start_time, trace.timezone)}</span></div>
           </section>
 
-          {section === 'overview' && <section className="analytics-section">
-            <div className="analytics-section-title"><h2>Overview</h2></div>
-            <div className="analytics-live-grid" aria-label="Live simulation charts">
+          <nav className="analytics-section-nav" aria-label="Jump to dashboard section">
+            <span>Jump to</span>
+            {sections.map(item => <a href={'#' + item.id} key={item.id} aria-current={activeSection === item.id ? 'location' : undefined}>
+              {item.label}
+            </a>)}
+          </nav>
+
+          <section id="overview" className="analytics-section" aria-labelledby="overview-heading">
+            <div className="analytics-section-title"><h2 id="overview-heading">Summary</h2></div>
+            <div className="analytics-live-grid" aria-label="Simulation charts">
               <section className="terminal-panel">
-                <div className="terminal-panel-heading"><div><span className="terminal-panel-code">HOUSEHOLD FOOD / CUMULATIVE</span><h3>Produce flow through the run</h3></div>
-                  <span className="panel-unit">KG</span></div>
+                <div className="terminal-panel-heading"><div><h3>Produce purchased, received, and consumed</h3></div></div>
                 <FoodFlowChart trace={trace} points={timeline} seconds={view.seconds} />
               </section>
               <section className="terminal-panel">
-                <div className="terminal-panel-heading"><div><span className="terminal-panel-code">COMMITTED EVENTS / CUMULATIVE</span><h3>Service and purchase activity</h3></div>
-                  <span className="panel-unit">EVENTS</span></div>
+                <div className="terminal-panel-heading"><div><h3>Services and purchases</h3></div></div>
                 <ServiceActivityChart trace={trace} points={timeline} seconds={view.seconds} />
               </section>
               <section className="terminal-panel site-chart-panel">
-                <div className="terminal-panel-heading"><div><span className="terminal-panel-code">SCENARIO PROJECTION / INVENTORY</span><h3>Modeled site stock</h3></div>
-                  <span className="panel-unit">KG</span></div>
+                <div className="terminal-panel-heading"><div><h3>Site stock</h3></div></div>
                 <SiteStockChart trace={trace} points={stockHistory} seconds={view.seconds} />
               </section>
             </div>
 
-          </section>}
+          </section>
 
-          {section === 'interactions' && <section className="analytics-section">
-            <div className="analytics-section-title"><h2>Interaction log</h2></div>
+          <section id="interactions" className="analytics-section" aria-labelledby="interactions-heading">
+            <div className="analytics-section-title"><h2 id="interactions-heading">Events</h2></div>
             <div className="terminal-filterbar">
-              <label className="terminal-search"><Search size={15} /><input aria-label="Search interactions" placeholder="Search household, site, or reason"
+              <label className="terminal-search"><Search size={15} /><input aria-label="Search events" placeholder="Search events"
                 value={query} onChange={event => { setQuery(event.target.value); setEventLimit(60); }} /></label>
-              <label><span>ACTION</span><select value={actionFilter} onChange={event => { setActionFilter(event.target.value); setEventLimit(60); }}>
+              <label><span>Action</span><select value={actionFilter} onChange={event => { setActionFilter(event.target.value); setEventLimit(60); }}>
                 <option value="all">All actions</option>{actionOptions.map(action => <option value={action} key={action}>{words(action)}</option>)}</select></label>
-              <label><span>RESULT</span><select value={resultFilter} onChange={event => { setResultFilter(event.target.value); setEventLimit(60); }}>
+              <label><span>Result</span><select value={resultFilter} onChange={event => { setResultFilter(event.target.value); setEventLimit(60); }}>
                 <option value="all">All results</option>{resultOptions.map(result => <option value={result} key={result}>{words(result)}</option>)}</select></label>
-              <label><span>SITE</span><select value={siteFilter} onChange={event => { setSiteFilter(event.target.value); setEventLimit(60); }}>
+              <label><span>Site</span><select value={siteFilter} onChange={event => { setSiteFilter(event.target.value); setEventLimit(60); }}>
                 <option value="all">All sites</option>{siteIds.map(id => <option value={id} key={id}>{trace.sites.find(site => site.id === id)?.name ?? id}</option>)}</select></label>
             </div>
             <div className="analytics-detail-layout">
               <section className="terminal-panel terminal-table-panel">
-                <div className="terminal-event-head"><span>TIME</span><span>ACTION / SUBJECT</span><span>RESULT</span><span>QUANTITY</span><span>PAYMENT</span></div>
+                <div className="terminal-event-head"><span>Time</span><span>Action and subject</span><span>Result</span><span>Quantity</span><span>Payment</span></div>
                 {filteredEvents.length ? <div className="terminal-event-list">{filteredEvents.slice(0, eventLimit).map(event =>
                   <EventRow key={event.event_id} trace={trace} event={event} selected={event.event_id === selectedEvent?.event_id} onSelect={selectEvent} />)}</div>
-                  : <p className="terminal-empty">No events match the selected filters through {at(view.seconds, trace.start_time, trace.timezone)}.</p>}
-                {filteredEvents.length > eventLimit && <button className="terminal-load-more" onClick={() => setEventLimit(limit => limit + 60)}>Load 60 earlier events</button>}
+                  : <p className="terminal-empty">No events match these filters by {at(view.seconds, trace.start_time, trace.timezone)}.</p>}
+                {filteredEvents.length > eventLimit && <button className="terminal-load-more" onClick={() => setEventLimit(limit => limit + 60)}>Load 60 older events</button>}
               </section>
               <EventDetails trace={trace} event={selectedEvent} onSite={selectSite} onHousehold={selectHousehold} />
             </div>
-          </section>}
+          </section>
 
-          {section === 'sites' && <section className="analytics-section">
-            <div className="analytics-section-title"><h2>Sites & services</h2></div>
+          <section id="sites" className="analytics-section" aria-labelledby="sites-heading">
+            <div className="analytics-section-title"><h2 id="sites-heading">Sites</h2></div>
             <div className="terminal-filterbar site-filterbar">
-              <label><span>LOCATION TYPE</span><select value={siteTypeFilter} onChange={event => setSiteTypeFilter(event.target.value)}>
+              <label><span>Location type</span><select value={siteTypeFilter} onChange={event => setSiteTypeFilter(event.target.value)}>
                 <option value="all">All locations</option>{['retailer', 'support', 'school', 'emergency', 'council'].map(type => <option key={type} value={type}>{words(type)}</option>)}</select></label>
             </div>
             <div className="analytics-detail-layout">
               <section className="terminal-panel terminal-table-panel">
-                <div className="terminal-site-head"><span>LOCATION</span><span>STATUS</span><span>STOCK</span><span>VISITS / DENIALS</span><span>SERVED</span><span>REVENUE</span></div>
+                <div className="terminal-site-head"><span>Location</span><span>Status</span><span>Stock</span><span>Visits</span><span>Denials</span><span>Served</span><span>Capacity</span><span>Revenue</span></div>
                 <div className="terminal-site-list">{sites.map(site => {
                   const state = view.sites[site.id]!;
                   return <button type="button" className={'terminal-site-row' + (selectedSiteId === site.id ? ' selected' : '')}
                     aria-pressed={selectedSiteId === site.id} key={site.id} onClick={() => setSelectedSiteId(site.id)}>
-                    <span><b>{site.name}</b><small>{words(site.type)} / {site.id}</small></span><span>{siteStatus(site, view.seconds, trace.start_time, trace.timezone)}</span>
-                    <span>{grams(state.stock_grams)}</span><span>{state.visits} / {state.denials}</span>
-                    <span>{state.served} / {state.capacity}</span><span>{dollars(state.revenue_cents)}</span>
+                    <span data-label="Location"><b>{site.name}</b><small>{words(site.type)} · ID {site.id}</small></span>
+                    <span data-label="Status">{siteStatus(site, view.seconds, trace.start_time, trace.timezone)}</span>
+                    <span data-label="Stock">{grams(state.stock_grams)}</span><span data-label="Visits">{state.visits}</span>
+                    <span data-label="Denials">{state.denials}</span><span data-label="Served">{state.served}</span>
+                    <span data-label="Capacity">{state.capacity}</span><span data-label="Revenue">{dollars(state.revenue_cents)}</span>
                   </button>;
                 })}</div>
               </section>
               <aside className="terminal-panel terminal-event-detail">
-                {selectedSite ? <><div className="terminal-panel-heading"><div><span className="terminal-panel-code">SITE RECORD / {words(selectedSite.type)}</span>
+                {selectedSite ? <><div className="terminal-panel-heading"><div><span className="terminal-panel-code">Site details · {words(selectedSite.type)}</span>
                     <h3>{selectedSite.name}</h3></div><span className="site-state-chip">{siteStatus(selectedSite, view.seconds, trace.start_time, trace.timezone)}</span></div>
                   <p className="terminal-site-note">{selectedSite.source_id
-                    ? `City-listed location from ${selectedSite.source_snapshot_id}. Current operating status is unknown; price, stock, hours, capacity, eligibility, and modeled activity remain illustrative.`
-                    : `Synthetic intervention location and operating values under ${trace.scenario_id}.`}</p>
+                    ? 'Listed by the city. Current operations are unknown. Displayed operating values are modeled.'
+                    : 'Synthetic location. All listed operating values are modeled.'}</p>
                   <dl className="terminal-definitions">
-                    {selectedSite.source_record_url && <div><dt>Location source</dt><dd><a href={selectedSite.source_record_url} target="_blank" rel="noreferrer">{selectedSite.source_id} / {selectedSite.source_record_id}</a></dd></div>}
+                    {selectedSite.source_record_url && <div><dt>Location source</dt><dd><a href={selectedSite.source_record_url} target="_blank" rel="noreferrer">Source ID {selectedSite.source_id} · Record {selectedSite.source_record_id}</a></dd></div>}
                     {selectedSite.source_retrieved_at && <div><dt>Snapshot retrieved</dt><dd>{selectedSite.source_retrieved_at}</dd></div>}
-                    <div><dt>Service window</dt><dd>{at(selectedSite.opens, trace.start_time, trace.timezone)} — {at(selectedSite.closes, trace.start_time, trace.timezone)}</dd></div>
+                    <div><dt>Opens</dt><dd>{at(selectedSite.opens, trace.start_time, trace.timezone)}</dd></div>
+                    <div><dt>Closes</dt><dd>{at(selectedSite.closes, trace.start_time, trace.timezone)}</dd></div>
                     <div><dt>Eligibility</dt><dd>{selectedSite.eligible}</dd></div>
                     <div><dt>Current stock</dt><dd>{grams(view.sites[selectedSite.id]!.stock_grams)}</dd></div>
-                    <div><dt>Price / 100 g</dt><dd>{dollars(view.sites[selectedSite.id]!.price_cents_per_100g)}</dd></div>
-                    <div><dt>Served / capacity</dt><dd>{view.sites[selectedSite.id]!.served} / {view.sites[selectedSite.id]!.capacity}</dd></div>
-                    <div><dt>Distributed / sold</dt><dd>{grams(view.sites[selectedSite.id]!.sold_grams)}</dd></div>
-                    <div><dt>Replenishment</dt><dd>{grams(view.sites[selectedSite.id]!.received_grams)}</dd></div>
-                    <div><dt>Revenue / procurement</dt><dd>{dollars(view.sites[selectedSite.id]!.revenue_cents)} / {dollars(view.sites[selectedSite.id]!.spending_cents)}</dd></div>
+                    <div><dt>Price per 100 g</dt><dd>{dollars(view.sites[selectedSite.id]!.price_cents_per_100g)}</dd></div>
+                    <div><dt>Served</dt><dd>{view.sites[selectedSite.id]!.served}</dd></div>
+                    <div><dt>Capacity</dt><dd>{view.sites[selectedSite.id]!.capacity}</dd></div>
+                    <div><dt>Food sold</dt><dd>{grams(view.sites[selectedSite.id]!.sold_grams)}</dd></div>
+                    <div><dt>Stock received</dt><dd>{grams(view.sites[selectedSite.id]!.received_grams)}</dd></div>
+                    <div><dt>Revenue</dt><dd>{dollars(view.sites[selectedSite.id]!.revenue_cents)}</dd></div>
+                    <div><dt>Procurement</dt><dd>{dollars(view.sites[selectedSite.id]!.spending_cents)}</dd></div>
                   </dl>
-                  <h4 className="terminal-subheading">Recent site activity</h4>
+                  <h4 className="terminal-subheading">Recent events</h4>
                   <div className="terminal-event-list compact">{view.events.filter(event => event.site_id === selectedSite.id).slice(-8).reverse().map(event =>
-                    <EventRow key={event.event_id} trace={trace} event={event} selected={event.event_id === selectedEvent?.event_id} onSelect={selected => { selectEvent(selected); chooseSection('interactions'); }} />)}</div>
-                </> : <div className="terminal-detail-empty"><span className="terminal-panel-code">SITE INSPECTOR</span><p>Select a location to inspect availability, inventory, throughput, and activity.</p></div>}
+                    <EventRow key={event.event_id} trace={trace} event={event} selected={event.event_id === selectedEvent?.event_id} onSelect={selected => { selectEvent(selected); scrollToSection('interactions'); }} />)}</div>
+                </> : <div className="terminal-detail-empty"><p>Select a site to view its details.</p></div>}
               </aside>
             </div>
-          </section>}
+          </section>
 
-          {section === 'households' && <section className="analytics-section">
-            <div className="analytics-section-title"><h2>Households</h2></div>
+          <section id="households" className="analytics-section" aria-labelledby="households-heading">
+            <div className="analytics-section-title"><h2 id="households-heading">Households</h2></div>
             <section className="terminal-panel cohort-panel">
-              <div className="terminal-panel-heading"><div><span className="terminal-panel-code">GROUPED OUTCOMES</span><h3>Average per household</h3></div>
-                <label className="terminal-inline-select"><span>GROUP BY</span><select value={groupBy} onChange={event => setGroupBy(event.target.value as GroupDimension)}>
+              <div className="terminal-panel-heading"><div><h3>Average per household</h3></div>
+                <label className="terminal-inline-select"><span>Group by</span><select value={groupBy} onChange={event => setGroupBy(event.target.value as GroupDimension)}>
                   <option value="income_band">Income band</option><option value="area">Area</option><option value="mobility">Mobility</option><option value="size">Household size</option>
                 </select></label></div>
-              <p className="cohort-note">Per-household averages for this synthetic run. Group counts are shown; treat these values as descriptive.</p>
-              <div className="terminal-group-head"><span>GROUP</span><span>HOUSEHOLDS</span><span>FOOD OBTAINED / HH</span><span>UNMET PRODUCE / HH</span><span>SPENDING / HH</span></div>
+              <p className="cohort-note">Averages for this synthetic run.</p>
+              <div className="terminal-group-head"><span>Group</span><span>Households</span><span>Food obtained per household</span><span>Unmet produce per household</span><span>Spending per household</span></div>
               <div className="terminal-group-list">{groupedHouseholds.map(([label, group]) => <div className="terminal-group-row" key={label}>
-                <b>{label}</b><span>{group.count.toLocaleString()}</span><span>{grams(Math.round(group.obtained / group.count))}</span>
-                <span>{grams(Math.round(group.unmet / group.count))}</span><span>{dollars(Math.round(group.spending / group.count))}</span>
+                <b data-label="Group">{label}</b><span data-label="Households">{group.count.toLocaleString()}</span>
+                <span data-label="Food obtained per household">{grams(Math.round(group.obtained / group.count))}</span>
+                <span data-label="Unmet produce per household">{grams(Math.round(group.unmet / group.count))}</span>
+                <span data-label="Spending per household">{dollars(Math.round(group.spending / group.count))}</span>
               </div>)}</div>
             </section>
             <div className="analytics-detail-layout household-detail-layout">
               <section className="terminal-panel terminal-table-panel">
-                <label className="terminal-search household-search"><Search size={15} /><input aria-label="Search households" placeholder="Search ID, area, income, or mobility"
+                <label className="terminal-search household-search"><Search size={15} /><input aria-label="Search households" placeholder="Search households"
                   value={householdQuery} onChange={event => { setHouseholdQuery(event.target.value); setHouseholdLimit(80); }} /></label>
-                <div className="terminal-household-head"><span>HOUSEHOLD</span><span>AREA / PROFILE</span><span>FOOD OBTAINED</span><span>UNMET PRODUCE</span><span>SPENDING</span></div>
+                <div className="terminal-household-head"><span>Household</span><span>Area, size, income band</span><span>Food obtained</span><span>Unmet produce</span><span>Spending</span></div>
                 <div className="terminal-household-list">{filteredHouseholds.slice(0, householdLimit).map(household => {
                   const state = view.households[household.id]!;
                   return <button type="button" key={household.id} aria-pressed={selectedHouseholdId === household.id}
                     className={'terminal-household-row' + (selectedHouseholdId === household.id ? ' selected' : '')}
                     onClick={() => setSelectedHouseholdId(household.id)}>
-                    <b>{household.id}</b><span>{household.area} / {household.size} people / {household.income_band}</span>
-                    <span>{grams(state.purchased_grams + state.received_grams)}</span><span>{grams(state.unmet_grams)}</span><span>{dollars(state.expenditure_cents)}</span>
+                    <b data-label="Household">{household.id}</b>
+                    <span data-label="Profile">{household.area} · {household.size} people · {household.income_band}</span>
+                    <span data-label="Food obtained">{grams(state.purchased_grams + state.received_grams)}</span>
+                    <span data-label="Unmet produce">{grams(state.unmet_grams)}</span><span data-label="Spending">{dollars(state.expenditure_cents)}</span>
                   </button>;
                 })}</div>
                 {filteredHouseholds.length > householdLimit && <button className="terminal-load-more" onClick={() => setHouseholdLimit(limit => limit + 80)}>Load 80 more households</button>}
               </section>
               <aside className="terminal-panel household-inspector">
-                {selectedHousehold && view ? <><div className="terminal-panel-heading"><div><span className="terminal-panel-code">HOUSEHOLD RECORD</span><h3>{selectedHousehold.id}</h3></div>
+                {selectedHousehold && view ? <><div className="terminal-panel-heading"><div><span className="terminal-panel-code">Household details</span><h3>{selectedHousehold.id}</h3></div>
                     <span className="household-icon"><Users size={15} /></span></div>
                   <HouseholdDetails household={selectedHousehold} view={view} startTime={trace.start_time} timezone={trace.timezone} /></>
-                  : <div className="terminal-detail-empty"><span className="terminal-panel-code">HOUSEHOLD INSPECTOR</span><p>Select a household to inspect its modeled resources, food use, and event history.</p></div>}
+                  : <div className="terminal-detail-empty"><p>Select a household to view its details.</p></div>}
               </aside>
             </div>
-          </section>}
+          </section>
 
           <footer className="analytics-footnote">
-            <span>Synthetic scenario output; not observed Toronto service data.</span>
+            <span>All run outcomes are synthetic. They are not observed Toronto service data.</span>
             <details className="terminal-assumptions">
-              <summary>Run notes and provenance</summary>
-              <p>{trace.scenario_id} / {trace.policy} / seed {trace.seed} / {trace.population.toLocaleString()} synthetic household agents. Evidence: {words(trace.evidence_state)}.</p>
-              {trace.data_snapshot && <p>Ingested input: {trace.data_snapshot.content.snapshot_id}. Retrieved source: {trace.data_snapshot.content.source_snapshot_id}.</p>}
-              <p>{trace.assumptions.food_use} Crossing wait: {trace.assumptions.crossing_delay_seconds} seconds. {trace.assumptions.scope}</p>
+              <summary>Run details</summary>
+              <p>Scenario: {trace.scenario_id}. Policy: {words(trace.policy)}. Seed: {trace.seed}. Household agents: {trace.population.toLocaleString()}. Evidence: {words(trace.evidence_state)}.</p>
+              {trace.data_snapshot && <p>Input snapshot: {trace.data_snapshot.content.snapshot_id}. Source snapshot: {trace.data_snapshot.content.source_snapshot_id}.</p>}
+              <p>Food use: {trace.assumptions.food_use} Crossing delay: {trace.assumptions.crossing_delay_seconds} seconds. Scope: {trace.assumptions.scope}</p>
               <p>Parameter set: {trace.assumptions.parameter_id}. Unknown inputs: {trace.assumptions.unknown_inputs.join(', ') || 'None listed'}.</p>
-              <p>Prices, stock, hours, capacity, eligibility, and service activity are illustrative where the trace does not provide observed values.</p>
             </details>
           </footer>
         </>}
