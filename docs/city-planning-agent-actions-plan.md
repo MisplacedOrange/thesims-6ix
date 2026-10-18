@@ -26,6 +26,8 @@ The [economic command types](../sim/core/commands.py) already express transfers,
 
 The [`sim/data` source registry](../sim/data/sources.json) includes City of Toronto food-support program locations. Treat retrieved records as candidate locations: the layer mixes food banks with meal programs, food baskets, child nutrition, food drop-offs, and other services. A listed point does not establish that a program is currently operating or reveal its hours, eligibility, stock, or capacity; candidate locations are not yet active service state in a simulation run.
 
+The data pipeline described in `sim/data` now ingests complete City GIS snapshots and provides BM25-style lexical retrieval with record-level citations. The current downtown pedestrian simulation pins a derived location snapshot at `sim/data/snapshots/toronto-downtown-sites-v3.json`. This makes source-listed locations available to that scenario; it does not yet refresh evidence for each submitted proposal or provide an LLM planner. A snapshot retrieval time must not be presented as the source observation date.
+
 ## Responsibilities and authority
 
 Keep three decision layers distinct:
@@ -71,6 +73,18 @@ Parameter values may come from observed inputs, announced commitments, explicit 
 An eligible location and a new facility are different entities. A facility may receive a new stable scenario ID at a validated location. Source geography IDs remain unchanged. A genuinely new location or spatial footprint requires a supported geometry and access-validation operation; it cannot be fabricated as an existing mapped feature.
 
 For food-support records, preserve the source ID, source record ID, name, coordinates, `PROGTYPE`, retrieval time, evidence state, and source URL. Treat each row as a source-listed location/program record, not automatically as a unique operator or a verified operating facility. Link a modeled facility and one or more program records only when a reviewed crosswalk supports the relationship; do not merge records solely because their names or addresses look similar. Keep unknown operating status, hours, eligibility, inventory, and capacity explicit. A program can be modeled as operational only from verified inputs or a separately labeled scenario assumption.
+
+### Proposal-time retrieval and evidence bundle
+
+Every new proposal and material proposal revision triggers a proposal-evidence request before planning agents draft work packages. Parse the request into typed intents such as action, target geography and population, time horizon, requested mechanism, required inputs, outcome measures, and constraints. Match each intent and requested measure to registered sources, fields, and supported actions; do not let free-text similarity alone determine whether evidence supports an action.
+
+For each request, check the freshness of relevant registered sources and retrieve from the newest complete, validated source snapshots. Use source update schedules and source-provided update or observation dates when available. Record these separately from the retrieval time. Label freshness as current, stale, or unknown according to the source metadata; a recent retrieval does not establish a recent observation or accurate record. The [City of Toronto Open Data FAQ](https://open.toronto.ca/docs/frequently-asked-questions/) likewise distinguishes its last refresh check from the freshness and accuracy of underlying records. If a source refresh fails, preserve the last complete snapshot as stale or mark the source unavailable. Do not silently represent it as current.
+
+The immutable evidence bundle records the proposal ID and revision, retrieval request ID, source registry and matching-rule versions, query and filters, snapshot IDs and content hashes, retrieval time, source record IDs and citations, per-field evidence state, coverage, and missing or conflicting fields. This binds later planning and review to the evidence actually used. A material proposal or evidence change before approval requires a new bundle and plan validation.
+
+Use the existing `supported`, `requires_parameters`, and `unsupported` coverage labels at the proposal-field level. A missing, stale, or conflicting input must remain visible. Agents may offer an explicitly labeled scenario assumption within an approved mandate; generated text or a retrieved location listing cannot convert an unknown value into an observed fact. An unsupported mechanism or outcome remains unschedulable unless an authorized, reviewed scope revision excludes it.
+
+Retrieval is a read-only evidence step. Planning agents use the bundle to propose typed actions; Python validates and commits only supported actions under the existing authority and transaction rules. Retrieved text never writes simulation state or grants authority over a listed provider.
 
 ## Proposed action catalog
 
@@ -167,6 +181,7 @@ Adaptive decisions must record the observation, selected action, alternatives/re
 
 | Gate | Deliverable | Required evidence |
 | --- | --- | --- |
+| 0. Proposal evidence | Versioned intent and measure schema, source freshness registry, proposal-time retrieval, and immutable evidence bundle | Labeled proposal-to-source fixtures report retrieval precision and recall; supported, missing, stale, unavailable, irrelevant, and conflicting evidence cases have explicit outcomes; unknown or stale records cannot be labeled observed; snapshot IDs and hashes are pinned |
 | 1. Contract | One site action, facility/operator schema, units, coverage record, and exact-plan/mandate rules | Supported, missing-input, unsupported, and outside-mandate fixtures have explicit outcomes |
 | 2. Transaction boundary | Resource reservations, deterministic event queue, and durable milestone commits | No partial money/capacity changes; duplicate commands do not duplicate effects; competing plans cannot overcommit |
 | 3. One site | Rule-based planner selects an eligible location, funds readiness, arranges supply, and opens service | No pre-opening service; commissioning alone grants no capacity; operational milestone creates a reachable legal option |

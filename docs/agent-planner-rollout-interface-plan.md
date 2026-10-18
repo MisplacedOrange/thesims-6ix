@@ -14,6 +14,8 @@ The browser currently renders a Toronto scene and seeded pedestrian itineraries.
 
 The design below follows the existing architecture boundary: Python owns logical time, infrastructure state, policy activation, and economic transactions; the browser renders committed snapshots and events. See [architecture](architecture.md#state-ownership-and-flow) and [integration status](integration.md).
 
+The repository's `sim/data` package now retrieves and validates City GIS candidate snapshots with BM25-style lexical ranking and record citations. The current pedestrian simulation uses a pinned derived location snapshot. Proposal-time evidence refresh, proposal-to-source matching, and a planning agent are not implemented. The current location data do not establish operating status or service capacity.
+
 ## Design rules
 
 1. **Plans are proposals, not world writes.** Planner agents may read a bounded planning snapshot and submit a structured draft. They cannot call arbitrary setters, write directly to the database, spend funds, move residents, or activate infrastructure.
@@ -33,12 +35,23 @@ This separates open proposal intake from supported simulation coverage. Acceptan
 
 Food-bank, pantry, meal-program, and other food-support proposals may target either a new service site or an existing source-listed location/program. The City's food-support layer is mixed: preserve its `PROGTYPE` and source record IDs, and do not infer current operation, eligibility, hours, stock, capacity, or a unique operator from the mapped point alone. Existing partner-run services enter an executable plan only when their operating status is verified or explicitly assumed and the scenario records an agreement authorizing the proposed funding, procurement, resource assignment, expansion, reduction, or stop. Otherwise the location remains planning context and the requested action is unschedulable.
 
+## Proposal-time evidence workflow
+
+Every new proposal submission and material proposal revision starts a retrieval request before department agents draft a plan. The request is based on the versioned proposal and its structured intent, including requested actions, target geography and population, time horizon, required inputs, outcome measures, and constraints.
+
+The Python evidence coordinator matches proposal requirements to registered sources and fields, checks freshness for relevant sources, refreshes sources when their declared update policy says they are due, and retrieves from the newest complete, validated snapshot available. The retrieval runs for each submission or material revision; the coordinator need not redownload every source when a current validated snapshot is already available. “Latest” means latest complete validated data available from the registered source. Source update and observation dates, source refresh-check time, and retrieval time are separate fields. Unknown dates remain unknown. The [City of Toronto Open Data FAQ](https://open.toronto.ca/docs/frequently-asked-questions/) notes that its last refresh check does not establish the freshness or accuracy of underlying records.
+
+If a refresh fails, the coordinator returns the last complete snapshot with a stale label or marks the source unavailable. It never silently calls old data current. Proposal matching returns field-level coverage, citations, conflicts, missing inputs, and unsupported outcome measures. The planner receives the proposal, evidence bundle, and frozen world snapshot together. It submits typed actions only; evidence retrieval does not change world state, grant authority, or make unsupported actions schedulable.
+
+Each plan version pins the proposal revision, evidence bundle ID, source snapshot IDs and content hashes, retrieval and matching-rule versions, and source freshness labels. If relevant evidence changes before approval or scheduling, rebuild the evidence bundle and revalidate the plan. The approved plan remains tied to its exact evidence and world revisions for replay.
+
 ## Planner interface
 
 Expose a small Python-side tool boundary to the planner:
 
 | Operation | Caller | Effect |
 | --- | --- | --- |
+| `build_proposal_evidence(run_id, proposal_id, proposal_revision)` | Python evidence coordinator, on proposal submission or material revision | Checks relevant source freshness, retrieves from newest complete validated snapshots, and returns a cited evidence bundle with coverage, missing, stale, and unavailable fields; does not mutate simulation state |
 | `get_planning_snapshot(run_id, expected_revision)` | Planner | Returns read-only world, budget, site, capacity, evidence, and active-stage data with revision and content hashes |
 | `submit_plan_draft(run_id, plan)` | Planner | Stores a new draft version and returns schema and feasibility findings; does not schedule or activate work |
 | `review_plan(plan_id, revision, decision)` | Human reviewer through the browser | Records approve, request-revision, or reject against that exact plan revision |
@@ -57,6 +70,7 @@ The read-only snapshot should be sufficient to make and validate a plan without 
 - Existing and already-planned services, their current status, capacity, dependencies, and schedules.
 - Available and committed budgets, relevant staffing/equipment/supply limits, and the planning horizon.
 - Supported action types and units, plus the proposal version and required outcome measures.
+- Proposal evidence bundle ID, relevant source snapshot IDs and hashes, retrieval time, freshness labels, and evidence coverage or gaps.
 
 All planning uses one frozen snapshot. If the world changes before a plan is approved or scheduled, the coordinator checks the expected revision and requires revalidation when affected facts have changed.
 
@@ -65,6 +79,7 @@ All planning uses one frozen snapshot. If the world changes before a plan is app
 Each plan version should carry:
 
 - Plan ID, schema version, proposal ID/version, run ID, base world revision, and evidence snapshot hash.
+- Proposal evidence request and bundle IDs, source snapshot IDs and content hashes, source-level freshness labels, and matching-rule version.
 - Stages with stable IDs, typed actions, targets, dependencies, earliest/latest windows, duration assumptions, and prerequisites.
 - Target references that distinguish a source-listed location/program record, a modeled physical facility, an operator, and a contracted service scope; retain source IDs and do not collapse records without a reviewed crosswalk.
 - Resource requests and estimates for funding, staffing, equipment, storage, and supply, with units and evidence state.
@@ -128,7 +143,7 @@ The browser review view should connect the plan to the city and its evidence:
 - Existing food-support locations and program types, with candidate versus verified status and the authorized intervention scope visible for any partner-run service.
 - A timeline showing dependencies, stage windows, current simulator time, and capacity ramps.
 - Costs, resources, expected measures, and eligibility/feasibility results in declared units.
-- Source links, assumptions, unknowns, disagreements, validation errors, and warnings beside the relevant stage.
+- Source links, source observation/update and retrieval times, freshness labels, assumptions, unknowns, disagreements, validation errors, and warnings beside the relevant stage.
 - Versioned approve, request-revision, and reject actions. Each decision records the reviewer, plan revision, and simulation revision.
 
 Approval records the user's simulated decision. Python remains responsible for scheduling and later committing every state change. The interface should show the recorded delay or failure reason when a milestone does not activate as planned.
@@ -141,12 +156,13 @@ Checkpoints must preserve active stage state, the pending milestone queue, reali
 
 ## Implementation sequence and validation gates
 
-1. **Define the action registry and plan schema.** Start with one service-site action and stable site IDs. Specify units, allowed states, preconditions, and economic effects. Preserve food-support source/program IDs and `PROGTYPE`; require explicit agreement scope before actions target a partner-run program.
-2. **Build the logical-time scheduler.** Prove that a scheduled event fires at its simulator time in a stable order, independent of browser rendering and playback speed.
-3. **Implement one end-to-end staged site.** Verify that approval schedules work, pre-opening time has no service capacity, commissioning changes capacity only after checks, and the ramp follows the declared milestones. After this proof, exercise one existing food-support program under an explicit scenario agreement; verify that funding or a mapped point alone does not create stock or service capacity.
-4. **Exercise delay and failure cases.** Verify missing funding, unavailable staffing/supply, stale revisions, reduction, cancellation, checkpoint/resume, and replay. Confirm that failures leave no partial economic or capacity changes.
-5. **Add the review timeline and map projection.** Ensure displayed state changes follow committed events and carry their source and plan version.
-6. **Compare baseline and rollout.** Measure outcomes before and after opening, include delayed/reduced/no-launch cases, and report the modeled population, time windows, units, and uncertainty.
-7. **Add model-generated plans only after rule-based plans work.** Keep the same schema and validator, freeze each planner's inputs/configuration, record disagreements, and require human review. Evaluate model proposals against the same snapshots and feasibility checks.
+1. **Build proposal-time evidence retrieval.** Define versioned proposal intents and outcome measures, the source freshness registry, source-to-field matching rules, and the immutable evidence bundle. Use labeled proposal-to-source fixtures to report retrieval precision and recall. Exercise relevant, irrelevant, missing, stale, unavailable, and conflicting-source cases; verify that unknown or stale records cannot be labeled observed. Pin exact source snapshots and hashes.
+2. **Define the action registry and plan schema.** Start with one service-site action and stable site IDs. Specify units, allowed states, preconditions, and economic effects. Preserve food-support source/program IDs and `PROGTYPE`; require explicit agreement scope before actions target a partner-run program.
+3. **Build the logical-time scheduler.** Prove that a scheduled event fires at its simulator time in a stable order, independent of browser rendering and playback speed.
+4. **Implement one end-to-end staged site.** Verify that approval schedules work, pre-opening time has no service capacity, commissioning changes capacity only after checks, and the ramp follows the declared milestones. After this proof, exercise one existing food-support program under an explicit scenario agreement; verify that funding or a mapped point alone does not create stock or service capacity.
+5. **Exercise delay and failure cases.** Verify missing funding, unavailable staffing/supply, stale revisions, reduction, cancellation, checkpoint/resume, and replay. Confirm that failures leave no partial economic or capacity changes.
+6. **Add the review timeline and map projection.** Ensure displayed state changes follow committed events and carry their source and plan version.
+7. **Compare baseline and rollout.** Measure outcomes before and after opening, include delayed/reduced/no-launch cases, and report the modeled population, time windows, units, and uncertainty.
+8. **Add model-generated plans only after rule-based plans work.** Keep the same schema and validator, freeze each planner's inputs/configuration, record disagreements, and require human review. Evaluate model proposals against the same snapshots and feasibility checks.
 
 These are future acceptance gates, not completed validation. The first useful proof is one site with an auditable schedule, deterministic activation, and replay before adding multiple departments, more action types, or LLM planning.
