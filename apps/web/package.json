@@ -4,10 +4,14 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "predev": "npm run data:interactables",
     "dev": "vite --host 127.0.0.1",
+    "prebuild": "npm run data:interactables",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "node --test src/pedestrians.test.ts src/tree-placement.test.ts src/world.test.ts src/islands.test.ts",
+    "pretest": "npm run data:interactables",
+    "test": "node --test src/pedestrians.test.ts src/tree-placement.test.ts src/world.test.ts src/islands.test.ts src/interactables.test.ts",
+    "data:interactables": "node scripts/prepare_interactables.mjs",
     "data:prepare": "python scripts/prepare_toronto.py",
     "data:islands": "python scripts/prepare_islands.py"
   },

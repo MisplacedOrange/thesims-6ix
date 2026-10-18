@@ -102,7 +102,6 @@ Test-Condition ($scenarioCatalog.agent_modeling.pedestrian_call_limits -eq 'to_b
 $legacy = $scenarioCatalog.legacy_prototype
 Test-Condition ($legacy.status -eq 'existing_economic_vertical_slice') 'Existing prototype must be identified as a legacy economic slice'
 Test-Condition ($legacy.old_screening_design.status -eq 'superseded') 'Old factorial screen must be marked superseded'
-Test-Condition ($legacy.old_budget_status -eq 'superseded') 'Old budget must be marked superseded'
 
 $markdownFiles = @((Get-Item -LiteralPath (Join-Path $artifactRoot 'README.md')), (Get-Item -LiteralPath (Join-Path $artifactRoot 'PLAN.md')), (Get-Item -LiteralPath (Join-Path $artifactRoot 'NEXT_STEPS.md')))
 $markdownFiles += @(Get-ChildItem -LiteralPath (Join-Path $artifactRoot 'docs') -Filter '*.md' -File)

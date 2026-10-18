@@ -2,7 +2,7 @@
 
 ## Scope
 
-The current deliverable is a visually polished browser environment for Toronto with moving synthetic pedestrians. Public solutions, infrastructure planning, and economic outcomes are deferred. The existing Python economic fixture remains separate.
+This document records the completed visual foundation: a browser environment for Toronto with moving synthetic pedestrians. The product target now also includes proposal intake through a Council chat, simulated department experts, and ongoing policy rollouts with tracked outcomes. Those features are not part of this implementation record and are not yet implemented. The existing Python economic fixture remains separate.
 
 ## Work plan
 

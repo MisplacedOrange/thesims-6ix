@@ -2,9 +2,11 @@
 
 ## Reading the evidence
 
-The review cutoff is October 17, 2026 in Toronto. A primary source can verify that an organization announced a program without verifying its eventual results. Values on undated live pages are provisional context until their publication vintage is established. Complete datasets have not been ingested in this planning task.
+The review cutoff is October 17, 2026 in Toronto. A primary source can verify that an organization announced a program without verifying its eventual results. Values on undated live pages are provisional context until their publication vintage is established. The browser uses a frozen, attributed downtown OpenStreetMap scene; a complete, current dataset of Toronto policy and program operations has not been assembled for this review.
 
 The [source register](../planning/sources.json) records URLs and supported claims. The [context snapshot](../planning/context-snapshot.json) preserves selected values with units, reference periods, and calibration restrictions.
+
+The policy sections below document the current demonstration proposals, not an exhaustive policy menu or a hard-coded runtime catalog. Future Markdown proposals should bring their own evidence through the shared intake and review flow.
 
 ## Municipal grocery stores
 

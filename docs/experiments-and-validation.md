@@ -9,9 +9,11 @@ The validation order follows the product scope:
 | Stage | Question | Evidence required |
 | --- | --- | --- |
 | Toronto world | Does the 3D scene align with source geography and licenses? | Stable feature IDs, CRS checks, visual alignment samples, source manifest |
+| Proposal intake | Does the system preserve a Markdown proposal faithfully and expose its measures and unknowns? | Immutable source/version, traceable claims, extracted outcome definitions, explicit unknowns, clarification and review record |
 | Pedestrians | Can agents traverse valid routes and make replayable choices? | Route feasibility, movement replay, access and mobility diagnostics |
-| Rollout planner | Can the planner propose a feasible staged buildout from evidence? | Structured proposal, source trace, deterministic validator result, review record |
-| Outcomes | What changes in the model when a validated stage activates? | Matched baseline and treatment, economic ledger, reach, travel, and modeled response |
+| Expert roles and rollout planner | Can simulated department roles coordinate a feasible staged buildout from evidence without inventing authority or facts? | Role-bounded work packages, disagreements, source trace, deterministic validator result, review/approval record |
+| Ongoing simulation | Can the world continue across stages and recover from interruptions? | Checkpoint/resume, event continuity, branch provenance, deterministic replay |
+| Outcomes | What changes in the model as validated stages activate and operate? | Proposal-defined measures plus matched baseline/treatment, economic ledger, reach, travel, and modeled response over declared intervals |
 
 Do not begin with an arbitrary run count. Set a minimum practically meaningful difference in each outcome with the analyst, then choose replication counts using measured runtime and variance.
 
@@ -19,9 +21,9 @@ Do not begin with an arbitrary run count. Set a minimum practically meaningful d
 
 Freeze source snapshots, world package, synthetic population, schedules, product catalog, agent-policy versions, and external shocks. The baseline represents verified active service where known. Unknown capacity remains explicit and can be represented with separate conservative and announced-capacity cases.
 
-The [scenario catalog](../planning/scenarios.json) is a planning registry, not an executable scenario file. Its three core solutions are municipal groceries, food rescue and processing, and expanded school meals. Meituan-style drone delivery is an optional logistics scenario, not a fourth core solution. Confirm the exact intervention boundaries before a study treats them as settled.
+The [scenario catalog](../planning/scenarios.json) is a planning registry, not an executable scenario file. It retains grocery, food rescue/processing, and school-food entries as initial demonstration fixtures for the open proposal-intake workflow. It is not an exhaustive catalog or a claim that the proposal facts are settled. A new Markdown proposal should use the same intake, review, validation, and rollout path. Confirm proposal-specific intervention boundaries and measures before a study treats them as defined.
 
-A rollout study compares the same world, population, seed, and external shocks under baseline and an approved plan. The plan has dependencies, stage windows, capacity ramps, and delay or stop conditions. Include no-launch, delayed, reduced-capacity, and budget-exhaustion cases. If two solutions are tested together, measure their interaction explicitly:
+A rollout study compares the same world, population, seed, and external shocks under baseline and an approved plan. The plan has dependencies, stage windows, capacity ramps, and delay or stop conditions. Include no-launch, delayed, reduced-capacity, and budget-exhaustion cases. If two interventions are tested together, measure their interaction explicitly:
 
 ```text
 interaction = outcome(A and B) - outcome(A only)

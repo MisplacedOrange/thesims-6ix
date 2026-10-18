@@ -1,16 +1,16 @@
 # Toronto in motion
 
-A browser environment for exploring downtown Toronto, its waterfront, and moving synthetic pedestrians. This milestone focuses on the visual world. Public solution scenarios and economic outcomes are deferred.
+A browser environment for exploring Toronto and a bounded household food-access scenario. Pedestrians visit illustrative retailers, food-support sites, and school nutrition sites; the dashboard replays purchases, service, food use, and an optional emergency-site intervention settled in Python.
 
 ## Start the environment
 
-Use Node.js 24 or newer and npm.
+Use Node.js 24 or newer, npm, and Python 3.10 or newer.
 
     cd apps/web
     npm install
     npm run dev
 
-Open the Local URL printed by Vite. The frozen geographic snapshot is included. The app requires no API key, Python service, or live map request.
+Open the Local URL printed by Vite. Startup exports cached Python simulation traces when inputs change. The app requires no API key, persistent Python service, or live map request. Production builds include the traces as static data.
 
 For a production build:
 
@@ -21,7 +21,7 @@ For a production build:
 
 Drag to orbit, right drag to pan, and scroll to zoom. Choose a camera composition from the view panel. Click a visible pedestrian or choose **Meet a resident** to inspect and follow a journey.
 
-Pause, change speed, or restart the same seeded population. Choose quiet, everyday, or lively population density. Switch between daylight, golden hour, and blue hour. Toggle building massing, greenery, walking routes, and labels.
+Pause, change speed, restart, or seek through the six-hour food-access day. Select no policy or an emergency food site, and quiet (200), everyday (600), or lively (1200) household populations; changing either resets the day. Click a food-site marker or choose it in the Sites tab to inspect stock, prices, capacity, and visits. Resident inspection includes household cash, pantry, carried food, legal choices, and event history. The food dashboard has outcomes, sites, distribution groups, and event records. On small screens, expand the food dashboard using its + button. Switch lighting and building, greenery, and walking-network layers through city settings.
 
 Keys 1 through 4 choose views. Space pauses movement. R restarts the pedestrian timeline. H hides the interface.
 
@@ -33,7 +33,7 @@ Mapped heights and floor-count tags take precedence over estimates. CN Tower and
 
 Mapped outdoor footpaths and derived parallel sidewalks form a connected walking graph. The preparation script removes paths inside ground-level building massing. These paths are a visual approximation, not a surveyed accessibility network.
 
-Residents follow seeded itineraries sampled directly at simulation time. They pause at destinations, turn, return, and repeat. Names and routines are synthetic. No live LLM or observed mobility data controls them.
+Residents follow Python-generated food trips sampled at playback time. Crossing waits, queues, service, and trips home constrain food access. Household cash and food are committed by `sim.core`; browser seeking never settles transactions. Food is carried home before pantry use, and school portions are consumed at school. The day ends at 14:30 and does not loop. Names, homes, eligibility and all site operations are synthetic. See [scenario assumptions and boundaries](../../sim/interactables/README.md). No live LLM or observed mobility data controls them.
 
 The visual direction takes inspiration from [God's Plan at Hack the North 2026](https://devpost.com/software/shift-t15x3m). No application code or creative models were copied from that project.
 
@@ -50,4 +50,4 @@ Raw XML tiles are cached in .data-cache. Cached tiles retain their hashes and re
     npm test
     npm run build
 
-Tests exercise route connectivity, seeded replay, continuous walking speed, a full loop, and parsing and routing on the actual shipped Toronto snapshot. Visual acceptance also requires driving the running app.
+Tests cover legacy geometry and walking utilities plus food-trace replay, backward seeking, carried food, day boundaries, and dashboard group totals. Python interaction checks run from the root with `python -m unittest sim.interactables.test_simulation -v`. Visual acceptance also requires driving the running app.

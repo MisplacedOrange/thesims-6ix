@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { ArrowDownLeft, ArrowRight, Check, ChevronRight, Compass, Expand, Eye, Footprints, Info, Layers3,
   MapPin, Moon, Pause, Play, Plus, Minus, RotateCcw, Settings2, Sun, Sunrise, Trees,
@@ -6,6 +6,9 @@ import { ArrowDownLeft, ArrowRight, Check, ChevronRight, Compass, Expand, Eye, F
 import { loadDistrict, loadIslands } from './district.ts';
 import type { District } from './district.ts';
 import type { Layer, Lighting, SceneTick, TorontoScene } from './scene.ts';
+import { foodView, loadFoodTrace } from './interactables.ts';
+import type { FoodTrace } from './interactables.ts';
+import { FoodPanel, HouseholdDetails } from './FoodPanel.tsx';
 
 const emptyTick: SceneTick = { seconds: 0, walking: 0, resting: 0, selected: null };
 function clock(seconds: number): string {
@@ -18,6 +21,11 @@ export function App() {
   const container = useRef<HTMLDivElement>(null), engine = useRef<TorontoScene | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const [district, setDistrict] = useState<District | null>(null);
+  const [trace, setTrace] = useState<FoodTrace | null>(null);
+  const [policy, setPolicy] = useState<'baseline' | 'emergency'>('baseline');
+  const [siteId, setSiteId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false), [runError, setRunError] = useState<string | null>(null);
+  const traceRequest = useRef(0);
   const [ready, setReady] = useState(false), [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(emptyTick), [selected, setSelected] = useState<number | null>(null);
   const [paused, setPaused] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches), [speed, setSpeed] = useState(10), [population, setPopulation] = useState(600);
@@ -28,16 +36,17 @@ export function App() {
     let active = true;
     async function start() {
       try {
-        const [map, islands, module] = await Promise.all([loadDistrict(), loadIslands(), import('./scene.ts')]);
+        const [map, islands, module, food] = await Promise.all([loadDistrict(), loadIslands(), import('./scene.ts'), loadFoodTrace(600, 'baseline')]);
         if (!active || !container.current) return;
-        const view = new module.TorontoScene(container.current, map, islands, setTick, setSelected);
-        engine.current = view; setDistrict(map); setReady(true);
+        const view = new module.TorontoScene(container.current, map, islands, setTick,
+          id => { setSelected(id); if (id !== null) setSiteId(null); }, food, setSiteId);
+        engine.current = view; setDistrict(map); setTrace(food); setReady(true);
       } catch (e) { if (active) setError(e instanceof Error ? e.message : 'The 3D environment could not start.'); }
     }
     void start();
-    return () => { active = false; engine.current?.dispose(); engine.current = null; };
+    return () => { active = false; traceRequest.current++; engine.current?.dispose(); engine.current = null; };
   }, []);
-  useEffect(() => { engine.current?.setPaused(paused); }, [paused, ready]);
+  useEffect(() => { engine.current?.setPaused(paused || busy); }, [paused, busy, ready]);
   useEffect(() => { engine.current?.setSpeed(speed); }, [speed, ready]);
   useEffect(() => {
     function keyboard(event: KeyboardEvent) {
@@ -55,12 +64,25 @@ export function App() {
     return () => { window.removeEventListener('keydown', keyboard); element?.removeEventListener('scene-error', contextError); };
   }, []);
   function chooseLight(id: Lighting) { setLighting(id); engine.current?.setLighting(id); }
+  async function loadRun(count: number, nextPolicy: 'baseline' | 'emergency') {
+    const request = ++traceRequest.current;
+    setBusy(true); setRunError(null);
+    try {
+      const next = await loadFoodTrace(count, nextPolicy);
+      if (request !== traceRequest.current || !engine.current) return;
+      engine.current.setFoodTrace(next); setTick(emptyTick); setTrace(next); setPopulation(count); setPolicy(nextPolicy);
+    } catch (e) {
+      if (request === traceRequest.current) setRunError(e instanceof Error ? e.message : 'The scenario could not load.');
+    } finally { if (request === traceRequest.current) setBusy(false); }
+  }
   function toggleLayer(layer: Layer) {
     const visible = !layers[layer]; setLayers(previous => ({ ...previous, [layer]: visible })); engine.current?.setLayer(layer, visible);
   }
   const resident = selected === null ? null : tick.selected;
   const residentStyle: CSSProperties & { '--resident-color': string } = { '--resident-color': resident?.color ?? '#b7c9a2' };
   const mappedHeights = district?.buildings.filter(b => b.basis !== 'estimate').length ?? 0;
+  const food = useMemo(() => trace ? foodView(trace, tick.seconds) : null, [trace, tick.seconds]);
+  const household = trace?.households.find(h => h.resident_id === selected);
   return (
     <main className={'environment light-' + lighting + (!uiVisible ? ' cinema' : '')}>
       <div className="world" ref={container} />
@@ -80,12 +102,17 @@ export function App() {
             <button className="quiet-button hide-button" onClick={() => setUiVisible(false)}><Expand size={15} /> Hide interface <kbd>H</kbd></button>
           </nav>
         </header>
-        <section className="intro" aria-label="Toronto environment">
+        <section className="intro food-intro" aria-label="Toronto environment">
           <div className="eyebrow"><span /> THE ENVIRONMENT &nbsp; / &nbsp; 01</div>
           <h1>Toronto,<br /><em>in motion.</em></h1>
           <p>A familiar skyline.<br />Everyday journeys, quietly unfolding.</p>
           <span className="scope-chip"><Footprints size={12} /> A pedestrian world</span>
         </section>
+        {trace && food && <FoodPanel trace={trace} view={food} siteId={siteId} policy={policy} busy={busy} residentId={selected}
+          onPolicy={p => { void loadRun(population, p); }} onSite={id => { setSiteId(id); engine.current?.focusSite(id); }}
+          onCloseSite={() => setSiteId(null)} onSeek={seconds => engine.current?.seek(seconds)} />}
+        {busy && <div className="food-loading" role="status">Loading food scenario…</div>}
+        {runError && <div className="food-run-error" role="alert">{runError}</div>}
         <button className="meet-button glass" disabled={!ready} onClick={() => engine.current?.meetResident()}>
           <span className="resident-avatars"><i /><i /><i /></span><span>Every dot has somewhere to be.<b>Meet a resident <ArrowRight size={13} /></b></span>
         </button>
@@ -93,7 +120,7 @@ export function App() {
           <div className="settings-title"><span><Layers3 size={15} /> City settings</span></div>
           <label className="section-label">CITY LIFE <span>{population.toLocaleString()}</span></label>
           <div className="segmented population" aria-label="Pedestrian population">
-            {[{ n: 200, label: 'Quiet' }, { n: 600, label: 'Everyday' }, { n: 1200, label: 'Lively' }].map(option => <button key={option.n} className={population === option.n ? 'selected' : ''} aria-pressed={population === option.n} disabled={!ready} onClick={() => { setPopulation(option.n); engine.current?.setPopulation(option.n); }}>{option.label}</button>)}
+            {[{ n: 200, label: 'Quiet' }, { n: 600, label: 'Everyday' }, { n: 1200, label: 'Lively' }].map(option => <button key={option.n} className={population === option.n ? 'selected' : ''} aria-pressed={population === option.n} disabled={!ready || busy} onClick={() => { void loadRun(option.n, policy); }}>{option.label}</button>)}
           </div>
           <div className="setting-divider" />
           <label className="section-label">LIGHT & ATMOSPHERE <Sun size={13} /></label>
@@ -108,10 +135,11 @@ export function App() {
           <div className="resident-heading"><span className="eyebrow">ONE OF THE SIX</span><button className="small-icon" onClick={() => engine.current?.select(null)} aria-label="Close resident details"><X size={15} /></button></div>
           <div className="resident-profile"><div className="resident-portrait" style={residentStyle}><i /><b /></div><div><h2>{resident.name}</h2><span>Synthetic resident · #{String(resident.id + 1).padStart(4, '0')}</span></div></div>
           <p className="resident-purpose">{resident.purpose}</p>
-          <div className="resident-destination"><MapPin size={16} /><span>{resident.activity === 'Walking' ? 'Walking towards' : 'Taking a break near'}<b>{resident.destination}</b></span></div>
+          <div className="resident-destination"><MapPin size={16} /><span>{resident.activity}<b>{resident.destination}</b></span></div>
           <div className="route-progress"><i style={{ width: Math.max(2, resident.progress * 100) + '%' }} /></div>
           <div className="route-meta"><span>{distance(resident.routeLength)} route</span><span>{resident.activity === 'Walking' ? resident.speed.toFixed(1) + ' m/s' : 'Resting'}</span></div>
           <button className="follow-button" onClick={() => engine.current?.followSelected()}><Footprints size={14} /> Follow this journey <ArrowRight size={14} /></button>
+          {household && food && <HouseholdDetails household={household} view={food} />}
         </section>}
         <div className="map-controls" aria-label="Camera controls">
           <button onClick={() => engine.current?.resetCamera()} aria-label="Reset camera" title="Return to the city view"><Compass size={21} /><small>N</small></button>
@@ -120,9 +148,9 @@ export function App() {
         <section className="playback glass" aria-label="Simulation playback">
           <button className="reset-button" aria-label="Restart pedestrian simulation" title="Restart · R" disabled={!ready} onClick={() => engine.current?.reset()}><RotateCcw size={17} /></button>
           <button className="play-button" aria-label={paused ? 'Resume simulation' : 'Pause simulation'} disabled={!ready} onClick={() => setPaused(v => !v)}>{paused ? <Play size={19} fill="currentColor" /> : <Pause size={19} fill="currentColor" />}</button>
-          <div className="time-display"><span>{paused ? 'A MOMENT IN THE CITY' : 'THE CITY IS MOVING'}</span><time data-testid="simulation-time">{clock(tick.seconds)}</time></div>
+          <div className="time-display"><span>{trace && tick.seconds >= trace.horizon_seconds ? 'DAY COMPLETE' : paused ? 'SIMULATION PAUSED' : 'FOOD ACCESS DAY'}</span><time data-testid="simulation-time">{clock(tick.seconds)}</time></div>
           <div className="playback-divider" />
-          <div className="speed-controls" aria-label="Simulation speed">{[1, 10, 30].map(value => <button key={value} className={speed === value ? 'selected' : ''} aria-pressed={speed === value} onClick={() => setSpeed(value)}>{value}×</button>)}</div>
+          <div className="speed-controls" aria-label="Simulation speed">{[1, 10, 30, 120].map(value => <button key={value} className={speed === value ? 'selected' : ''} aria-pressed={speed === value} onClick={() => setSpeed(value)}>{value}×</button>)}</div>
           <div className="activity-pill"><span /><b data-testid="walking-count">{tick.walking.toLocaleString()}</b> walking</div>
         </section>
         <footer className="map-footer">
@@ -135,7 +163,7 @@ export function App() {
       <dialog ref={dialog} className="about-dialog" onClick={event => { if (event.target === event.currentTarget) dialog.current?.close(); }}>
         <button className="dialog-close icon-button" aria-label="Close about environment" onClick={() => dialog.current?.close()}><X size={19} /></button>
         <span className="eyebrow">THE SIMS 6IX / FIELD NOTES</span><h2>A real place.<br /><em>A little imagination.</em></h2>
-        <p>This is a visual environment for exploring downtown Toronto and watching synthetic pedestrians move through its streets.</p>
+        <p>This environment replays a six-hour food-access day settled in Python. Select a pedestrian to inspect household food and cash, or a food-site marker to inspect stock and service.</p>
         <div className="source-fact"><MapPin size={19} /><span><strong>The city comes from the map.</strong>Building footprints, streets, parks, railways, and shoreline are a frozen OpenStreetMap snapshot. {(mappedHeights).toLocaleString()} buildings have mapped height or floor-count tags. Other heights are estimates.</span></div>
         <div className="source-fact"><Trees size={19} /><span><strong>The details are stylized.</strong>CN Tower, Rogers Centre, facades, trees, and street details are illustrative interpretations. Derived sidewalk offsets and intersection links form the walking network.</span></div>
         <div className="source-fact"><Footprints size={19} /><span><strong>The residents are synthetic.</strong>Seeded itineraries follow the connected map. Their names, routines, and movement demonstrate city life. They are not observed Toronto travel data or live AI decisions.</span></div>

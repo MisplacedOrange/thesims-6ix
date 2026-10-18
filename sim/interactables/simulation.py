@@ -1,0 +1,483 @@
+"""One synthetic six-hour day, one resident per household, one destination per trip.
+
+Geometry is a frozen map input. Every operating and demographic value below is
+an illustrative scenario assumption, never inferred from a Toronto directory.
+The browser replays projections; only sim.core commits food and money.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import heapq
+import json
+import math
+import random
+from dataclasses import asdict, dataclass
+
+from sim import core
+
+HORIZON = 21600
+PRODUCT = "produce.fresh"
+PARAMETER = "pedestrian-food-day-v1"
+
+
+@dataclass
+class Site:
+    id: str
+    name: str
+    type: str
+    node: int
+    opens: int
+    closes: int
+    price_cents_per_100g: int
+    capacity: int
+    service_seconds: int
+    opening_grams: int
+    eligible: str = "all"
+    active_from: int = 0
+    next_free: int = 0
+    served: int = 0
+    visits: int = 0
+    denials: int = 0
+    sold_grams: int = 0
+    received_grams: int = 0
+    revenue_cents: int = 0
+    spending_cents: int = 0
+
+
+class WalkingNetwork:
+    def __init__(self, district: dict, closed_edges: tuple[tuple[int, int], ...]):
+        self.nodes = district["walkNodes"]
+        self.graph = [[] for _ in self.nodes]
+        closed = {tuple(sorted(e)) for e in closed_edges}
+        available = {tuple(sorted(e[:2])) for e in district["walkEdges"]}
+        if not closed <= available:
+            raise ValueError("closure references an unknown walking edge")
+        for a, b, kind in district["walkEdges"]:
+            distance = math.dist(self.nodes[a], self.nodes[b])
+            delay = 12 if kind == "crossing" else 0
+            self.graph[a].append((b, distance, delay))
+            self.graph[b].append((a, distance, delay))
+        seen = set()
+        components = []
+        for node in range(len(self.nodes)):
+            if node in seen:
+                continue
+            component = [node]
+            seen.add(node)
+            for current in component:
+                for neighbor, _, _ in self.graph[current]:
+                    if neighbor not in seen:
+                        component.append(neighbor)
+                        seen.add(neighbor)
+            components.append(component)
+        self.usable = sorted(max(components, key=len))
+        if len(self.usable) < 2:
+            raise ValueError("walking network needs a connected pair of nodes")
+        # Keep homes and site anchors fixed when an intervention closes an edge.
+        # Closures change reachability, never the sampled population geography.
+        for node, edges in enumerate(self.graph):
+            self.graph[node] = [edge for edge in edges if tuple(sorted((node, edge[0]))) not in closed]
+        self.trees = {}
+
+    def nearest(self, point):
+        return min(self.usable, key=lambda n: math.dist(point, self.nodes[n]))
+
+    def route(self, home: int, target: int, speed: float):
+        key = (target, speed)
+        if key not in self.trees:
+            distance = {target: 0}
+            next_edge = {}
+            heap = [(0, target)]
+            while heap:
+                cost, node = heapq.heappop(heap)
+                if cost != distance[node]:
+                    continue
+                for neighbor, meters, wait in self.graph[node]:
+                    candidate = cost + meters / speed + wait
+                    if candidate < distance.get(neighbor, math.inf):
+                        distance[neighbor] = candidate
+                        next_edge[neighbor] = (node, meters, wait)
+                        heapq.heappush(heap, (candidate, neighbor))
+            self.trees[key] = next_edge
+        tree = self.trees[key]
+        if home != target and home not in tree:
+            return None
+        nodes, times, meters = [home], [0], 0
+        current = home
+        while current != target:
+            neighbor, length, wait = tree[current]
+            # Duplicate position records make the crossing wait visible in playback.
+            if wait:
+                nodes.append(current)
+                times.append(times[-1] + wait)
+            nodes.append(neighbor)
+            times.append(times[-1] + max(1, math.ceil(length / speed)))
+            meters += length
+            current = neighbor
+        if times[-1] == 0:
+            nodes.append(home)
+            times.append(1)
+        return {"nodes": nodes, "times": times, "seconds": times[-1], "meters": round(meters)}
+
+
+def run(district: dict, population: int = 600, seed: int = 2026,
+        emergency: bool = False, closed_edges: tuple[tuple[int, int], ...] = ()) -> dict:
+    """Return a deterministic event trace and scene projection with a no-policy default."""
+    core.require_int(population, "population")
+    core.require_int(seed, "seed")
+    if not 1 <= population <= 1200:
+        raise ValueError("population must be between 1 and 1200")
+    network = WalkingNetwork(district, closed_edges)
+    catalog = core.load_catalog()
+    state = core.empty_state(run_id=f"walk-{seed}-{population}-{'aid' if emergency else 'base'}",
+                            scenario_id=PARAMETER, catalog_id=catalog.catalog_id,
+                            catalog_sha256=catalog.sha256,
+                            known_product_ids=tuple(p.product_id for p in catalog.products))
+    kernel_events = []
+    command_index = 0
+
+    def commit(command_type, second, phase, **kwargs):
+        nonlocal state, command_index
+        command_index += 1
+        transition = core.apply_command(state, command_type(
+            command_id=f"cmd-{command_index}", second=second, phase=phase, **kwargs))
+        if transition.status != "accepted":
+            raise RuntimeError(f"{command_type.__name__}: {transition.reason}: {transition.detail}")
+        state = transition.state
+        kernel_events.extend(transition.events)
+
+    def stock(owner, place=None):
+        return sum(l.grams for l in state.lots if l.owner_id == owner and
+                   (place is None or l.place_id == place) and l.journey_id is None)
+
+    def cash(owner):
+        return core.account_for_owner(state, owner).settled_cents
+
+    def move_food(owner, receiver, place, grams, second, phase, price=0):
+        remaining = grams
+        # All baskets are 100 g multiples; one price is used across FIFO lots.
+        for lot in core.lots_for_owner(state, owner):
+            take = min(remaining, core.available_grams(lot))
+            if not take:
+                continue
+            if price:
+                commit(core.PurchaseLot, second, phase, buyer_account_id=receiver,
+                       seller_account_id=owner, destination_place_id=place,
+                       lot_id=lot.lot_id, grams=take, cents=take * price // 100)
+            else:
+                commit(core.TransferLot, second, phase, lot_id=lot.lot_id, grams=take,
+                       new_owner_id=receiver, new_place_id=place)
+            remaining -= take
+            if not remaining:
+                break
+        if remaining:
+            raise RuntimeError("food transfer exceeds available stock")
+
+    # Synthetic operational sites are anchored to graph nodes, not asserted real operators.
+    site_specs = [
+        ("retail-west", "Scenario grocery · west", "retailer", [-750, 0], 0, 20000, 50, population, 45, population * 180),
+        ("retail-east", "Scenario grocery · east", "retailer", [650, 100], 0, 20000, 35, population, 60, population * 220),
+        ("support", "Scenario community pantry", "support", [-150, -250], 1200, 18000, 0, max(1, population // 5), 90, population * 100),
+        ("school", "Scenario school nutrition", "school", [450, -550], 1800, 12600, 0, max(1, population // 4), 30, population * 100),
+        ("emergency", "Temporary emergency food site", "emergency", [-500, 400], 3600, 18000, 0, max(1, population // 4), 60, 0),
+    ]
+    sites = [Site(i, n, t, network.nearest(p), op, cl, pr, cap, serv, grams,
+                  "school" if t == "school" else "low-income" if t == "support" else "all",
+                  3600 if t == "emergency" else 0)
+             for i, n, t, p, op, cl, pr, cap, serv, grams in site_specs
+             if t != "emergency" or emergency]
+    by_site = {s.id: s for s in sites}
+    households = []
+    rng = random.Random(seed)
+    for resident in range(population):
+        size = rng.randint(1, 4)
+        band = rng.choice(["low", "low", "middle", "higher"])
+        home = rng.choice(network.usable)
+        mobility = rng.choice(["standard", "standard", "limited"])
+        # Explicit synthetic eligibility; never personal assistance records.
+        children = rng.randint(1, size) if size > 1 and rng.random() < 0.5 else 0
+        households.append(dict(id=f"hh-{resident}", resident_id=resident, size=size,
+                               income_band=band, mobility=mobility, children=children,
+                               home_node=home, area="west" if network.nodes[home][0] < 0 else "east",
+                               opening_cents=rng.randint(0, 350 if band == "low" else 1500),
+                               opening_grams=rng.randrange(0, size * 3) * 100,
+                               need_grams=size * 300, speed=0.9 if mobility == "limited" else 1.4,
+                               time_budget_seconds=5400 if mobility == "limited" else 7200,
+                               departure=rng.randint(60, 7200)))
+
+    # Opening endowments enter through a credit-enabled external funding account.
+    owners = [("external", "external", True), ("city", "municipality", False),
+              ("supplier", "external", False)]
+    owners += [(s.id, "retailer" if s.type == "retailer" else "school" if s.type == "school" else "hub", False) for s in sites]
+    owners += [(h["id"], "household", False) for h in households]
+    for owner, kind, credit in owners:
+        commit(core.OpenAccount, 0, core.PHASE_POLICY, account_id=owner, owner_id=owner, kind=kind, allows_credit=credit)
+    opening_cash = {"city": 100000, "supplier": 0, **{s.id: 30000 if s.type == "retailer" else 0 for s in sites},
+                    **{h["id"]: h["opening_cents"] for h in households}}
+    for owner, cents in opening_cash.items():
+        if cents:
+            commit(core.TransferCash, 0, core.PHASE_POLICY, from_account_id="external", to_account_id=owner,
+                   cents=cents, memo="illustrative opening endowment")
+    food = [(s.id, s.id, s.opening_grams) for s in sites]
+    food += [(h["id"], f"home-{h['id']}", h["opening_grams"]) for h in households]
+    food += [("supplier", "supplier", population * 200)]
+    for index, (owner, place, grams) in enumerate(food):
+        if grams:
+            commit(core.IntroduceLot, 0, core.PHASE_POLICY, lot_id=f"opening-{index}", product_id=PRODUCT,
+                   owner_id=owner, place_id=place, grams=grams, acquisition_cents=0, unsafe_after=None)
+
+    events, queue = [], []
+    schedule_index = 0
+    journeys = {}
+    consumed = {h["id"]: 0 for h in households}
+    spent = {h["id"]: 0 for h in households}
+    received = {h["id"]: 0 for h in households}
+    purchased = {h["id"]: 0 for h in households}
+    city_spending = 0
+
+    def household_view(h):
+        pantry = stock(h["id"], f"home-{h['id']}")
+        return dict(cash_cents=cash(h["id"]), pantry_grams=pantry,
+                    carrying_grams=stock(h["id"]) - pantry, consumed_grams=consumed[h["id"]],
+                    unmet_grams=max(0, h["need_grams"] - consumed[h["id"]]),
+                    expenditure_cents=spent[h["id"]], received_grams=received[h["id"]],
+                    purchased_grams=purchased[h["id"]])
+
+    def site_view(s):
+        return dict(stock_grams=stock(s.id), served=s.served, visits=s.visits, denials=s.denials,
+                    sold_grams=s.sold_grams, received_grams=s.received_grams,
+                    revenue_cents=s.revenue_cents, spending_cents=s.spending_cents,
+                    price_cents_per_100g=s.price_cents_per_100g, capacity=s.capacity)
+
+    initial_households = {h["id"]: household_view(h) for h in households}
+    initial_sites = {s.id: site_view(s) for s in sites}
+
+    def emit(second, action, result="completed", h=None, s=None, quantity=0, payment=0, reason=None, **extra):
+        event = dict(event_id=f"evt-{len(events)}", simulation_time=second,
+                     resident_id=h["resident_id"] if h else None, household_id=h["id"] if h else None,
+                     site_id=s.id if s else f"home-{h['id']}" if h else None,
+                     site_type=s.type if s else "home" if h else "institution",
+                     action=action, decision_id=f"decision-{h['id']}" if h else None,
+                     route_id=f"route-{h['id']}" if h and h["id"] in journeys else None,
+                     travel_seconds=0, queue_seconds=0, service_seconds=0,
+                     product_or_service_id=PRODUCT, quantity_grams=quantity, payment_cents=payment,
+                     result=result, denial_or_failure_reason=reason, evidence_state="illustrative",
+                     source_id=None, scenario_parameter_id=PARAMETER)
+        event.update(extra)
+        if h:
+            event["household_state"] = household_view(h)
+        if s:
+            event["site_state"] = site_view(s)
+        event["public_spending_cents"] = city_spending
+        events.append(event)
+
+    def schedule(second, phase, kind, h=None, payload=None):
+        nonlocal schedule_index
+        schedule_index += 1
+        # Seeded ties avoid resident-id priority at contested service opportunities.
+        rank = hashlib.sha256(f"{seed}|{second}|{h['id'] if h else kind}|admission".encode()).hexdigest()
+        heapq.heappush(queue, (second, phase, rank, schedule_index, kind, h, payload))
+
+    def return_home(h, second, result):
+        trip = journeys[h["id"]]
+        trip["return_start"] = second
+        trip["home_at"] = second + trip["travel_seconds"]
+        trip["result"] = result
+        schedule(trip["home_at"], core.PHASE_ARRIVAL, "home", h)
+
+    def deny(h, s, second, reason, **timing):
+        s.denials += 1
+        emit(second, "service", "denied", h, s, reason=reason, **timing)
+        return_home(h, second, reason)
+
+    for h in households:
+        schedule(h["departure"], core.PHASE_CHOICE, "decide", h, False)
+        schedule(HORIZON, core.PHASE_CONSUME, "consume", h)
+    schedule(6000, core.PHASE_SETTLE, "delivery", payload=("retail-west", population * 60 // 100 * 100))
+    schedule(9000, core.PHASE_POLICY, "price", payload=("retail-west", 65))
+    if emergency:
+        schedule(3600, core.PHASE_POLICY, "activate")
+        schedule(3660, core.PHASE_SETTLE, "delivery", payload=("emergency", population * 100))
+        schedule(18000, core.PHASE_POLICY, "shutdown")
+
+    while queue:
+        second, phase, _, _, kind, h, payload = heapq.heappop(queue)
+        if second > HORIZON:
+            raise RuntimeError("scheduled interaction exceeds run horizon")
+        if kind == "activate":
+            city_spending = 30000
+            commit(core.TransferCash, second, phase, from_account_id="city", to_account_id="emergency",
+                   cents=city_spending, memo="illustrative emergency site grant")
+            emit(second, "policy_activation", s=by_site["emergency"], budget_cents=30000,
+                 funding_source="city", activation_date="2026-10-17T09:30:00",
+                 shutdown_condition="13:30 simulation time", capacity_effect=by_site["emergency"].capacity)
+        elif kind == "shutdown":
+            emit(second, "policy_shutdown", s=by_site["emergency"])
+        elif kind == "price":
+            s = by_site[payload[0]]
+            s.price_cents_per_100g = payload[1]
+            emit(second, "price_change", s=s)
+        elif kind == "delivery":
+            s, grams = by_site[payload[0]], payload[1]
+            cost = grams * 20 // 100
+            actual = min(grams, stock("supplier"), cash(s.id) // 20 * 100)
+            if actual:
+                move_food("supplier", s.id, s.id, actual, second, core.PHASE_SETTLE, 20)
+                s.received_grams += actual
+                s.spending_cents += actual * 20 // 100
+            emit(second, "delivery", "completed" if actual == grams else "partial", s=s,
+                 quantity=actual, payment=actual * 20 // 100, requested_grams=grams,
+                 shortfall_grams=grams - actual, quoted_payment_cents=cost, supplier_id="supplier")
+        elif kind == "decide":
+            need = max(0, h["need_grams"] - stock(h["id"]) - consumed[h["id"]])
+            if need == 0:
+                emit(second, "chosen", h=h, option_id="no_purchase", reason="pantry_covers_need")
+                continue
+            offers, excluded = [], []
+            for s in sites:
+                reason = None
+                route = network.route(h["home_node"], s.node, h["speed"])
+                if (s.eligible == "school" and not h["children"]) or (s.eligible == "low-income" and h["income_band"] != "low"):
+                    reason = "ineligible"
+                elif s.type == "emergency" and second < s.active_from:
+                    reason = "inactive"
+                elif route is None:
+                    reason = "inaccessible_route"
+                else:
+                    arrival = second + route["seconds"]
+                    total = route["seconds"] * 2 + max(0, s.next_free - arrival) + s.service_seconds
+                    if total > h["time_budget_seconds"] or second + total >= HORIZON:
+                        reason = "time_budget"
+                    elif arrival < s.opens or arrival + s.service_seconds > s.closes:
+                        reason = "closure"
+                    elif s.served >= s.capacity:
+                        reason = "capacity_denial"
+                    elif stock(s.id) < 100:
+                        reason = "stockout"
+                    else:
+                        limit = h["children"] * 300 if s.type == "school" else 1000
+                        unit = 300 if s.type == "school" else 100
+                        grams = min(math.ceil(need / unit) * unit, limit, stock(s.id)) // unit * unit
+                        if s.type == "school":
+                            grams = min(grams, (s.capacity - s.served) * 300)
+                        if s.price_cents_per_100g:
+                            grams = min(grams, cash(h["id"]) // s.price_cents_per_100g * 100)
+                        if not grams:
+                            reason = "unaffordable_basket"
+                        else:
+                            cost = grams * s.price_cents_per_100g // 100
+                            offers.append(dict(option_id=s.id, quantity_grams=grams, payment_cents=cost,
+                                               total_seconds=total, route=route,
+                                               score=grams - cost - total / 20))
+                if reason:
+                    excluded.append(dict(site_id=s.id, reason=reason))
+            emit(second, "offered", "offered", h=h,
+                 options=[{k: v for k, v in o.items() if k not in {"route", "score"}} for o in offers] +
+                         [dict(option_id="no_purchase"), dict(option_id="delay")], excluded=excluded)
+            if not offers:
+                later = max(second + 600, min([s.opens for s in sites if s.opens > second] + [6000]))
+                if not payload and later < 10000:
+                    emit(second, "chosen", h=h, option_id="delay")
+                    schedule(later, core.PHASE_CHOICE, "decide", h, True)
+                else:
+                    reason = next((x["reason"] for x in excluded if x["reason"] not in {"ineligible", "inactive"}), "no_feasible_option")
+                    emit(second, "no_purchase", "denied", h=h, reason=reason)
+                continue
+            choice = min(offers, key=lambda o: (-o["score"], o["option_id"]))
+            s = by_site[choice["option_id"]]
+            route = choice["route"]
+            trip = dict(route_id=f"route-{h['id']}", site_id=s.id, nodes=route["nodes"], times=route["times"],
+                        meters=route["meters"], depart=second, arrival=second + route["seconds"],
+                        travel_seconds=route["seconds"], return_start=HORIZON, home_at=HORIZON, result="pending")
+            journeys[h["id"]] = trip
+            emit(second, "chosen", "chosen", h, s, quantity=choice["quantity_grams"],
+                 option_id=s.id, substitution=s.id == "retail-east", reduced_basket=choice["quantity_grams"] < need)
+            schedule(trip["arrival"], core.PHASE_ARRIVAL, "arrive", h, choice)
+        elif kind == "arrive":
+            s = by_site[payload["option_id"]]
+            s.visits += 1
+            trip = journeys[h["id"]]
+            start = max(second, s.next_free)
+            finish = start + s.service_seconds
+            if second < s.opens or finish > s.closes:
+                deny(h, s, second, "closure", travel_seconds=trip["travel_seconds"])
+            elif finish - trip["depart"] + trip["travel_seconds"] > h["time_budget_seconds"] or finish + trip["travel_seconds"] >= HORIZON:
+                deny(h, s, second, "time_budget", travel_seconds=trip["travel_seconds"])
+            else:
+                s.next_free = finish
+                trip["service_start"] = start
+                emit(second, "queue", "waiting", h, s, travel_seconds=trip["travel_seconds"])
+                schedule(finish, core.PHASE_SETTLE, "settle", h, payload)
+        elif kind == "settle":
+            s = by_site[payload["option_id"]]
+            trip = journeys[h["id"]]
+            grams = payload["quantity_grams"]
+            units = grams // 300 if s.type == "school" else 1
+            cost = grams * s.price_cents_per_100g // 100
+            timing = dict(travel_seconds=trip["travel_seconds"],
+                          queue_seconds=trip["service_start"] - trip["arrival"], service_seconds=s.service_seconds)
+            reason = ("closure" if second > s.closes else "capacity_denial" if s.served + units > s.capacity
+                      else "stockout" if stock(s.id) < grams else "unaffordable_basket" if cash(h["id"]) < cost else None)
+            if reason:
+                deny(h, s, second, reason, **timing)
+                continue
+            move_food(s.id, h["id"], s.id, grams, second, core.PHASE_SETTLE, s.price_cents_per_100g)
+            spent[h["id"]] += cost
+            (purchased if cost else received)[h["id"]] += grams
+            s.served += units
+            s.sold_grams += grams
+            s.revenue_cents += cost
+            emit(second, "purchase" if cost else "receive_service", h=h, s=s,
+                 quantity=grams, payment=cost, portions=grams // 300 if s.type == "school" else 0, **timing)
+            if s.type == "school":
+                schedule(second, core.PHASE_CONSUME, "school_consume", h)
+            return_home(h, second, "completed")
+        elif kind == "school_consume":
+            for lot in core.lots_for_owner(state, h["id"]):
+                if lot.place_id == "school":
+                    grams = lot.grams
+                    commit(core.ConsumeFood, second, core.PHASE_CONSUME,
+                           actor_id=h["id"], lot_id=lot.lot_id, grams=grams)
+                    consumed[h["id"]] += grams
+            emit(second, "school_meal", h=h, s=by_site["school"], quantity=consumed[h["id"]])
+        elif kind == "home":
+            for lot in core.lots_for_owner(state, h["id"]):
+                if lot.place_id != f"home-{h['id']}":
+                    commit(core.MoveLot, second, core.PHASE_ARRIVAL, lot_id=lot.lot_id,
+                           owner_id=h["id"], place_id=f"home-{h['id']}", journey_id=None)
+            emit(second, "return_home", h=h, travel_seconds=journeys[h["id"]]["travel_seconds"] * 2)
+        elif kind == "consume":
+            need = h["need_grams"] - consumed[h["id"]]
+            total = 0
+            for lot in core.lots_for_owner(state, h["id"]):
+                if lot.place_id != f"home-{h['id']}":
+                    continue
+                grams = min(lot.grams, need)
+                if grams:
+                    commit(core.ConsumeFood, second, phase, actor_id=h["id"], lot_id=lot.lot_id, grams=grams)
+                    consumed[h["id"]] += grams
+                    total += grams
+                    need -= grams
+            emit(second, "consume", h=h, quantity=total)
+
+    problems = core.invariant_problems(state)
+    if problems:
+        raise core.ConservationError(problems)
+    terminal = {h["id"]: household_view(h) for h in households}
+    return dict(schema=1, scenario_id=PARAMETER, policy="emergency" if emergency else "baseline", seed=seed,
+                horizon_seconds=HORIZON, start_time="2026-10-17T08:30:00", evidence_state="illustrative",
+                geography="downtown Toronto walking graph", population=population,
+                map_sha256=hashlib.sha256(json.dumps(district, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+                assumptions=dict(parameter_id=PARAMETER, food_use="300 g produce component per resident at school or day end",
+                                 crossing_delay_seconds=12, closed_edges=closed_edges, rule="grams - cents - trip_seconds / 20",
+                                 scope="one six-hour day; one shopping or service trip; no earnings or non-food essentials",
+                                 unknown_inputs=["observed prices", "operator inventory", "real eligibility", "observed capacities", "operating costs"]),
+                sites=[asdict(s) | {"point": network.nodes[s.node]} for s in sites], households=households,
+                initial_households=initial_households, initial_sites=initial_sites,
+                journeys=journeys, events=events, terminal_households=terminal,
+                accounting=dict(state_hash=core.state_hash(state), kernel_event_count=len(kernel_events),
+                                imported_grams=state.imported_grams, consumed_grams=state.consumed_grams,
+                                remaining_grams=sum(l.grams for l in state.lots),
+                                total_cash_cents=sum(a.settled_cents for a in state.accounts),
+                                invariant_problems=list(problems)))

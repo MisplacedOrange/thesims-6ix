@@ -19,6 +19,7 @@ namespaces = true
 [tool.setuptools.package-data]
 "sim.core" = ["data/*.json"]
 "sim.district" = ["data/*.json"]
+"sim.data" = ["*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["sim"]

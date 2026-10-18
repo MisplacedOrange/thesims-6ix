@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { landmarks } from './district.ts';
 import type { District, Islands, Point } from './district.ts';
-import { createCrowd, inspectResident, sampleResident } from './pedestrians.ts';
-import type { Crowd, Inspection } from './pedestrians.ts';
+import type { Crowd, Inspection, Resident } from './pedestrians.ts';
+import { foodCrowd, foodInspection, foodPose } from './interactables.ts';
+import type { FoodTrace } from './interactables.ts';
 import { buildRoadClearanceIndex, isCircleClearOfRoads, TREE_CANOPY_RADIUS, TREE_TRUNK_RADIUS } from './treePlacement.ts';
 import { buildingGeometry, facadeMaterial, fillerMesh } from './facade.ts';
 import type { FacadeUniforms } from './facade.ts';
@@ -74,6 +75,7 @@ export class TorontoScene {
   readonly paths = new THREE.Group();
   private readonly city = new THREE.Group();
   private readonly people = new THREE.Group();
+  private readonly foodSites = new THREE.Group();
   private readonly light = new THREE.DirectionalLight('#ffd9a0', 3.4);
   private readonly ambient = new THREE.HemisphereLight('#dfe8ef', '#8a8274', 0.55);
   private readonly sky: Sky;
@@ -109,8 +111,9 @@ export class TorontoScene {
   private reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   constructor(private readonly container: HTMLDivElement, private readonly district: District, private readonly islands: Islands,
-    private readonly onTick: (tick: SceneTick) => void, private readonly onSelect: (id: number | null) => void) {
-    this.crowd = createCrowd(district, 600);
+    private readonly onTick: (tick: SceneTick) => void, private readonly onSelect: (id: number | null) => void,
+    private trace: FoodTrace, private readonly onSelectSite: (id: string | null) => void) {
+    this.crowd = foodCrowd(trace, district);
     this.shoreline = joinShoreline(district.shores);
     this.land = landPolygon(this.shoreline, 30000);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -145,9 +148,10 @@ export class TorontoScene {
     this.light.castShadow = true; this.light.shadow.mapSize.set(2048, 2048);
     Object.assign(this.light.shadow.camera, { near: 50, far: 9000 });
     this.light.shadow.normalBias = 0.8; this.light.shadow.bias = -0.0002;
-    this.scene.add(this.sky.mesh, this.light, this.light.target, this.ambient, this.city, this.people, this.route);
+    this.scene.add(this.sky.mesh, this.light, this.light.target, this.ambient, this.city, this.people, this.route, this.foodSites);
     this.city.add(this.buildings, this.greenery, this.paths); this.paths.visible = false;
     this.buildLandscape(); this.buildArchitecture(); this.buildSurroundings(); this.buildTrees(); this.buildLandmarks(); this.buildPeople();
+    this.buildFoodSites();
     this.ring = new THREE.Mesh(new THREE.RingGeometry(7, 10, 48), new THREE.MeshBasicMaterial({ color: '#e5f5b7', side: THREE.DoubleSide }));
     this.ring.rotation.x = -Math.PI / 2; this.ring.visible = false; this.ring.renderOrder = 10; this.scene.add(this.ring);
     this.resizeObserver = new ResizeObserver(this.resize); this.resizeObserver.observe(container); this.resize();
@@ -393,6 +397,26 @@ export class TorontoScene {
     this.people.add(this.bodies, this.heads, this.legs);
   }
 
+  private buildFoodSites(): void {
+    this.foodSites.traverse(child => {
+      if (child instanceof THREE.Sprite) { child.material.map?.dispose(); child.material.dispose(); }
+    });
+    this.foodSites.clear();
+    for (const site of this.trace.sites) {
+      const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 112;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = site.type === 'retailer' ? '#244b3c' : site.type === 'school' ? '#34567a' : '#794f35';
+      ctx.beginPath(); ctx.roundRect(0, 0, 640, 100, 18); ctx.fill();
+      ctx.fillStyle = '#fff9df'; ctx.font = 'bold 25px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(site.name, 320, 43); ctx.font = '19px sans-serif'; ctx.fillText('ILLUSTRATIVE FOOD SITE', 320, 76);
+      const marker = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), depthTest: false }));
+      marker.position.set(site.point[0], 65, site.point[1]); marker.scale.set(190, 33, 1);
+      marker.userData.siteId = site.id; marker.renderOrder = 30; this.foodSites.add(marker);
+    }
+  }
+
+  private pose(resident: Resident) { return foodPose(this.trace, resident, this.seconds); }
+
   private updateAtmosphere(): void {
     const a = this.atmosphere, c = Math.cos(a.elevation);
     a.sunDirection.set(Math.sin(a.azimuth) * c, Math.sin(a.elevation), Math.cos(a.azimuth) * c);
@@ -431,10 +455,12 @@ export class TorontoScene {
     const rect = this.renderer.domElement.getBoundingClientRect(), point = new THREE.Vector3();
     const normalized = new THREE.Vector2((event.clientX - rect.left) / rect.width * 2 - 1, -(event.clientY - rect.top) / rect.height * 2 + 1);
     const raycaster = new THREE.Raycaster(); raycaster.setFromCamera(normalized, this.camera);
+    const siteHit = raycaster.intersectObjects(this.foodSites.children).find(hit => hit.object.visible);
+    if (siteHit) { this.select(null); this.onSelectSite(String(siteHit.object.userData.siteId)); return; }
     const obstruction = raycaster.intersectObjects(this.buildings.children, true)[0]?.distance ?? Infinity;
     let picked: number | null = null, nearest = 18;
     for (const resident of this.crowd.residents) {
-      const p = sampleResident(resident, this.seconds);
+      const p = this.pose(resident);
       if (this.camera.position.distanceTo(new THREE.Vector3(p.x, 8, p.z)) > obstruction + 8) continue;
       point.set(p.x, 8, p.z).project(this.camera);
       if (point.z > 1) continue;
@@ -450,11 +476,16 @@ export class TorontoScene {
   private animate = (now: number): void => {
     if (this.disposed) return;
     const delta = this.lastTime ? Math.min((now - this.lastTime) / 1000, 0.1) : 0; this.lastTime = now;
-    if (!this.paused && !document.hidden) this.seconds += delta * this.speed;
+    if (!this.paused && !document.hidden) this.seconds = Math.min(this.trace.horizon_seconds, this.seconds + delta * this.speed);
+    for (const marker of this.foodSites.children) {
+      const site = this.trace.sites.find(s => s.id === marker.userData.siteId)!;
+      marker.visible = this.seconds >= site.active_from;
+      if (marker instanceof THREE.Sprite) marker.material.opacity = this.seconds >= site.opens && this.seconds < site.closes ? 1 : 0.5;
+    }
     let walking = 0;
     this.dummy.scale.setScalar(1);
     for (const resident of this.crowd.residents) {
-      const p = sampleResident(resident, this.seconds);
+      const p = this.pose(resident);
       if (p.walking) walking++;
       const gait = p.walking ? Math.sin(this.seconds * resident.speed * 3.8 + resident.id) : 0;
       this.dummy.rotation.set(0, p.heading, 0);
@@ -506,7 +537,7 @@ export class TorontoScene {
     if (now - this.lastTick > 350) {
       const resident = this.selected === null ? undefined : this.crowd.residents[this.selected];
       this.onTick({ seconds: this.seconds, walking, resting: this.crowd.residents.length - walking,
-        selected: resident ? inspectResident(resident, this.seconds) : null }); this.lastTick = now;
+        selected: resident ? foodInspection(this.trace, resident, this.seconds) : null }); this.lastTick = now;
     }
   };
 
@@ -516,11 +547,18 @@ export class TorontoScene {
   setLayer(layer: Layer, visible: boolean): void {
     this[layer].visible = visible;
   }
-  setPopulation(count: number): void {
-    this.crowd = createCrowd(this.district, count); this.select(null); this.buildPeople();
+  setFoodTrace(trace: FoodTrace): void {
+    this.trace = trace; this.crowd = foodCrowd(trace, this.district);
+    this.reset(); this.buildPeople(); this.buildFoodSites(); this.onSelectSite(null);
   }
   reset(): void { this.seconds = 0; this.lastTick = 0; this.select(null); }
-  seek(seconds: number): void { this.seconds = seconds; this.lastTick = 0; }
+  seek(seconds: number): void { this.seconds = Math.max(0, Math.min(this.trace.horizon_seconds, seconds)); this.lastTick = 0; }
+  focusSite(id: string): void {
+    const site = this.trace.sites.find(s => s.id === id);
+    if (!site || this.seconds < site.active_from) return;
+    this.select(null); this.onSelectSite(id);
+    this.fly(new THREE.Vector3(site.point[0] + 180, 300, site.point[1] + 230), new THREE.Vector3(site.point[0], 8, site.point[1]));
+  }
   resetCamera(): void { this.following = false; this.fly(initialCamera.position.clone(), initialCamera.target.clone()); }
   zoom(direction: number): void {
     const offset = this.camera.position.clone().sub(this.controls.target).multiplyScalar(direction > 0 ? 0.75 : 1.3);
@@ -543,7 +581,7 @@ export class TorontoScene {
     const union = landmarks.find(l => l.id === 'waterfront')!.point;
     let best = 0, nearest = Infinity;
     for (const resident of this.crowd.residents) {
-      const p = sampleResident(resident, this.seconds), d = Math.hypot(p.x - union[0], p.z - union[1]);
+      const p = this.pose(resident), d = Math.hypot(p.x - union[0], p.z - union[1]);
       if (d < nearest && p.walking) { nearest = d; best = resident.id; }
     }
     this.select(best); this.followSelected();
@@ -551,7 +589,7 @@ export class TorontoScene {
   followSelected(): void {
     const resident = this.selected === null ? undefined : this.crowd.residents[this.selected];
     if (!resident) return;
-    const p = sampleResident(resident, this.seconds);
+    const p = this.pose(resident);
     this.fly(new THREE.Vector3(p.x + 130, 190, p.z + 190), new THREE.Vector3(p.x, 8, p.z));
     this.following = true;
   }
@@ -575,6 +613,9 @@ export class TorontoScene {
       }
     });
     geometries.forEach(g => g.dispose()); materials.forEach(m => m.dispose()); textures.forEach(t => t.dispose());
+    this.foodSites.traverse(child => {
+      if (child instanceof THREE.Sprite) { child.material.map?.dispose(); child.material.dispose(); }
+    });
     this.sky.dispose(); this.renderer.dispose(); this.container.replaceChildren();
   }
 }

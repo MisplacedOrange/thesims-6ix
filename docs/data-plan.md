@@ -1,16 +1,18 @@
 # Data plan
 
-## 3D Toronto first
+## Current map and next data gate
 
-The first data milestone is a licensed, versioned Toronto world package with recognizable building massing, a usable street and pedestrian graph, stable feature IDs, and an explicit coordinate transform. Show lower-detail Toronto context outside the first active simulation area. Concentrate detailed destinations, pedestrian paths, and intervention sites inside that area. A geometry layer alone does not establish occupancy, rent, ownership, service capacity, or economic activity.
+The browser already uses a frozen, attributed OpenStreetMap snapshot of downtown Toronto with a walking graph for the bounded food-access scenario. The next data milestone is to validate this baseline and expand it into a licensed, versioned Toronto world package with broader building massing, a usable street and pedestrian graph, stable feature IDs, and an explicit coordinate transform. Show lower-detail Toronto context outside the first active simulation area. Concentrate detailed destinations, pedestrian paths, and intervention sites inside that area. A geometry layer alone does not establish occupancy, rent, ownership, service capacity, or economic activity.
 
 ## Evidence states
 
-Current implementation: the connected district uses the content-hashed illustrative snapshot under `sim/district/data`. Its exports include that source manifest and explicit synthetic labels. The API acquisition and refresh workflow below remains required implementation work; public-source links are not evidence that observations have been ingested.
+Current spatial inputs: the browser and bounded food-access traces use a frozen, attributed OpenStreetMap snapshot of downtown Toronto and its walking graph. This is a limited scene and route input, not the complete versioned Toronto GIS world package described above. The connected district also uses the content-hashed illustrative snapshot under `sim/district/data`. Separately, `sim/data` supports a City GIS acquisition and retrieval flow that can create hashed candidate snapshots for supermarket, convenience-store, food-support-program, and education locations, plus a retrieval index and dashboard-ready source metrics. The first City GIS acquisition attempt could not establish outbound connections from this workspace, so a complete City GIS candidate snapshot is not available. These candidate locations do not replace or calibrate the illustrative district.
 
 Each parameter carries one of four states: observed, announced, estimated, or illustrative. Unknown is a missing value with a reason, not a zero. A source can be verified while its input remains unsuitable for calibration because geography, timing, or definition does not match.
 
-No complete raw data ingestion has been performed in this planning task. Public sources have been located and selected claims checked. Partner-held prices, costs, utilization, and behavior still require access. The initial runnable dataset must identify every illustrative substitute.
+Public sources have been located and selected claims checked. Partner-held prices, costs, utilization, and behavior still require access. The initial runnable dataset must identify every illustrative substitute.
+
+The initial `sim/data` schema and extraction path cover citywide locations only. Its canonical field map distinguishes named sites, service categories, school institution labels, coordinates, source IDs, and source dates. Source dates remain unknown when the API does not expose them; missing operator identities, prices, inventories, daily capacity, demand served, and school-meal reach remain null. See [`sim/data/README.md`](../sim/data/README.md) for the acquisition and retrieval commands.
 
 ## Priority data register
 

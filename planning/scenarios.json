@@ -3,9 +3,25 @@
   "kind": "planning_catalog_not_executable",
   "cutoff": "2026-10-17",
   "product_scope": {
+    "interface": "side_panel_council_chat_with_markdown_proposal_upload",
+    "proposal_intake": "open_user_provided_proposals_not_a_closed_catalog",
+    "scenario_catalog_role": "initial_demonstration_fixtures_not_intake_allowlist",
     "primary_environment": "toronto_3d",
     "primary_agents": "resident_pedestrians",
+    "expert_agents": "simulated_municipal_department_and_delivery_partner_roles",
     "rollout_horizon": "multi_year_staged",
+    "simulation_lifecycle": "ongoing_persistent_world_with_checkpoints_and_replay",
+    "proposal_record_tracks": [
+      "source_references",
+      "requested_changes",
+      "outcome_measures",
+      "constraints",
+      "assumptions",
+      "unknowns",
+      "version_history"
+    ],
+    "real_world_authority": false,
+    "scope_note": "The listed solutions and scenarios are initial demonstration fixtures for a shared Markdown proposal intake and rollout workflow, not an exhaustive supported-proposal list.",
     "school_day_is_product_frame": false,
     "citywide_visual_context": true,
     "active_simulation_extent": "selected_areas"
@@ -64,7 +80,7 @@
         "tc-sites"
       ],
       "default": "off",
-      "note": "Optional delivery scenario, not a fourth core solution. No Toronto route approval is established."
+      "note": "Optional logistics demonstration fixture. No Toronto route approval is established; uploaded proposals may specify other delivery approaches."
     }
   ],
   "scenarios": [
@@ -149,7 +165,6 @@
       "total_runs": 480,
       "status": "superseded"
     },
-    "old_llm_limits_status": "superseded_for_pedestrian_agents",
-    "old_budget_status": "superseded"
+    "old_llm_limits_status": "superseded_for_pedestrian_agents"
   }
 }

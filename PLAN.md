@@ -1,8 +1,16 @@
 # The Sims 6ix: a 3D Toronto pedestrian simulation
 
-## Active implementation scope
+## Current implementation status
 
-The current deliverable is a polished browser 3D Toronto environment with synthetic pedestrian agents. The implementation in apps/web focuses on geography, landmarks, movement, camera controls, lighting, and inspection. Public solutions, infrastructure planning, and economic outcomes are deferred. The broader research plan below describes future work and does not authorize those features in this milestone.
+The browser app in apps/web provides the visual foundation: a sourced downtown Toronto scene, seeded pedestrian itineraries, camera and layer controls, and resident inspection. It is not yet connected to a proposal chat, department agents, or an ongoing policy simulation. This plan describes the target product and a staged path toward it; it does not claim those components are implemented.
+
+## Product scope
+
+Build an ongoing Toronto simulation that lets a user bring real-world policy proposals into a Council-style chat, have expert agents translate them into feasible staged work, and observe their modeled effects over time. The chat accepts uploaded Markdown proposals and supports clarification, amendment, review, and approval. The system preserves the proposal's source material, goals, outcome measures, constraints, unknowns, and assumptions as versioned data.
+
+Municipal department and delivery-partner agents represent roles such as public health, planning and construction, finance and procurement, food program operations, and logistics. They plan and coordinate simulated work. A deterministic simulation service remains authoritative for the world clock, budgets, routes, inventories, capacities, economic transactions, and stage activation. Simulated approvals or actions never become real City decisions, permits, purchases, or construction.
+
+The city continues running as policies move through planning, approval, procurement, construction or readiness, operation, delay, reduction, or cancellation. Proposal-specific outcome measures and important unknowns stay visible and are tracked over the life of the simulation. The initial demonstration proposals are examples for an open proposal-intake system, not a fixed product catalog.
 
 ## Product goal
 
@@ -10,34 +18,39 @@ Build a 3D simulation of Toronto where pedestrians move through a recognizable c
 
 Make the Toronto world the first product milestone. Treat food programs as scenarios inside that world. The current school-day prototype remains useful for testing food accounting, but it does not set the shape or time horizon of the product.
 
-The project has four linked goals:
+The project has five linked goals:
 
-1. Build a geospatial 3D Toronto environment from dated, licensed city data.
-2. Populate active areas with pedestrian agents using rule policies, small models, and a bounded number of LLM decisions.
-3. Use a separate LLM planner to propose infrastructure and staged rollout plans for three public solutions.
-4. Compare baseline and rollout outcomes by neighborhood and population group, including economic measures and labeled modeled response.
+1. Maintain a geospatial 3D Toronto environment from dated, licensed city data.
+2. Accept and version new Markdown policy proposals through a Council-style chat without requiring proposal-specific code.
+3. Simulate pedestrian residents and relevant municipal or delivery-partner expert roles with clear authority boundaries.
+4. Coordinate feasible, staged infrastructure work and continue the world simulation as changes become operational.
+5. Track proposal-defined and standard outcomes by area and population group, including economic measures and clearly labeled modeled response.
 
 This is an exploratory planning and research tool. It does not predict Toronto's entire economy or establish actual public opinion.
 
-## The three solutions
+## Initial demonstration proposals
 
-The current project documents identify three Toronto policy initiatives:
+The first demonstration uses three sourced Toronto proposals. They are fixtures for proving the shared intake and simulation workflow, not an exhaustive set of supported interventions.
 
-| Solution | Simulation role | First planning questions |
+| Demonstration proposal | Simulation role | First planning questions |
 | --- | --- | --- |
 | Affordable municipal groceries | Sites, procurement, operating model, prices, and subsidy | Which locations improve access? What staffing, funding, supplier, and capacity conditions affect opening? |
 | Food rescue and processing | Collection, cold storage, processing, and distribution capacity | Where are facilities useful? Which supply, equipment, labor, and buyer constraints limit output? |
 | Expanded school meals, including the proposed unlimited-lunch option | School kitchens, food storage, menus, staffing, procurement, and delivery | Which schools can serve more students? What equipment, workers, food volumes, funding, and rollout stages are required? |
 
-The existing planning package also includes Meituan-style drone delivery. Treat drones as a delivery scenario that can support a solution, not as a fourth public solution. Ground delivery remains a comparison. The exact eligibility, participation, menu, and service promise for the unlimited-lunch proposal still needs a policy definition.
-
-This mapping follows the three Toronto initiatives identified in the existing plan. Confirm the names and boundaries before treating them as settled policy requirements.
+The exact eligibility, participation, menu, and service promise for the unlimited-lunch proposal still need definition. Drone delivery can be added as a logistics proposal when supported by an uploaded problem statement and relevant evidence; it is not a special hard-coded exception.
 
 ## Toronto is the primary environment
 
-Build a 3D Toronto base from licensed building massing, street geometry, and other verified geographic layers. Use a citywide visual overview with lower detail outside the active simulation areas. Give selected neighborhoods detailed routes, people, destinations, and policy infrastructure first.
+Maintain and expand the existing frozen downtown Toronto scene using licensed building massing, street geometry, and other verified geographic layers. Use a citywide visual overview with lower detail outside the active simulation areas. Give selected neighborhoods detailed routes, people, destinations, and policy infrastructure first.
 
 A visible building does not imply that the model knows its rent, capacity, ownership, or activity. Keep geometry and economic attributes as separate evidence-bearing data. Use stable feature IDs to connect the scene, pedestrian network, public services, and rollout proposals.
+
+## Council chat and proposal intake
+
+The side-panel chat is the working session for a simulated City Council. The user can upload a Markdown proposal, deliberate on its goals, ask for departmental analysis, amend interpretation, inspect sources, and record a versioned Council decision. The intake agent extracts named actors, requested changes, geographic and service constraints, outcome measures, timelines, funding, unknowns, and assumptions. It preserves citations and quotes for review; it does not turn unsupported claims into facts or silently fill missing values. The decision and approval rules for the demo remain open, and nothing authorizes real City action.
+
+The initial three proposals should be loaded through this same path. A new proposal must be representable without adding a new product-specific solution ID or code branch. When a proposal omits a required value, the system records an unknown, offers explicit scenario ranges where appropriate, or asks the user to clarify.
 
 The first environment should include homes, streets, sidewalks or walkable links, transit access where data support it, schools, food retailers, community food services, and candidate infrastructure sites. Do not make school buildings the organizing frame for the city.
 
@@ -55,13 +68,13 @@ A household remains the shared financial unit when its members pool food and mon
 
 ## Infrastructure rollout planner
 
-Build a planner that proposes how to phase each solution into Toronto. Its first demonstration can plan the school meal expansion described above, but the city simulation must remain useful when that scenario is off.
+Build a coordinated team of simulated expert agents that proposes how to phase each uploaded proposal into Toronto. Department roles can cover public health, planning and construction, finance, procurement, food operations, and logistics. The team works from the approved proposal, frozen evidence snapshot, current infrastructure, available budgets, and rollout constraints. It can identify dependencies and disagreements, but cannot invent authority, funding, or capacity.
 
-The LLM planner receives a declared goal, a frozen map and evidence snapshot, current infrastructure, budgets, and rollout constraints. It returns a structured proposal with candidate sites, required equipment, staffing, storage, procurement and delivery dependencies, capital and operating costs, time ranges, capacity ramps, uncertainties, and stop conditions. Each sourced claim includes source IDs. Unknown values stay unknown.
+The agents return structured work packages with candidate sites, required equipment, staffing, storage, procurement and delivery dependencies, capital and operating costs, time ranges, capacity ramps, uncertainties, outcome measures, and stop conditions. Each sourced claim includes source IDs. Unknown values stay unknown. Council approval is recorded separately from departmental recommendations.
 
 A deterministic validator checks source references, site eligibility, units, budgets, dependencies, timing, and capacity consistency. A reviewer accepts or rejects the validated plan. The simulation activates only accepted milestones, and it records each delayed, reduced, or canceled stage. The planner cannot create infrastructure by assertion.
 
-The planner operates on a slower schedule than pedestrian choices. It can propose a multi-year rollout while daily agents move, attend services, shop, and respond to changes. A change in the rollout creates a new scenario or a fork at a recorded boundary.
+Department planning operates on a slower schedule than pedestrian choices. It can propose a multi-year rollout while daily agents move, attend services, shop, and respond to changes. The world persists across rollout stages and records the policy, source, approval, and outcome events that change its state. A deliberate alternative plan creates a versioned branch at a recorded boundary.
 
 ## Economic and human outcomes
 
@@ -78,7 +91,8 @@ If the project later collects consented survey responses, store them as a separa
 | Mode | World | Agent behavior | Purpose |
 | --- | --- | --- | --- |
 | Explore | 3D world with staged time controls | Rules and selected bounded model decisions | Inspect pedestrian activity and infrastructure changes |
-| Plan | Frozen evidence and infrastructure snapshot | LLM proposes, deterministic checks validate | Compare feasible rollout options before a simulation run |
+| Council | Uploaded proposal and evolving simulation | Chat supports simulated deliberation; human records the decision | Turn a sourced proposal into an explicit, versioned simulation decision |
+| Plan | Current world and approved proposal | Department agents propose work packages; deterministic checks validate | Coordinate feasible rollout stages and surface conflicts or unknowns |
 | Experiment | Headless or rendered replicated runs | Declared rule, small-model, or recorded policy | Compare economic and modeled response outcomes |
 | Replay | Recorded world and economic events | No new model calls | Inspect a completed run and its causes |
 
@@ -94,15 +108,18 @@ Use immutable snapshots for source data, scenarios, planner proposals, and compl
 
 ## First release and boundaries
 
-The first release should show a real Toronto 3D context and one selected active area. It should move a small synthetic pedestrian population along a sourced or clearly labeled pedestrian network. It should compare a baseline with a validated, staged school meal rollout and report the economic and modeled response changes.
+The first release should preserve the Toronto 3D environment, add the Council chat and proposal intake, and run an ongoing authoritative simulation for a selected area. The demo should load the grocery, surplus-processing, and school-food Markdown proposals through the shared intake path and show proposal-specific metrics, unknowns, expert work packages, staged simulated changes, and a replayable event history. New proposals should follow the same flow without code changes.
 
-Keep all three solutions in the scenario registry from the start. The school meal rollout can be the first end-to-end planner demonstration; extend the same staged-planning contract to groceries and processing after that slice works. Expand active geography and agent population after data and replay are stable. Detailed character customization, residential interiors, social relationships, photorealistic assets, and operational drone dispatch are outside the first release.
+Keep the first active geography and population small enough to validate data, replay, department coordination, and performance. Detailed character customization, residential interiors, photorealistic assets, and real-world operational authority are outside the first release.
 
 ## Open decisions
 
-- Confirm the names and rules for the three solutions. The school proposal needs an exact definition of "unlimited lunches."
-- Select the first active Toronto area and confirm which source data and licenses support it.
+- Define which decisions the Council chat records as human-approved and which work packages department agents can resolve within approved limits.
+- Define the reusable Markdown proposal contract, source extraction, unknown handling, outcome metrics, and version lifecycle.
+- Map simulated expert roles to real department responsibilities without implying official City participation or authority.
+- Specify how an ongoing simulation is checkpointed, paused, resumed, forked, and replayed.
+- Define how the first three demonstration proposals represent open questions such as grocery sites and school meal service rules.
+- Validate the current active Toronto area and its source data and licenses; select the next area for expansion.
 - Select the first supported browsers and device classes, and decide whether the Python service is local to one user's machine or hosted for shared access.
-- Define which pedestrian decisions use rules, small models, or LLMs and set a run-level cost and latency limit.
+- Define which pedestrian and department decisions use rules, small models, or LLMs and set run-level cost, latency, and audit limits.
 - Choose the first economic and modeled-response outcomes with domain reviewers.
-- Set staffing, schedule, hardware, and operating budgets for the revised scope. Existing estimates describe the earlier food-policy prototype and do not price this product.

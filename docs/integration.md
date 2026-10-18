@@ -1,6 +1,12 @@
 # Consolidated simulation implementation
 
-The user's October 17 scope revision governs the product direction: Toronto's 3D world and pedestrian agents come first; a separate planner proposes staged infrastructure rollouts; the model tracks economic and explicitly labeled modeled-response outcomes. The code described below is a legacy economic vertical slice that can supply mechanisms and fixtures. Its school-day framing does not define the product.
+The current product direction is a Toronto 3D simulation with a side-panel Council chat for Markdown proposals, simulated departmental expert agents, and ongoing staged infrastructure changes. The system should preserve proposal evidence, outcome measures, unknowns, and tracked metrics over the life of the simulation. None of those target features is implemented in the code described below: this document records a legacy economic vertical slice that can supply mechanisms and fixtures. Its school-day framing does not define the product.
+
+## Browser pedestrian food-access day
+
+The browser now replays bounded runs exported by [`sim/interactables`](../sim/interactables/README.md). That executor routes one resident per household on the browser map, generates deterministic legal choices, and commits retail purchases, food support, school portions, supplier replenishment, and home food use through the public `sim.core` API. An optional emergency-site scenario records a city grant, paid stock delivery, explicit service capacity, activation, and closure. Its dashboard and inspectors read committed event projections at the current playhead; seeking and camera actions never settle transactions.
+
+This is a separate six-hour illustrative scenario, not a connection to the legacy `sim.integration` run or a persistent Python service. Site locations and operating values are scenario assumptions. It provides the initial [pedestrian interactables](pedestrian-interactables-plan.md) while proposal intake, department coordination, multi-day state, and empirical calibration remain open.
 
 ## Why the prototype says school day
 
@@ -11,7 +17,7 @@ The phrase comes from the connected Python integration fixture, not from a Toron
 - The [Connected district day section](#connected-district-day) documents the same fixture: synthetic school service, one day of household budget, shopping, and delivery.
 - The previous `PLAN.md` and roadmap made that fixture the initial demonstration. This was a product-story choice layered on top of the existing code, not a requirement established by user research or data.
 
-The daily fixture appears to have been an engineering convenience for connecting school meal accounting, procurement, household shopping, and logistics in one small run. The revised plan keeps it as an economic regression scenario and makes Toronto, pedestrian movement, and staged planning the product frame.
+The daily fixture appears to have been an engineering convenience for connecting school meal accounting, procurement, household shopping, and logistics in one small run. The current plan keeps it as an economic regression scenario. It makes Toronto, pedestrian movement, open proposal intake, coordinated department roles, and ongoing staged planning the product frame.
 
 ## Selected contributions
 
@@ -81,9 +87,9 @@ The experiment executor creates a new world for every cell and seed, checks supp
 | Requirement | Current evidence | Next implementation gate |
 | --- | --- | --- |
 | Current economic data | Source register and illustrative snapshot only | Toronto API/resource downloads, Statistics Canada inputs, immutable raw checkpoints, dates/geographies/units, rejected-row reports |
-| Toronto 3D world | No Toronto scene or source geography is ingested | Load licensed massing and streets; verify coordinates, feature IDs, active-area routes, and replay in visible and headless runtime |
+| Toronto 3D world | Frozen, attributed Toronto geometry and a walking graph are used by the browser and bounded food-access traces | Expand source coverage and connect validated geography to a persistent world service |
 | Infrastructure planner | Not implemented | Structured site/cost/dependency/timing/capacity proposals with source IDs and deterministic rejection/revision |
-| Implementation duration | Existing planning ranges, not official promises | Dependency schedule with operator evidence, uncertain delays, capacity ramps and no-launch cases |
+| Implementation duration | No production schedule is approved | Define dependency sequence with operator evidence, uncertain delays, capacity ramps and no-launch cases |
 | Policy impacts | Connected within-model mechanisms | Multi-product baskets, longer calendars, parameter studies, independent review and observed calibration |
 | Human response | Choices and labeled latent proxies | Behavioral validation; real attitudes require a separate consent-based measurement design |
 | Pedestrian agent layer | Existing choices are deterministic household shopping rules | Add resident positions, paths, schedules, mobility constraints, and rule-driven movement before small-model or LLM calls |

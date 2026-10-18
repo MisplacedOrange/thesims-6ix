@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "publisher": "City of Toronto",
+  "geography_id": "city-of-toronto",
+  "licence_url": "https://open.toronto.ca/open-data-licence/",
+  "licence_status": "Confirm the terms for each layer before publishing derived data.",
+  "sources": [
+    {
+      "id": "toronto_supermarkets",
+      "title": "Supermarket locations",
+      "publisher": "City of Toronto",
+      "connector": "arcgis_feature_layer",
+      "layer_url": "https://gis.toronto.ca/arcgis/rest/services/cot_geospatial26/FeatureServer/4",
+      "description": "Large supermarkets or full-service grocery stores providing the full range of food products and serving a broader community area.",
+      "place_category": "supermarket",
+      "field_map": {
+        "source_record_id": {"source": "OBJECTID", "type": "string"},
+        "site_name": {"source": "NAME", "type": "string"},
+        "address": {"source": "ADDRESS_FULL", "type": "string"},
+        "postal_code": {"source": "POSTAL_CODE", "type": "string"},
+        "municipality": {"source": "MUNICIPALITY", "type": "string"},
+        "latitude_deg": {"source": "LATITUDE", "type": "number"},
+        "longitude_deg": {"source": "LONGITUDE", "type": "number"},
+        "place_category": {"value": "supermarket", "type": "string"},
+        "service_type": {"value": "full_service_grocery", "type": "string"}
+      },
+      "simulation_variables": ["listed_supermarket_site_count", "retail_site_location"],
+      "limitations": [
+        "A mapped site does not report inventory, sales, prices, daily capacity, opening status, or the grocery chain/operator.",
+        "The layer describes large/full-service supermarkets and is not a census of all food retailers.",
+        "An ArcGIS edit timestamp, if supplied, may not identify the underlying business-record vintage."
+      ],
+      "retrieval_terms": ["grocery store", "food retailer", "market", "supermarket access", "retail location"]
+    },
+    {
+      "id": "toronto_convenience_stores",
+      "title": "Convenience store locations",
+      "publisher": "City of Toronto",
+      "connector": "arcgis_feature_layer",
+      "layer_url": "https://gis.toronto.ca/arcgis/rest/services/cot_geospatial26/FeatureServer/1",
+      "description": "Convenience stores from the Toronto Business Directory.",
+      "place_category": "convenience_store",
+      "field_map": {
+        "source_record_id": {"source": "OBJECTID", "type": "string"},
+        "site_name": {"source": "NAME", "type": "string"},
+        "address": {"source": "ADDRESS_FULL", "type": "string"},
+        "postal_code": {"source": "POSTAL_CODE", "type": "string"},
+        "municipality": {"source": "MUNICIPALITY", "type": "string"},
+        "latitude_deg": {"source": "LATITUDE", "type": "number"},
+        "longitude_deg": {"source": "LONGITUDE", "type": "number"},
+        "place_category": {"value": "convenience_store", "type": "string"},
+        "service_type": {"source": "TYPE", "type": "string"}
+      },
+      "simulation_variables": ["listed_convenience_store_site_count", "retail_site_location"],
+      "limitations": [
+        "The directory identifies locations, not food inventory, sales, prices, daily capacity, or opening status.",
+        "The layer does not provide a reliable grocery chain/operator field.",
+        "An ArcGIS edit timestamp, if supplied, may not identify the underlying business-record vintage."
+      ],
+      "retrieval_terms": ["corner store", "convenience store", "food retailer", "retail access", "store location"]
+    },
+    {
+      "id": "toronto_food_support_sites",
+      "title": "Food bank and food-support program locations",
+      "publisher": "City of Toronto",
+      "connector": "arcgis_feature_layer",
+      "layer_url": "https://gis.toronto.ca/arcgis/rest/services/cot_geospatial26/FeatureServer/50",
+      "description": "Food support locations. The layer description includes good food baskets, meals-on-wheels, child nutrition programs, and food drop-offs; program type must be retained.",
+      "place_category": "food_support_program",
+      "field_map": {
+        "source_record_id": {"source": "OBJECTID", "type": "string"},
+        "site_name": {"source": "NAME", "type": "string"},
+        "address": {"source": "ADDRESS_FULL", "type": "string"},
+        "postal_code": {"source": "POSTAL_CODE", "type": "string"},
+        "municipality": {"source": "MUNICIPALITY", "type": "string"},
+        "latitude_deg": {"source": "LATITUDE", "type": "number"},
+        "longitude_deg": {"source": "LONGITUDE", "type": "number"},
+        "place_category": {"value": "food_support_program", "type": "string"},
+        "service_type": {"source": "PROGTYPE", "type": "string"}
+      },
+      "simulation_variables": ["listed_food_support_site_count", "food_support_site_location"],
+      "limitations": [
+        "This is a mixed food-support layer, not a count of food banks alone; preserve PROGTYPE when grouping it.",
+        "It does not report clients served, daily requests, unmet demand, stock, hours, or throughput capacity.",
+        "An ArcGIS edit timestamp, if supplied, may not identify the underlying program-record vintage."
+      ],
+      "retrieval_terms": ["food bank", "food assistance", "food insecurity", "meal program", "food support", "service location"]
+    },
+    {
+      "id": "toronto_education_sites",
+      "title": "School and education locations",
+      "publisher": "City of Toronto",
+      "connector": "arcgis_feature_layer",
+      "layer_url": "https://gis.toronto.ca/arcgis/rest/services/cot_geospatial28/FeatureServer/17",
+      "description": "Education locations including public and Catholic schools, universities, colleges, private schools, and adult learning facilities.",
+      "place_category": "education_location",
+      "field_map": {
+        "source_record_id": {"source": "OBJECTID", "type": "string"},
+        "site_name": {"source": "NAME", "type": "string"},
+        "institution_name": {"source": "BOARD_NAME", "type": "string"},
+        "address": {"source": "ADDRESS_FULL", "type": "string"},
+        "postal_code": {"source": "POSTAL_CODE", "type": "string"},
+        "municipality": {"source": "MUNICIPALITY", "type": "string"},
+        "latitude_deg": {"source": "LATITUDE", "type": "number"},
+        "longitude_deg": {"source": "LONGITUDE", "type": "number"},
+        "place_category": {"value": "education_location", "type": "string"},
+        "service_type": {"source": "SCHOOL_TYPE_DESC", "type": "string"},
+        "category_code": {"source": "SCHOOL_TYPE", "type": "string"},
+        "education_level_code": {"source": "SCHOOL_LEVEL", "type": "string"}
+      },
+      "simulation_variables": ["listed_education_site_count", "education_site_location", "school_board_site_counts"],
+      "limitations": [
+        "This layer includes more than K-12 schools; filter school type before estimating school-meal reach.",
+        "BOARD_NAME is an institution/board label, not a food-service operator count.",
+        "Locations do not report enrollment, meal-program participation, kitchen capacity, or meal servings.",
+        "An ArcGIS edit timestamp, if supplied, may not identify the underlying education-record vintage."
+      ],
+      "retrieval_terms": ["school", "education", "school board", "student", "school meal program", "education location"]
+    }
+  ]
+}

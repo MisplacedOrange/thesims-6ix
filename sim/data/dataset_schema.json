@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "dataset_name": "toronto_civic_food_access_sites",
+  "grain": "one source-listed point location per row",
+  "scope": "City of Toronto citywide; not clipped to an active simulation district",
+  "evidence_state_values": ["observed", "announced", "estimated", "illustrative"],
+  "fields": {
+    "source_id": {"type": "string", "required": true, "meaning": "Stable identifier from sim/data/sources.json"},
+    "source_record_id": {"type": "string", "required": true, "meaning": "Source layer record identifier; not a business registration ID"},
+    "site_id": {"type": "string", "required": true, "meaning": "Derived as source_id:source_record_id"},
+    "place_category": {"type": "string", "required": true, "meaning": "supermarket, convenience_store, food_support_program, or education_location"},
+    "site_name": {"type": ["string", "null"], "meaning": "Source-listed location name"},
+    "service_type": {"type": ["string", "null"], "meaning": "Source category/program type; definitions differ by source"},
+    "category_code": {"type": ["string", "null"], "meaning": "Source classification code where supplied"},
+    "education_level_code": {"type": ["string", "null"], "meaning": "Source school-level code where supplied"},
+    "institution_name": {"type": ["string", "null"], "meaning": "School board/institution label when supplied; not a general company operator ID"},
+    "address": {"type": ["string", "null"]},
+    "postal_code": {"type": ["string", "null"]},
+    "municipality": {"type": ["string", "null"]},
+    "latitude_deg": {"type": ["number", "null"], "unit": "decimal degrees"},
+    "longitude_deg": {"type": ["number", "null"], "unit": "decimal degrees"},
+    "geography_id": {"type": "string", "required": true, "meaning": "City of Toronto source scope; not a neighbourhood assignment"},
+    "source_url": {"type": "string", "required": true},
+    "retrieved_at": {"type": "string", "format": "date-time", "required": true},
+    "published_at": {"type": ["string", "null"], "format": "date-time", "meaning": "Null unless the source states a publication/update date"},
+    "source_updated_at": {"type": ["string", "null"], "format": "date-time", "meaning": "Layer edit timestamp when the API reports one; distinct from retrieval time"},
+    "evidence_state": {"type": "string", "enum": ["observed", "announced", "estimated", "illustrative"], "required": true},
+    "quality_flags": {"type": "array", "items": "string"}
+  },
+  "tracked_but_not_available_from_these_sources": {
+    "grocery_operator_count": "No reliable grocery chain/operator field in the selected retail layers.",
+    "store_stock_or_daily_capacity": "Location data do not report available food, shelf stock, sales, or throughput.",
+    "local_retail_price": "Location data do not report item-level prices.",
+    "food_bank_demand_or_capacity": "Food-support location data do not report daily requests, clients served, unmet need, or stock.",
+    "school_meal_reach": "Education locations do not report enrollment, program participation, or meals served."
+  }
+}
